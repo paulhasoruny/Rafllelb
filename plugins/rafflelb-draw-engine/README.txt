@@ -1,3 +1,8 @@
+v0.34.18.10 — Global header divider placement
+- Moved the RaffleLB lime divider from the inner `.whb-general-header` / sticky-row border to `body .whb-header.whb-header_231291::after`.
+- The 2px existing lime rule is now anchored at the outer header boundary (`bottom:-2px`), so it separates the header from page content without changing desktop/mobile header dimensions, control positions, or sticky behavior.
+- Presentation only; raffle, cart, checkout, account, and Draw Engine logic are unchanged.
+
 v0.33.95 Winners page: fixed inconsistent RAFFLE NOW button spacing:
 - The button was the only icon+arrow CTA on this page using justify-content:space-between instead of a fixed gap, so the space between "RAFFLE NOW" and the arrow only stayed tight when the button happened to shrink-wrap exactly to its text - any extra width pushed the arrow out toward the far edge instead, which is why it looked loose on mobile and tight on desktop.
 - Switched to the same fixed-gap pattern already used by every other button on this page, and locked the button to its content width so nothing else can stretch it. Consistent on both desktop and mobile now.

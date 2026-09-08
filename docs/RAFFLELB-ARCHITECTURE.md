@@ -33,7 +33,7 @@ All fourteen plugins are present in this repository.
 | Plugin folder | Plugin name | Version |
 | --- | --- | --- |
 | `rafflelb-core` | RaffleLB Core | 0.1.2 |
-| `rafflelb-draw-engine` | RaffleLB Draw Engine | 0.34.18.9 |
+| `rafflelb-draw-engine` | RaffleLB Draw Engine | 0.34.18.10 |
 | `rafflelb-raffle-manager` | RaffleLB Raffle Manager | 1.4.1 |
 | `rafflelb-account` | RaffleLB Account | 0.1.0 |
 | `rafflelb-homepage` | RaffleLB Homepage | 0.1.2 |
@@ -89,7 +89,7 @@ without explicit approval:
 Internal schema compatibility stays at **0.34.18** even when the WordPress
 plugin header version increases.
 
-Known baseline: **0.34.18.9** · Shop bridge: `SHOP_BRIDGE_VERSION = '1'`, verified against
+Known baseline: **0.34.18.10** · Shop bridge: `SHOP_BRIDGE_VERSION = '1'`, verified against
 Shop's check in `rafflelb-shop.php`.
 
 ---

@@ -2,7 +2,7 @@
 /**
  * Plugin Name: RaffleLB Draw Engine
  * Description: Raffle entry engine with cart-level reservation locking, unique paid entries, live progress, and WooCommerce integration.
- * Version: 0.34.18.9
+ * Version: 0.34.18.10
  * Author: RaffleLB
  */
 
@@ -7830,8 +7830,8 @@ body .whb-header.whb-header_231291 .wd-logo img{max-width:240px!important;max-he
 
 body .whb-header.whb-header_231291,body .whb-header.whb-header_231291 *{box-sizing:border-box}body .whb-header.whb-header_231291 .wd-nav-header{display:flex;flex-wrap:nowrap;list-style:none;margin:0}body .whb-header.whb-header_231291 .wd-nav-header>li>a{display:flex;align-items:center;text-decoration:none}body .whb-header.whb-header_231291 .whb-general-header-inner{width:100%}
 
-/* One edge only: neutralize the site's existing 3px normal/sticky rules. */
-body .whb-header.whb-header_231291::after{content:none!important;display:none!important;box-shadow:none!important}body .whb-header.whb-header_231291 .whb-general-header,body .whb-header.whb-header_231291.whb-sticked .whb-row:last-child{border-bottom:1px solid #718f1b!important;box-shadow:none!important}
+/* One edge only: the divider belongs to the outer header boundary. */
+body .whb-header.whb-header_231291 .whb-general-header,body .whb-header.whb-header_231291.whb-sticked .whb-row:last-child{border-bottom:0!important;box-shadow:none!important}
 @media(min-width:1025px){body .whb-header.whb-header_231291 .whb-general-header-inner{height:78px!important;gap:20px}body .whb-header.whb-header_231291 .wd-logo img{max-width:210px!important;max-height:60px!important}body .whb-header.whb-header_231291 .wd-nav-header>li>a{min-height:40px;padding-block:10px;font-size:11px!important}body .whb-header.whb-header_231291 .wd-nav-header{padding-block:2px}body .whb-header.whb-header_231291 .rafflelb-header-points{min-height:40px}}
 
 /* Readable header type and reference control surfaces. */
@@ -7854,8 +7854,8 @@ body .whb-header.whb-header_231291 .wd-logo img{max-width:240px!important;max-he
 body .whb-header.whb-header_231291 .rl-header-more{display:none!important}
 body .whb-header.whb-header_231291 .rafflelb-header-points{background:#0b1209!important;background-image:none!important;border:1px solid #fff!important;color:#fff!important;box-shadow:none!important}
 body .whb-header.whb-header_231291 .rafflelb-header-points-count{color:#fff!important;-webkit-text-fill-color:#fff!important;background:transparent!important}
-body .whb-header.whb-header_231291 .whb-general-header,body .whb-header.whb-header_231291.whb-sticked .whb-row:last-child{border-bottom:3px solid #c6ff00!important;box-shadow:0 1px 6px #c6ff0033!important}
-body .whb-header.whb-header_231291{background:#080e08!important;margin-bottom:0!important}
+body .whb-header.whb-header_231291{position:relative!important;background:#080e08!important;margin-bottom:0!important}
+body .whb-header.whb-header_231291::after{content:""!important;display:block!important;position:absolute!important;z-index:2!important;pointer-events:none!important;left:0!important;right:0!important;bottom:-2px!important;height:2px!important;background:#c6ff00!important;box-shadow:0 1px 6px #c6ff0033!important}
 body .whb-header.whb-header_231291 .wd-logo{position:relative;display:block}
 @media(min-width:1025px){body .whb-header.whb-header_231291 .whb-row>.container{max-width:1600px;padding-inline:24px}body .whb-header.whb-header_231291 .whb-general-header-inner{gap:28px;justify-content:space-between}body .whb-header.whb-header_231291 .whb-col-left{flex:0 1 auto!important}body .whb-header.whb-header_231291 .wd-logo img{max-width:290px!important;max-height:76px!important}body .whb-header.whb-header_231291 .wd-nav-header>li:has(>.rl-header-more){display:none!important}body .whb-header.whb-header_231291 .wd-nav-header>li>a{padding-inline:24px}}
 @media(min-width:1025px) and (max-width:1250px){body .whb-header.whb-header_231291 .wd-logo img{max-width:225px!important}body .whb-header.whb-header_231291 .whb-general-header-inner{gap:14px}body .whb-header.whb-header_231291 .wd-nav-header>li>a{padding-inline:14px}}
