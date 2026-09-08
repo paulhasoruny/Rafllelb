@@ -1,10 +1,10 @@
-# RaffleLB Shop 0.1.42 — installation and rollback
+# RaffleLB Shop 0.1.43 — installation and rollback
 
 ## Install in order
 
 1. Keep Core, Account, Homepage and all seven original feature plugins active.
 2. Upload rafflelb-draw-engine-0.34.18.3.zip through WordPress Plugins > Add New > Upload Plugin. Replace the currently installed Draw Engine in the existing rafflelb-draw-engine folder. Do not delete it first or create a second Draw Engine folder. This is cumulative: Account and Homepage bridges are included.
-3. Upload rafflelb-shop-0.1.42.zip and activate RaffleLB Shop.
+3. Upload rafflelb-shop-0.1.43.zip and activate RaffleLB Shop.
 4. Clear page/asset caches. Check Store, category archives and product pages on desktop and mobile, including the view selector, filters, sorting, prices, Buy Direct and Enter Raffle controls.
 
 The setup now has eleven plugins. No Core, Account or Homepage replacement is needed.
@@ -200,3 +200,11 @@ Desktop-only refinement: toolbar grouping/dividers, contained raffle-entry prici
 - The guard is released by a CSS keyframe after 2.5s and on window load, so the product region can never stay hidden if the script or the stylesheet fails. With JavaScript disabled the guard is never applied at all.
 - WP Rocket exclusions added for the layout stylesheet (async CSS, minification, Remove Unused CSS) and for the inline first-paint style, alongside the existing delay/defer JavaScript exclusions.
 - Product markup, layout, mobile rules and every other presentation rule are unchanged.
+
+
+## 0.1.43
+- Desktop only: approximately 14px of space between the bottom of the gallery and the top of the Product Details card, up from 12px.
+- Desktop only: the Product Details bottom border and the raffle card bottom border now sit on the same horizontal line. The two columns remain independent vertical stacks; the grid stretches both to equal height and the final card in each stack absorbs the remaining height. No shared grid rows, no fixed card heights, no JavaScript measurement, no negative margins.
+- The final card is addressed as the stack's last child and its trailing margin is zeroed there, so the base 22px card margin cannot reintroduce the offset if stylesheet order is rewritten by an optimiser.
+- Scoped to @media (min-width:901px). Mobile geometry is byte-identical to 0.1.42, verified element by element at 390px, 767px and 900px.
+- The 0.1.42 first-paint/flicker fix is untouched: rafflelb-shop.php changes only the version string.

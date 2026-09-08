@@ -1,4 +1,4 @@
-/* RaffleLB Shop 0.1.42: sole single-product presentation source. */
+/* RaffleLB Shop 0.1.43: sole single-product presentation source. */
 /* First-paint probe: the bootstrap reads this width back to confirm the
    stylesheet is live before it un-hides the product region. */
 .rl-css-probe{position:absolute!important;left:-9999px!important;top:0!important;width:7px!important;height:0!important;overflow:hidden!important;opacity:0!important;pointer-events:none!important}
@@ -138,4 +138,29 @@ body.rafflelb-raffle-product .rl-raffle-details-inner{padding:0 18px 18px}
 body.rafflelb-raffle-product .rl-raffle-details-grid{grid-template-columns:1fr;padding-top:20px}
 body.rafflelb-raffle-product .rl-raffle-detail-col,body.rafflelb-raffle-product .rl-raffle-detail-col:nth-child(2){padding:8px 0 18px;margin:0 0 18px;border-right:0;border-bottom:1px solid rgba(255,255,255,.1)}
 body.rafflelb-raffle-product .rl-raffle-detail-col:last-child{border-bottom:0}
+}
+
+/* ------------------------------------------------------------------
+ * Desktop column geometry (0.1.43). Two independent vertical stacks —
+ * deliberately NOT shared grid rows, which previously tied Buy Direct's
+ * row height to the much taller gallery and opened a large empty gap.
+ *
+ * The grid stretches both column wrappers to the same height; the final
+ * card in each stack then absorbs whatever height is left, so the two
+ * bottom borders land on one line. Addressing the final card as
+ * :last-child rather than by name keeps that true if anything is ever
+ * appended below it, and the trailing margin is zeroed there so the
+ * base 22px card margin cannot reintroduce the offset.
+ * ------------------------------------------------------------------ */
+@media(min-width:901px){
+body.rafflelb-raffle-product .rl-product-layout{align-items:stretch}
+body.rafflelb-raffle-product .rl-product-left,
+body.rafflelb-raffle-product .rl-product-right{display:flex;flex-direction:column;height:100%;align-self:stretch;min-width:0}
+/* Gallery and summary keep their natural height; only the last card grows. */
+body.rafflelb-raffle-product .rl-product-left>*,
+body.rafflelb-raffle-product .rl-product-right>*{flex:0 0 auto}
+body.rafflelb-raffle-product .rl-product-left>*:last-child,
+body.rafflelb-raffle-product .rl-product-right>*:last-child{flex:1 1 auto;margin-bottom:0}
+/* Small breathing space between the gallery and the details card. */
+body.rafflelb-raffle-product .rl-product-left>.rl-product-details-panel{margin-top:14px}
 }
