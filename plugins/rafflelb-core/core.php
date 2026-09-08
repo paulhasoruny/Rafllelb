@@ -4,7 +4,7 @@ if (!defined('ABSPATH')) { exit; }
 
 /** Exact legacy storage identifiers. Legacy plugins retain schema ownership. */
 final class Contracts {
-    const VERSION = '0.1.1';
+    const VERSION = '0.1.2';
     const ENTRY_TABLE = 'rafflelb_entries';
     const HOLD_TABLE = 'rafflelb_holds';
     const RESULT_TABLE = 'rafflelb_draw_results';
@@ -170,7 +170,15 @@ final class Access {
         $fallback = function_exists('wc_get_page_permalink') ? wc_get_page_permalink('shop') : home_url('/');
         $requested = esc_url_raw(wp_unslash($_GET['rafflelb_return_to']));
         $target = wp_validate_redirect($requested, $fallback);
-        WC()->session->set(self::RETURN_SESSION_KEY, $target);
+        $session = WC()->session;
+        $session->set(self::RETURN_SESSION_KEY, $target);
+
+        // This flow can be the first WooCommerce interaction for a guest. A
+        // session value alone is not durable unless WooCommerce also issues
+        // its guest session cookie before the login POST begins.
+        if (is_callable(array($session, 'set_customer_session_cookie'))) {
+            $session->set_customer_session_cookie(true);
+        }
     }
 
     private static function consume_return_target($fallback) {

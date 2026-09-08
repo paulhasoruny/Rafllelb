@@ -1,4 +1,4 @@
-# RaffleLB Core 0.1.0 — additive foundation
+# RaffleLB Core 0.1.2 — additive foundation
 
 Install rafflelb-core.zip using WordPress Plugins > Add New > Upload Plugin, then activate on a staging copy first. Keep all seven existing plugins installed and active. This adds an eighth plugin; the eventual eleven-plugin architecture is not yet extracted.
 
@@ -15,6 +15,10 @@ Core loads namespaced PHP classes only. It registers no actions, filters, shortc
 - `RaffleLB\Core\Compatibility::report()`: call after plugins_loaded completes. Compares installed plugin header versions against baseline.json, checks active state and the notification listener. This is a diagnostic, not proof of behavioral compatibility or source identity. Renamed plugin directories are reported missing_or_renamed.
 
 Consumers must use is_wp_error() for error-capable APIs and declare/load Core before calling its classes. No global legacy function is replaced. No hard Core dependency is added to legacy plugins.
+
+## 0.1.2
+
+When a logged-out customer reaches My Account from a RaffleLB Shop product CTA, Core now explicitly persists WooCommerce's guest session cookie alongside the validated return URL. This keeps the return target available to WooCommerce's login and registration redirect filters on the following request. Direct My Account visits remain unchanged, and the return destination still does not add an item to cart, create a hold, or create an entry.
 
 ## Rollback
 

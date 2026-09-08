@@ -2,7 +2,7 @@
 /**
  * Plugin Name: RaffleLB Core
  * Description: Additive shared contracts and read-only compatibility adapters for the existing RaffleLB plugins.
- * Version: 0.1.1
+ * Version: 0.1.2
  * Author: RaffleLB
  * Requires PHP: 7.4
  */

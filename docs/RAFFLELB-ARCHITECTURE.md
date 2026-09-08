@@ -32,7 +32,7 @@ All fourteen plugins are present in this repository.
 
 | Plugin folder | Plugin name | Version |
 | --- | --- | --- |
-| `rafflelb-core` | RaffleLB Core | 0.1.1 |
+| `rafflelb-core` | RaffleLB Core | 0.1.2 |
 | `rafflelb-draw-engine` | RaffleLB Draw Engine | 0.34.18.9 |
 | `rafflelb-raffle-manager` | RaffleLB Raffle Manager | 1.4.1 |
 | `rafflelb-account` | RaffleLB Account | 0.1.0 |
@@ -56,7 +56,13 @@ Shared contracts and common infrastructure. Must stay lightweight.
 Owns: shared constants; common compatibility contracts; shared account/access
 helpers; common RaffleLB infrastructure.
 
-Known baseline: **0.1.1**
+Shared identifiers live in `core.php` as `RaffleLB\Core\Contracts` constants —
+read the constant rather than hardcoding a table name or meta key.
+
+Dependants gate on `version_compare(Contracts::VERSION, '0.1.0', '>=')`: Shop,
+Account and Homepage.
+
+Known baseline: **0.1.2**
 
 ---
 
