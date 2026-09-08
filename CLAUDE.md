@@ -96,5 +96,5 @@ If none do, say exactly: `No cross-plugin changes required.`
 
 All fourteen plugins are present under `plugins/`, so both ends of a contract can
 be inspected before changing either. Shared identifiers live in
-`plugins/rafflelb-core/core.php` (`RaffleLB\\Core\\Contracts`) — read the constant
+`plugins/rafflelb-core/core.php` (`RaffleLB\Core\Contracts`) — read the constant
 rather than hardcoding a table name or meta key.
