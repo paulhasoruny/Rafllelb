@@ -1,0 +1,616 @@
+/* RaffleLB simplified WordPress admin skin */
+body.rafflelb-admin-mode{--rl-admin-bg:#090a08;--rl-admin-surface:#11130f;--rl-admin-surface2:#171a15;--rl-admin-border:#2a3027;--rl-admin-text:#f3f6ef;--rl-admin-muted:#9da698;--rl-admin-lime:#baff00;background:var(--rl-admin-bg);color:var(--rl-admin-text)}
+body.rafflelb-admin-mode #wpwrap,body.rafflelb-admin-mode #wpcontent,body.rafflelb-admin-mode #wpbody,body.rafflelb-admin-mode #wpbody-content,body.rafflelb-admin-mode #wpfooter{background:var(--rl-admin-bg)!important;color:var(--rl-admin-text)}
+body.rafflelb-admin-mode #adminmenuback,body.rafflelb-admin-mode #adminmenuwrap,body.rafflelb-admin-mode #adminmenu{background:#0b0d09}
+body.rafflelb-admin-mode #adminmenu a{color:#dce2d5}
+body.rafflelb-admin-mode #adminmenu .wp-submenu{background:#151914}
+body.rafflelb-admin-mode #adminmenu li.menu-top:hover,body.rafflelb-admin-mode #adminmenu li.opensub>a.menu-top,body.rafflelb-admin-mode #adminmenu li>a.menu-top:focus,body.rafflelb-admin-mode #adminmenu li.wp-has-current-submenu a.wp-has-current-submenu{background:var(--rl-admin-lime);color:#0c1007}
+body.rafflelb-admin-mode #adminmenu li.wp-has-current-submenu .wp-submenu a{color:#dce2d5}
+body.rafflelb-admin-mode #adminmenu li.wp-has-current-submenu .wp-submenu a:hover,body.rafflelb-admin-mode #adminmenu .wp-submenu a:hover{color:var(--rl-admin-lime)}
+body.rafflelb-admin-mode #adminmenu .wp-menu-image:before{color:var(--rl-admin-lime)}
+body.rafflelb-admin-mode #adminmenu:before{content:"";display:block;height:48px;margin:14px 16px 16px;background:url('../images/rafflelb-logo.png') left center/contain no-repeat}
+body.folded.rafflelb-admin-mode #adminmenu:before{display:none}
+body.rafflelb-admin-mode #adminmenu #toplevel_page_rafflelb-admin-dashboard .wp-menu-image:before{color:var(--rl-admin-lime)}
+body.rafflelb-admin-mode #wpadminbar{background:#0b0d09}
+
+/* Keep native WordPress / WooCommerce screens visually consistent in RaffleLB mode. */
+body.rafflelb-admin-mode .wrap,body.rafflelb-admin-mode .wrap h1,body.rafflelb-admin-mode .wrap h2,body.rafflelb-admin-mode .wrap h3,body.rafflelb-admin-mode .wrap h4,body.rafflelb-admin-mode .wrap p,body.rafflelb-admin-mode .form-table th,body.rafflelb-admin-mode .form-wrap label{color:var(--rl-admin-text)}
+body.rafflelb-admin-mode .wrap a:not(.button):not(.page-title-action){color:#d7ff66}
+body.rafflelb-admin-mode .wrap a:not(.button):not(.page-title-action):hover{color:var(--rl-admin-lime)}
+body.rafflelb-admin-mode .subsubsub,body.rafflelb-admin-mode .subsubsub a,body.rafflelb-admin-mode .tablenav .displaying-num,body.rafflelb-admin-mode .description,body.rafflelb-admin-mode .howto{color:var(--rl-admin-muted)}
+body.rafflelb-admin-mode .subsubsub a.current{color:var(--rl-admin-text)}
+
+body.rafflelb-admin-mode .widefat,body.rafflelb-admin-mode .wp-list-table,body.rafflelb-admin-mode .postbox,body.rafflelb-admin-mode .stuffbox,body.rafflelb-admin-mode .card,body.rafflelb-admin-mode .notice,body.rafflelb-admin-mode .updated,body.rafflelb-admin-mode .error{background:var(--rl-admin-surface)!important;border-color:var(--rl-admin-border)!important;color:var(--rl-admin-text)!important}
+body.rafflelb-admin-mode .widefat thead td,body.rafflelb-admin-mode .widefat thead th,body.rafflelb-admin-mode .widefat tfoot td,body.rafflelb-admin-mode .widefat tfoot th,body.rafflelb-admin-mode .wp-list-table thead td,body.rafflelb-admin-mode .wp-list-table thead th,body.rafflelb-admin-mode .wp-list-table tfoot td,body.rafflelb-admin-mode .wp-list-table tfoot th{background:#171a15!important;color:#cdd4c8!important;border-color:var(--rl-admin-border)!important}
+body.rafflelb-admin-mode .widefat td,body.rafflelb-admin-mode .widefat th,body.rafflelb-admin-mode .wp-list-table td,body.rafflelb-admin-mode .wp-list-table th{border-color:var(--rl-admin-border)!important}
+body.rafflelb-admin-mode .widefat tbody tr,body.rafflelb-admin-mode .wp-list-table tbody tr{background:var(--rl-admin-surface)!important;color:var(--rl-admin-text)!important}
+body.rafflelb-admin-mode .widefat tbody tr:nth-child(2n),body.rafflelb-admin-mode .wp-list-table tbody tr:nth-child(2n),body.rafflelb-admin-mode .striped>tbody>:nth-child(odd){background:#0e110d!important}
+body.rafflelb-admin-mode .widefat td,body.rafflelb-admin-mode .widefat td p,body.rafflelb-admin-mode .widefat td strong,body.rafflelb-admin-mode .wp-list-table td,body.rafflelb-admin-mode .wp-list-table td p{color:#e2e7dd}
+body.rafflelb-admin-mode .widefat .row-actions,body.rafflelb-admin-mode .widefat .row-actions span,body.rafflelb-admin-mode .wp-list-table .row-actions,body.rafflelb-admin-mode .wp-list-table .row-actions span{color:var(--rl-admin-muted)}
+
+body.rafflelb-admin-mode input[type=text],body.rafflelb-admin-mode input[type=search],body.rafflelb-admin-mode input[type=email],body.rafflelb-admin-mode input[type=number],body.rafflelb-admin-mode input[type=url],body.rafflelb-admin-mode input[type=password],body.rafflelb-admin-mode textarea,body.rafflelb-admin-mode select{background:var(--rl-admin-surface)!important;border-color:#3a4336!important;color:var(--rl-admin-text)!important}
+body.rafflelb-admin-mode input::placeholder,body.rafflelb-admin-mode textarea::placeholder{color:#778071}
+body.rafflelb-admin-mode .button,body.rafflelb-admin-mode .button-secondary,body.rafflelb-admin-mode .page-title-action{background:#171a15!important;border-color:#485142!important;color:#e9eee5!important}
+body.rafflelb-admin-mode .button:hover,body.rafflelb-admin-mode .button-secondary:hover,body.rafflelb-admin-mode .page-title-action:hover{border-color:var(--rl-admin-lime)!important;color:var(--rl-admin-lime)!important}
+body.rafflelb-admin-mode .button-primary{background:var(--rl-admin-lime)!important;border-color:var(--rl-admin-lime)!important;color:#0b0e08!important;text-shadow:none!important;box-shadow:none!important}
+
+/* WooCommerce React/admin-shell surfaces that otherwise remain white. */
+body.rafflelb-admin-mode .woocommerce-layout__header,body.rafflelb-admin-mode .woocommerce-layout__header-wrapper,body.rafflelb-admin-mode .woocommerce-layout__activity-panel,body.rafflelb-admin-mode .woocommerce-layout__activity-panel-tabs,body.rafflelb-admin-mode .woocommerce-page .woocommerce-layout__main,body.rafflelb-admin-mode .woocommerce-admin-page .woocommerce-layout__main{background:var(--rl-admin-bg)!important;color:var(--rl-admin-text)!important;border-color:var(--rl-admin-border)!important}
+body.rafflelb-admin-mode .woocommerce-layout__header h1,body.rafflelb-admin-mode .woocommerce-layout__header-heading{color:var(--rl-admin-text)!important}
+body.rafflelb-admin-mode .components-card,body.rafflelb-admin-mode .components-panel,body.rafflelb-admin-mode .components-popover__content{background:var(--rl-admin-surface)!important;color:var(--rl-admin-text)!important;border-color:var(--rl-admin-border)!important}
+
+/* Native admin notices remain readable on the dark shell. */
+body.rafflelb-admin-mode .notice p,body.rafflelb-admin-mode .notice-title{color:var(--rl-admin-text)!important}
+
+.rlad-mode{color:#f7f8f4;background:#11130f;border:1px solid #2a3027;border-radius:12px;margin:30px;padding:24px;max-width:650px}.rlad-mode p{color:#aeb6a7}
+
+/* =========================================================
+   RaffleLB Admin 1.0.3 — persistent sidebar + contrast pass
+   ========================================================= */
+
+/* Keep the RaffleLB operational submenu permanently expanded in Simple Mode.
+   WordPress normally collapses a submenu when the linked screen belongs to a
+   different plugin; our operational menu intentionally links to those screens. */
+body.rafflelb-admin-mode #adminmenu #toplevel_page_rafflelb-admin-dashboard > .wp-submenu,
+body.rafflelb-admin-mode #adminmenu #toplevel_page_rafflelb-admin-dashboard.wp-not-current-submenu > .wp-submenu{
+    display:block!important;
+    position:relative!important;
+    left:auto!important;
+    top:auto!important;
+    margin:0!important;
+    padding:5px 0 9px!important;
+    width:auto!important;
+    min-width:0!important;
+    box-shadow:none!important;
+    background:#10130f!important;
+}
+body.rafflelb-admin-mode #adminmenu #toplevel_page_rafflelb-admin-dashboard > .wp-submenu:before,
+body.rafflelb-admin-mode #adminmenu #toplevel_page_rafflelb-admin-dashboard > .wp-submenu:after{display:none!important}
+body.rafflelb-admin-mode #adminmenu #toplevel_page_rafflelb-admin-dashboard > .wp-submenu > li > a{
+    padding:7px 16px 7px 34px!important;
+    color:#dce2d5!important;
+}
+body.rafflelb-admin-mode #adminmenu #toplevel_page_rafflelb-admin-dashboard > .wp-submenu > li > a:hover,
+body.rafflelb-admin-mode #adminmenu #toplevel_page_rafflelb-admin-dashboard > .wp-submenu > li.current > a{
+    color:var(--rl-admin-lime)!important;
+    background:#171b14!important;
+}
+body.rafflelb-admin-mode #adminmenu #toplevel_page_rafflelb-admin-dashboard > a.menu-top{
+    background:var(--rl-admin-lime)!important;
+    color:#0c1007!important;
+}
+body.rafflelb-admin-mode #adminmenu #toplevel_page_rafflelb-admin-dashboard > a.menu-top .wp-menu-name,
+body.rafflelb-admin-mode #adminmenu #toplevel_page_rafflelb-admin-dashboard > a.menu-top .wp-menu-image:before{
+    color:#0c1007!important;
+}
+
+/* Generic protection against legacy RaffleLB admin cards that hard-code white.
+   Limited to wp-admin content while RaffleLB Mode is active. */
+body.rafflelb-admin-mode #wpbody-content [style*="background:#fff"],
+body.rafflelb-admin-mode #wpbody-content [style*="background: #fff"],
+body.rafflelb-admin-mode #wpbody-content [style*="background:#ffffff"],
+body.rafflelb-admin-mode #wpbody-content [style*="background: #ffffff"],
+body.rafflelb-admin-mode #wpbody-content [style*="background:white"],
+body.rafflelb-admin-mode #wpbody-content [style*="background: white"],
+body.rafflelb-admin-mode #wpbody-content [style*="background-color:#fff"],
+body.rafflelb-admin-mode #wpbody-content [style*="background-color: #fff"],
+body.rafflelb-admin-mode #wpbody-content [style*="background-color:#ffffff"],
+body.rafflelb-admin-mode #wpbody-content [style*="background-color: #ffffff"]{
+    background:var(--rl-admin-surface)!important;
+    border-color:var(--rl-admin-border)!important;
+    color:var(--rl-admin-text)!important;
+}
+
+/* Cart Manager 0.1.x. Its own stylesheet intentionally uses white WordPress
+   cards, so override those cards only in RaffleLB Mode. */
+body.rafflelb-admin-mode .rlcm{color:var(--rl-admin-text)!important}
+body.rafflelb-admin-mode .rlcm h1,
+body.rafflelb-admin-mode .rlcm p,
+body.rafflelb-admin-mode .rlcm label,
+body.rafflelb-admin-mode .rlcm summary,
+body.rafflelb-admin-mode .rlcm summary span,
+body.rafflelb-admin-mode .rlcm summary strong{color:var(--rl-admin-text)!important}
+body.rafflelb-admin-mode .rlcm-product,
+body.rafflelb-admin-mode .rlcm-empty{
+    background:var(--rl-admin-surface)!important;
+    border-color:var(--rl-admin-border)!important;
+    color:var(--rl-admin-text)!important;
+}
+body.rafflelb-admin-mode .rlcm-product summary:hover{background:var(--rl-admin-surface2)!important}
+body.rafflelb-admin-mode .rlcm-product small,
+body.rafflelb-admin-mode .rlcm .description{color:var(--rl-admin-muted)!important}
+body.rafflelb-admin-mode .rlcm-table{border-color:var(--rl-admin-border)!important}
+
+/* Existing Points Manager screen. Keep its functionality untouched; only skin
+   its legacy white form/panel containers. */
+body.rafflelb-admin-mode.rafflelb-screen-rafflelb-points-manager #wpbody-content .wrap > div,
+body.rafflelb-admin-mode.rafflelb-screen-rafflelb-points-manager #wpbody-content .wrap > section,
+body.rafflelb-admin-mode.rafflelb-screen-rafflelb-points-manager #wpbody-content .wrap > form,
+body.rafflelb-admin-mode.rafflelb-screen-rafflelb-points-manager #wpbody-content .card,
+body.rafflelb-admin-mode.rafflelb-screen-rafflelb-points-manager #wpbody-content .postbox{
+    background:var(--rl-admin-surface)!important;
+    border-color:var(--rl-admin-border)!important;
+    color:var(--rl-admin-text)!important;
+}
+body.rafflelb-admin-mode.rafflelb-screen-rafflelb-points-manager #wpbody-content h1,
+body.rafflelb-admin-mode.rafflelb-screen-rafflelb-points-manager #wpbody-content h2,
+body.rafflelb-admin-mode.rafflelb-screen-rafflelb-points-manager #wpbody-content h3,
+body.rafflelb-admin-mode.rafflelb-screen-rafflelb-points-manager #wpbody-content p,
+body.rafflelb-admin-mode.rafflelb-screen-rafflelb-points-manager #wpbody-content label,
+body.rafflelb-admin-mode.rafflelb-screen-rafflelb-points-manager #wpbody-content th,
+body.rafflelb-admin-mode.rafflelb-screen-rafflelb-points-manager #wpbody-content td{color:var(--rl-admin-text)!important}
+
+/* Existing Notifications screen. */
+body.rafflelb-admin-mode.rafflelb-screen-rafflelb-notifications-admin #wpbody-content .wrap > div,
+body.rafflelb-admin-mode.rafflelb-screen-rafflelb-notifications-admin #wpbody-content .wrap > section,
+body.rafflelb-admin-mode.rafflelb-screen-rafflelb-notifications-admin #wpbody-content .wrap > form,
+body.rafflelb-admin-mode.rafflelb-screen-rafflelb-notifications-admin #wpbody-content .card,
+body.rafflelb-admin-mode.rafflelb-screen-rafflelb-notifications-admin #wpbody-content .postbox{
+    background:var(--rl-admin-surface)!important;
+    border-color:var(--rl-admin-border)!important;
+    color:var(--rl-admin-text)!important;
+}
+body.rafflelb-admin-mode.rafflelb-screen-rafflelb-notifications-admin #wpbody-content h1,
+body.rafflelb-admin-mode.rafflelb-screen-rafflelb-notifications-admin #wpbody-content h2,
+body.rafflelb-admin-mode.rafflelb-screen-rafflelb-notifications-admin #wpbody-content h3,
+body.rafflelb-admin-mode.rafflelb-screen-rafflelb-notifications-admin #wpbody-content p,
+body.rafflelb-admin-mode.rafflelb-screen-rafflelb-notifications-admin #wpbody-content label,
+body.rafflelb-admin-mode.rafflelb-screen-rafflelb-notifications-admin #wpbody-content span:not(.dashicons){color:var(--rl-admin-text)!important}
+
+/* WooCommerce Settings: Woo's settings shell and SelectWoo controls have their
+   own light backgrounds and therefore need a more specific dark-mode pass. */
+body.rafflelb-admin-mode.woocommerce_page_wc-settings #wpcontent,
+body.rafflelb-admin-mode.woocommerce_page_wc-settings #wpbody,
+body.rafflelb-admin-mode.woocommerce_page_wc-settings #wpbody-content,
+body.rafflelb-admin-mode.woocommerce_page_wc-settings .wrap,
+body.rafflelb-admin-mode.woocommerce_page_wc-settings .woocommerce,
+body.rafflelb-admin-mode.woocommerce_page_wc-settings form#mainform,
+body.rafflelb-admin-mode.woocommerce_page_wc-settings .woocommerce-layout__main,
+body.rafflelb-admin-mode.woocommerce_page_wc-settings .wc-settings-row,
+body.rafflelb-admin-mode.woocommerce_page_wc-settings table.form-table,
+body.rafflelb-admin-mode.woocommerce_page_wc-settings table.form-table tbody,
+body.rafflelb-admin-mode.woocommerce_page_wc-settings table.form-table tr,
+body.rafflelb-admin-mode.woocommerce_page_wc-settings table.form-table th,
+body.rafflelb-admin-mode.woocommerce_page_wc-settings table.form-table td{
+    background:var(--rl-admin-bg)!important;
+    color:var(--rl-admin-text)!important;
+    border-color:var(--rl-admin-border)!important;
+}
+body.rafflelb-admin-mode.woocommerce_page_wc-settings .nav-tab-wrapper,
+body.rafflelb-admin-mode.woocommerce_page_wc-settings .woo-nav-tab-wrapper{
+    background:var(--rl-admin-surface)!important;
+    border-color:var(--rl-admin-border)!important;
+}
+body.rafflelb-admin-mode.woocommerce_page_wc-settings .nav-tab,
+body.rafflelb-admin-mode.woocommerce_page_wc-settings .woo-nav-tab-wrapper a{
+    background:transparent!important;
+    color:#dce2d5!important;
+    border-color:transparent!important;
+}
+body.rafflelb-admin-mode.woocommerce_page_wc-settings .nav-tab-active,
+body.rafflelb-admin-mode.woocommerce_page_wc-settings .nav-tab:hover,
+body.rafflelb-admin-mode.woocommerce_page_wc-settings .woo-nav-tab-wrapper a:hover{
+    color:var(--rl-admin-lime)!important;
+    border-bottom-color:var(--rl-admin-lime)!important;
+}
+body.rafflelb-admin-mode.woocommerce_page_wc-settings .select2-container--default .select2-selection--single,
+body.rafflelb-admin-mode.woocommerce_page_wc-settings .select2-container--default .select2-selection--multiple,
+body.rafflelb-admin-mode.woocommerce_page_wc-settings .selectWoo,
+body.rafflelb-admin-mode.woocommerce_page_wc-settings .wc-enhanced-select,
+body.rafflelb-admin-mode.woocommerce_page_wc-settings .components-select-control__input{
+    background:var(--rl-admin-surface)!important;
+    color:var(--rl-admin-text)!important;
+    border-color:#3a4336!important;
+}
+body.rafflelb-admin-mode.woocommerce_page_wc-settings .select2-container--default .select2-selection--single .select2-selection__rendered,
+body.rafflelb-admin-mode.woocommerce_page_wc-settings .select2-container--default .select2-selection--multiple .select2-selection__choice,
+body.rafflelb-admin-mode.woocommerce_page_wc-settings .form-table label,
+body.rafflelb-admin-mode.woocommerce_page_wc-settings .form-table p,
+body.rafflelb-admin-mode.woocommerce_page_wc-settings .form-table .description{
+    color:var(--rl-admin-text)!important;
+}
+body.rafflelb-admin-mode .select2-dropdown,
+body.rafflelb-admin-mode .select2-results,
+body.rafflelb-admin-mode .select2-results__option{
+    background:var(--rl-admin-surface)!important;
+    color:var(--rl-admin-text)!important;
+    border-color:var(--rl-admin-border)!important;
+}
+body.rafflelb-admin-mode .select2-results__option--highlighted{
+    background:var(--rl-admin-lime)!important;
+    color:#0b0e08!important;
+}
+
+/* Keep native checkboxes/radios visible on dark cards. */
+body.rafflelb-admin-mode input[type=checkbox],
+body.rafflelb-admin-mode input[type=radio]{background:#fff!important;border-color:#7d8777!important}
+body.rafflelb-admin-mode input[type=checkbox]:checked,
+body.rafflelb-admin-mode input[type=radio]:checked{border-color:var(--rl-admin-lime)!important}
+
+@media (max-width:782px){
+    body.rafflelb-admin-mode #adminmenu #toplevel_page_rafflelb-admin-dashboard > .wp-submenu{padding-bottom:6px!important}
+}
+
+
+/* v1.0.4: Legacy WooCommerce Reports dark skin.
+   The classic wc-reports screen uses its own white chart/sidebar shell, so it
+   needs a dedicated pass beyond the generic WordPress table styling. */
+body.rafflelb-admin-mode.rafflelb-screen-wc-reports #wpcontent,
+body.rafflelb-admin-mode.rafflelb-screen-wc-reports #wpbody,
+body.rafflelb-admin-mode.rafflelb-screen-wc-reports #wpbody-content,
+body.rafflelb-admin-mode.rafflelb-screen-wc-reports .wrap,
+body.rafflelb-admin-mode.rafflelb-screen-wc-reports #poststuff,
+body.rafflelb-admin-mode.rafflelb-screen-wc-reports .woocommerce-reports-wide,
+body.rafflelb-admin-mode.rafflelb-screen-wc-reports .woocommerce-reports-wide .postbox,
+body.rafflelb-admin-mode.rafflelb-screen-wc-reports .woocommerce-reports-wide .inside,
+body.rafflelb-admin-mode.rafflelb-screen-wc-reports .woocommerce-reports-wide .chart-with-sidebar{
+    background:var(--rl-admin-bg)!important;
+    color:var(--rl-admin-text)!important;
+    border-color:var(--rl-admin-border)!important;
+}
+
+body.rafflelb-admin-mode.rafflelb-screen-wc-reports .nav-tab-wrapper,
+body.rafflelb-admin-mode.rafflelb-screen-wc-reports .woo-nav-tab-wrapper{
+    background:transparent!important;
+    border-bottom:1px solid var(--rl-admin-border)!important;
+}
+body.rafflelb-admin-mode.rafflelb-screen-wc-reports .nav-tab{
+    background:var(--rl-admin-surface)!important;
+    border:1px solid var(--rl-admin-border)!important;
+    color:#dce2d5!important;
+    margin-right:6px!important;
+}
+body.rafflelb-admin-mode.rafflelb-screen-wc-reports .nav-tab:hover,
+body.rafflelb-admin-mode.rafflelb-screen-wc-reports .nav-tab-active{
+    background:var(--rl-admin-lime)!important;
+    color:#0b0e08!important;
+    border-color:var(--rl-admin-lime)!important;
+}
+
+body.rafflelb-admin-mode.rafflelb-screen-wc-reports .subsubsub,
+body.rafflelb-admin-mode.rafflelb-screen-wc-reports .subsubsub a{
+    color:#cbd2c6!important;
+}
+body.rafflelb-admin-mode.rafflelb-screen-wc-reports .subsubsub a.current,
+body.rafflelb-admin-mode.rafflelb-screen-wc-reports .subsubsub a:hover{
+    color:var(--rl-admin-lime)!important;
+}
+
+body.rafflelb-admin-mode.rafflelb-screen-wc-reports .stats_range{
+    background:var(--rl-admin-surface)!important;
+    border:1px solid var(--rl-admin-border)!important;
+    box-shadow:none!important;
+}
+body.rafflelb-admin-mode.rafflelb-screen-wc-reports .stats_range ul,
+body.rafflelb-admin-mode.rafflelb-screen-wc-reports .stats_range ul li{
+    background:transparent!important;
+    border-color:var(--rl-admin-border)!important;
+}
+body.rafflelb-admin-mode.rafflelb-screen-wc-reports .stats_range ul li a{
+    background:transparent!important;
+    color:#dce2d5!important;
+    border-color:var(--rl-admin-border)!important;
+}
+body.rafflelb-admin-mode.rafflelb-screen-wc-reports .stats_range ul li.active a,
+body.rafflelb-admin-mode.rafflelb-screen-wc-reports .stats_range ul li a:hover{
+    background:var(--rl-admin-lime)!important;
+    color:#0b0e08!important;
+}
+body.rafflelb-admin-mode.rafflelb-screen-wc-reports .stats_range .export_csv{
+    color:var(--rl-admin-lime)!important;
+}
+
+body.rafflelb-admin-mode.rafflelb-screen-wc-reports .chart-with-sidebar{
+    display:flex!important;
+    gap:12px!important;
+}
+body.rafflelb-admin-mode.rafflelb-screen-wc-reports .chart-sidebar{
+    background:var(--rl-admin-surface)!important;
+    border:1px solid var(--rl-admin-border)!important;
+    color:var(--rl-admin-text)!important;
+}
+body.rafflelb-admin-mode.rafflelb-screen-wc-reports .chart-sidebar .chart-legend,
+body.rafflelb-admin-mode.rafflelb-screen-wc-reports .chart-sidebar .chart-legend li{
+    background:var(--rl-admin-surface)!important;
+    border-color:var(--rl-admin-border)!important;
+    color:var(--rl-admin-text)!important;
+}
+body.rafflelb-admin-mode.rafflelb-screen-wc-reports .chart-sidebar .chart-legend li strong,
+body.rafflelb-admin-mode.rafflelb-screen-wc-reports .chart-sidebar .chart-legend li span,
+body.rafflelb-admin-mode.rafflelb-screen-wc-reports .chart-sidebar .chart-legend li small{
+    color:var(--rl-admin-text)!important;
+}
+body.rafflelb-admin-mode.rafflelb-screen-wc-reports .chart-sidebar .chart-legend li small,
+body.rafflelb-admin-mode.rafflelb-screen-wc-reports .chart-sidebar .chart-legend li .description{
+    color:var(--rl-admin-muted)!important;
+}
+
+body.rafflelb-admin-mode.rafflelb-screen-wc-reports .woocommerce-reports-wide .main,
+body.rafflelb-admin-mode.rafflelb-screen-wc-reports .chart-container,
+body.rafflelb-admin-mode.rafflelb-screen-wc-reports .chart-placeholder,
+body.rafflelb-admin-mode.rafflelb-screen-wc-reports .chart-placeholder.main{
+    background:#10130f!important;
+    color:var(--rl-admin-text)!important;
+    border:1px solid var(--rl-admin-border)!important;
+    box-shadow:none!important;
+}
+body.rafflelb-admin-mode.rafflelb-screen-wc-reports .chart-container canvas,
+body.rafflelb-admin-mode.rafflelb-screen-wc-reports .chart-placeholder canvas{
+    background:#10130f!important;
+}
+body.rafflelb-admin-mode.rafflelb-screen-wc-reports .legend,
+body.rafflelb-admin-mode.rafflelb-screen-wc-reports .legend table,
+body.rafflelb-admin-mode.rafflelb-screen-wc-reports .legend td{
+    background:var(--rl-admin-surface)!important;
+    color:var(--rl-admin-text)!important;
+    border-color:var(--rl-admin-border)!important;
+}
+
+body.rafflelb-admin-mode.rafflelb-screen-wc-reports .woocommerce-reports-wide input[type=text],
+body.rafflelb-admin-mode.rafflelb-screen-wc-reports .woocommerce-reports-wide input[type=date],
+body.rafflelb-admin-mode.rafflelb-screen-wc-reports .woocommerce-reports-wide select{
+    background:var(--rl-admin-surface)!important;
+    color:var(--rl-admin-text)!important;
+    border-color:#3a4336!important;
+}
+body.rafflelb-admin-mode.rafflelb-screen-wc-reports .woocommerce-reports-wide .button,
+body.rafflelb-admin-mode.rafflelb-screen-wc-reports .woocommerce-reports-wide button{
+    background:#171a15!important;
+    color:#eef2e9!important;
+    border-color:#485142!important;
+}
+body.rafflelb-admin-mode.rafflelb-screen-wc-reports .woocommerce-reports-wide .button:hover,
+body.rafflelb-admin-mode.rafflelb-screen-wc-reports .woocommerce-reports-wide button:hover{
+    color:var(--rl-admin-lime)!important;
+    border-color:var(--rl-admin-lime)!important;
+}
+
+/* Last-resort contrast guard for classic report shells that still carry a
+   literal white background from WooCommerce's legacy stylesheet. */
+body.rafflelb-admin-mode.rafflelb-screen-wc-reports #wpbody-content [style*="background: #fff"],
+body.rafflelb-admin-mode.rafflelb-screen-wc-reports #wpbody-content [style*="background:#fff"],
+body.rafflelb-admin-mode.rafflelb-screen-wc-reports #wpbody-content [style*="background: white"],
+body.rafflelb-admin-mode.rafflelb-screen-wc-reports #wpbody-content [style*="background:white"]{
+    background:#10130f!important;
+    color:var(--rl-admin-text)!important;
+}
+
+
+/* RaffleLB Admin 1.0.6 — Raffle Manager monitor/detail contrast fix.
+   Raffle Manager intentionally ships with light default cards so it remains
+   usable outside RaffleLB Mode. In RaffleLB Mode, skin those cards to match
+   the dark operations dashboard without changing raffle-management logic. */
+body.rafflelb-admin-mode .rafflelb-rm .rlbrm-card{
+    background:var(--rl-admin-surface)!important;
+    border-color:var(--rl-admin-border)!important;
+    color:var(--rl-admin-text)!important;
+    box-shadow:none!important;
+}
+body.rafflelb-admin-mode .rafflelb-rm .rlbrm-card h2,
+body.rafflelb-admin-mode .rafflelb-rm .rlbrm-card h3,
+body.rafflelb-admin-mode .rafflelb-rm .rlbrm-card p,
+body.rafflelb-admin-mode .rafflelb-rm .rlbrm-card label,
+body.rafflelb-admin-mode .rafflelb-rm .rlbrm-card strong,
+body.rafflelb-admin-mode .rafflelb-rm .rlbrm-card td,
+body.rafflelb-admin-mode .rafflelb-rm .rlbrm-card th,
+body.rafflelb-admin-mode .rafflelb-rm .rlbrm-stats > div{
+    color:var(--rl-admin-text)!important;
+}
+body.rafflelb-admin-mode .rafflelb-rm .rlbrm-card .description,
+body.rafflelb-admin-mode .rafflelb-rm .rlbrm-card small,
+body.rafflelb-admin-mode .rafflelb-rm .rlbrm-tag-picker-label{
+    color:var(--rl-admin-muted)!important;
+}
+body.rafflelb-admin-mode .rafflelb-rm .rlbrm-bar{
+    background:#252b22!important;
+}
+body.rafflelb-admin-mode .rafflelb-rm .rlbrm-bar > span{
+    background:var(--rl-admin-lime)!important;
+}
+body.rafflelb-admin-mode .rafflelb-rm .rlbrm-image-field .rlbrm-image-preview img{
+    background:#0d100c!important;
+    border-color:var(--rl-admin-border)!important;
+}
+body.rafflelb-admin-mode .rafflelb-rm textarea,
+body.rafflelb-admin-mode .rafflelb-rm input[type="text"],
+body.rafflelb-admin-mode .rafflelb-rm input[type="search"],
+body.rafflelb-admin-mode .rafflelb-rm input[type="number"],
+body.rafflelb-admin-mode .rafflelb-rm select{
+    background:#0f120e!important;
+    color:var(--rl-admin-text)!important;
+    border-color:#3a4336!important;
+}
+body.rafflelb-admin-mode .rafflelb-rm textarea::placeholder,
+body.rafflelb-admin-mode .rafflelb-rm input::placeholder{
+    color:#899285!important;
+    opacity:1!important;
+}
+body.rafflelb-admin-mode .rafflelb-rm .widefat,
+body.rafflelb-admin-mode .rafflelb-rm .widefat thead,
+body.rafflelb-admin-mode .rafflelb-rm .widefat tbody,
+body.rafflelb-admin-mode .rafflelb-rm .widefat tr,
+body.rafflelb-admin-mode .rafflelb-rm .widefat th,
+body.rafflelb-admin-mode .rafflelb-rm .widefat td{
+    background:#10130f!important;
+    border-color:var(--rl-admin-border)!important;
+    color:var(--rl-admin-text)!important;
+}
+body.rafflelb-admin-mode .rafflelb-rm .widefat.striped > tbody > :nth-child(odd),
+body.rafflelb-admin-mode .rafflelb-rm .widefat.striped > tbody > :nth-child(even){
+    background:#10130f!important;
+}
+body.rafflelb-admin-mode .rafflelb-rm .rlbrm-border-amber{border-left-color:#dba617!important}
+body.rafflelb-admin-mode .rafflelb-rm .rlbrm-border-lime{border-left-color:var(--rl-admin-lime)!important}
+body.rafflelb-admin-mode .rafflelb-rm .rlbrm-border-dark{border-left-color:#596253!important}
+
+
+/* =========================================================
+   RaffleLB Admin 1.0.7 — WooCommerce product editor dark pass
+   =========================================================
+   The classic product editor is built from several independent WordPress,
+   WooCommerce, TinyMCE and WoodMart surfaces. Scope this pass to product edit
+   screens in RaffleLB Mode only so Advanced Mode and all other admin pages keep
+   their native appearance. */
+body.rafflelb-admin-mode.rafflelb-product-edit #poststuff,
+body.rafflelb-admin-mode.rafflelb-product-edit #post-body,
+body.rafflelb-admin-mode.rafflelb-product-edit #post-body-content,
+body.rafflelb-admin-mode.rafflelb-product-edit #postbox-container-1,
+body.rafflelb-admin-mode.rafflelb-product-edit #postbox-container-2{
+    background:transparent!important;
+    color:var(--rl-admin-text)!important;
+}
+
+/* Postboxes / metabox internals, including WoodMart SEO Settings. */
+body.rafflelb-admin-mode.rafflelb-product-edit #poststuff .postbox,
+body.rafflelb-admin-mode.rafflelb-product-edit #poststuff .postbox-header,
+body.rafflelb-admin-mode.rafflelb-product-edit #poststuff .postbox > .inside,
+body.rafflelb-admin-mode.rafflelb-product-edit #poststuff .stuffbox,
+body.rafflelb-admin-mode.rafflelb-product-edit #poststuff .stuffbox > .inside,
+body.rafflelb-admin-mode.rafflelb-product-edit #poststuff .inside .xts-metaboxes,
+body.rafflelb-admin-mode.rafflelb-product-edit #poststuff .inside .xts-metaboxes-content,
+body.rafflelb-admin-mode.rafflelb-product-edit #poststuff .inside .xts-fields,
+body.rafflelb-admin-mode.rafflelb-product-edit #poststuff .inside .xts-field,
+body.rafflelb-admin-mode.rafflelb-product-edit #poststuff .inside .xts-option-control{
+    background:var(--rl-admin-surface)!important;
+    color:var(--rl-admin-text)!important;
+    border-color:var(--rl-admin-border)!important;
+    box-shadow:none!important;
+}
+body.rafflelb-admin-mode.rafflelb-product-edit #poststuff .postbox-header,
+body.rafflelb-admin-mode.rafflelb-product-edit #poststuff .hndle,
+body.rafflelb-admin-mode.rafflelb-product-edit #poststuff .handlediv,
+body.rafflelb-admin-mode.rafflelb-product-edit #poststuff .toggle-indicator,
+body.rafflelb-admin-mode.rafflelb-product-edit #poststuff .postbox h2,
+body.rafflelb-admin-mode.rafflelb-product-edit #poststuff .postbox h3,
+body.rafflelb-admin-mode.rafflelb-product-edit #poststuff .postbox label,
+body.rafflelb-admin-mode.rafflelb-product-edit #poststuff .postbox p,
+body.rafflelb-admin-mode.rafflelb-product-edit #poststuff .postbox span:not(.dashicons):not(.spinner){
+    color:var(--rl-admin-text)!important;
+}
+body.rafflelb-admin-mode.rafflelb-product-edit #poststuff .description,
+body.rafflelb-admin-mode.rafflelb-product-edit #poststuff .howto,
+body.rafflelb-admin-mode.rafflelb-product-edit #poststuff small{
+    color:var(--rl-admin-muted)!important;
+}
+
+/* Classic WordPress Visual/Text editor shell. TinyMCE iframe content itself is
+   darkened by tiny_mce_product_editor_dark() in the navigation class. */
+body.rafflelb-admin-mode.rafflelb-product-edit #postdivrich,
+body.rafflelb-admin-mode.rafflelb-product-edit .wp-editor-wrap,
+body.rafflelb-admin-mode.rafflelb-product-edit .wp-editor-container,
+body.rafflelb-admin-mode.rafflelb-product-edit .mce-container,
+body.rafflelb-admin-mode.rafflelb-product-edit .mce-container-body,
+body.rafflelb-admin-mode.rafflelb-product-edit .mce-panel,
+body.rafflelb-admin-mode.rafflelb-product-edit .mce-toolbar-grp,
+body.rafflelb-admin-mode.rafflelb-product-edit .mce-statusbar,
+body.rafflelb-admin-mode.rafflelb-product-edit .mce-edit-area,
+body.rafflelb-admin-mode.rafflelb-product-edit .quicktags-toolbar{
+    background:#0f120e!important;
+    color:var(--rl-admin-text)!important;
+    border-color:var(--rl-admin-border)!important;
+    box-shadow:none!important;
+}
+body.rafflelb-admin-mode.rafflelb-product-edit .mce-edit-area iframe{
+    background:#0f120e!important;
+}
+body.rafflelb-admin-mode.rafflelb-product-edit .wp-editor-tabs button,
+body.rafflelb-admin-mode.rafflelb-product-edit .wp-switch-editor,
+body.rafflelb-admin-mode.rafflelb-product-edit .mce-btn,
+body.rafflelb-admin-mode.rafflelb-product-edit .mce-btn button{
+    background:#171a15!important;
+    color:var(--rl-admin-text)!important;
+    border-color:#3a4336!important;
+    box-shadow:none!important;
+}
+body.rafflelb-admin-mode.rafflelb-product-edit .mce-btn:hover,
+body.rafflelb-admin-mode.rafflelb-product-edit .mce-btn.mce-active,
+body.rafflelb-admin-mode.rafflelb-product-edit .wp-editor-tabs button:hover{
+    background:#20251d!important;
+    border-color:var(--rl-admin-lime)!important;
+}
+body.rafflelb-admin-mode.rafflelb-product-edit .mce-ico,
+body.rafflelb-admin-mode.rafflelb-product-edit .mce-txt,
+body.rafflelb-admin-mode.rafflelb-product-edit .mce-caret{
+    color:#dfe5da!important;
+    text-shadow:none!important;
+}
+body.rafflelb-admin-mode.rafflelb-product-edit textarea.wp-editor-area{
+    background:#0f120e!important;
+    color:var(--rl-admin-text)!important;
+    border-color:var(--rl-admin-border)!important;
+}
+
+/* WooCommerce Product data box: remove the large white panel and tabs. */
+body.rafflelb-admin-mode.rafflelb-product-edit #woocommerce-product-data,
+body.rafflelb-admin-mode.rafflelb-product-edit #woocommerce-product-data .inside,
+body.rafflelb-admin-mode.rafflelb-product-edit #woocommerce-product-data .panel-wrap,
+body.rafflelb-admin-mode.rafflelb-product-edit #woocommerce-product-data .woocommerce_options_panel,
+body.rafflelb-admin-mode.rafflelb-product-edit #woocommerce-product-data .options_group,
+body.rafflelb-admin-mode.rafflelb-product-edit #woocommerce-product-data .wc-metaboxes-wrapper,
+body.rafflelb-admin-mode.rafflelb-product-edit #woocommerce-product-data .wc-metabox,
+body.rafflelb-admin-mode.rafflelb-product-edit #woocommerce-product-data .toolbar,
+body.rafflelb-admin-mode.rafflelb-product-edit #woocommerce-product-data .wc-tabs-back{
+    background:#0f120e!important;
+    color:var(--rl-admin-text)!important;
+    border-color:var(--rl-admin-border)!important;
+    box-shadow:none!important;
+}
+body.rafflelb-admin-mode.rafflelb-product-edit #woocommerce-product-data ul.wc-tabs,
+body.rafflelb-admin-mode.rafflelb-product-edit #woocommerce-product-data ul.wc-tabs li,
+body.rafflelb-admin-mode.rafflelb-product-edit #woocommerce-product-data ul.wc-tabs li a{
+    background:#121510!important;
+    color:#dbe1d6!important;
+    border-color:var(--rl-admin-border)!important;
+    box-shadow:none!important;
+}
+body.rafflelb-admin-mode.rafflelb-product-edit #woocommerce-product-data ul.wc-tabs li.active,
+body.rafflelb-admin-mode.rafflelb-product-edit #woocommerce-product-data ul.wc-tabs li.active a,
+body.rafflelb-admin-mode.rafflelb-product-edit #woocommerce-product-data ul.wc-tabs li a:hover{
+    background:#1a1f17!important;
+    color:var(--rl-admin-lime)!important;
+}
+body.rafflelb-admin-mode.rafflelb-product-edit #woocommerce-product-data .woocommerce_options_panel label,
+body.rafflelb-admin-mode.rafflelb-product-edit #woocommerce-product-data .woocommerce_options_panel legend,
+body.rafflelb-admin-mode.rafflelb-product-edit #woocommerce-product-data .woocommerce_options_panel p,
+body.rafflelb-admin-mode.rafflelb-product-edit #woocommerce-product-data .woocommerce_options_panel .form-field,
+body.rafflelb-admin-mode.rafflelb-product-edit #woocommerce-product-data .woocommerce_options_panel .description{
+    color:var(--rl-admin-text)!important;
+}
+body.rafflelb-admin-mode.rafflelb-product-edit #woocommerce-product-data .woocommerce_options_panel .description{
+    color:var(--rl-admin-muted)!important;
+}
+body.rafflelb-admin-mode.rafflelb-product-edit #woocommerce-product-data .options_group,
+body.rafflelb-admin-mode.rafflelb-product-edit #woocommerce-product-data .form-field{
+    border-color:var(--rl-admin-border)!important;
+}
+
+/* Common SEO/metabox tab shells and plugin option rows that otherwise preserve
+   literal light backgrounds on product edit screens. */
+body.rafflelb-admin-mode.rafflelb-product-edit #poststuff .inside .nav-tab-wrapper,
+body.rafflelb-admin-mode.rafflelb-product-edit #poststuff .inside .nav-tab,
+body.rafflelb-admin-mode.rafflelb-product-edit #poststuff .inside .tabs,
+body.rafflelb-admin-mode.rafflelb-product-edit #poststuff .inside .tabs-panel,
+body.rafflelb-admin-mode.rafflelb-product-edit #poststuff .inside table,
+body.rafflelb-admin-mode.rafflelb-product-edit #poststuff .inside tbody,
+body.rafflelb-admin-mode.rafflelb-product-edit #poststuff .inside tr,
+body.rafflelb-admin-mode.rafflelb-product-edit #poststuff .inside th,
+body.rafflelb-admin-mode.rafflelb-product-edit #poststuff .inside td{
+    background-color:transparent!important;
+    color:var(--rl-admin-text)!important;
+    border-color:var(--rl-admin-border)!important;
+}
+
+/* Catch hard-coded white inline surfaces, but only inside the product editor. */
+body.rafflelb-admin-mode.rafflelb-product-edit #poststuff [style*="background:#fff"],
+body.rafflelb-admin-mode.rafflelb-product-edit #poststuff [style*="background: #fff"],
+body.rafflelb-admin-mode.rafflelb-product-edit #poststuff [style*="background:#ffffff"],
+body.rafflelb-admin-mode.rafflelb-product-edit #poststuff [style*="background: #ffffff"],
+body.rafflelb-admin-mode.rafflelb-product-edit #poststuff [style*="background:white"],
+body.rafflelb-admin-mode.rafflelb-product-edit #poststuff [style*="background: white"],
+body.rafflelb-admin-mode.rafflelb-product-edit #poststuff [style*="background-color:#fff"],
+body.rafflelb-admin-mode.rafflelb-product-edit #poststuff [style*="background-color: #fff"],
+body.rafflelb-admin-mode.rafflelb-product-edit #poststuff [style*="background-color:#ffffff"],
+body.rafflelb-admin-mode.rafflelb-product-edit #poststuff [style*="background-color: #ffffff"]{
+    background:#0f120e!important;
+    color:var(--rl-admin-text)!important;
+}

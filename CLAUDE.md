@@ -94,6 +94,7 @@ If none do, say exactly: `No cross-plugin changes required.`
 
 ## Repository note
 
-Only the plugins whose source has been added to this repo can be inspected here.
-When a task depends on a contract whose other end lives in a plugin that is not
-present, say so and state the assumption rather than guessing at it.
+All fourteen plugins are present under `plugins/`, so both ends of a contract can
+be inspected before changing either. Shared identifiers live in
+`plugins/rafflelb-core/core.php` (`RaffleLB\\Core\\Contracts`) — read the constant
+rather than hardcoding a table name or meta key.

@@ -1,0 +1,655 @@
+/* =====================================================
+   RAFFLELB PREMIUM MOBILE MENU
+   Visual-only replacement for the Woodmart mobile drawer.
+===================================================== */
+
+:root{
+  --rlmm-lime:#baff00;
+  --rlmm-black:#070907;
+  --rlmm-panel:#0c0f0c;
+  --rlmm-line:rgba(255,255,255,.09);
+  --rlmm-text:#f5f7f2;
+  --rlmm-muted:#9da39a;
+}
+
+.rlmm-backdrop,
+.rlmm-drawer{
+  display:none;
+}
+
+@media(max-width:1024px){
+
+  .rlmm-backdrop{
+    position:fixed;
+    inset:0;
+    z-index:999998;
+    display:block;
+    visibility:hidden;
+    opacity:0;
+    background:rgba(0,0,0,.7);
+    backdrop-filter:blur(4px);
+    -webkit-backdrop-filter:blur(4px);
+    transition:opacity .3s ease,visibility .3s ease;
+  }
+
+  .rlmm-drawer,
+  .rlmm-drawer *,
+  .rlmm-drawer *:before,
+  .rlmm-drawer *:after{
+    box-sizing:border-box;
+  }
+
+  .rlmm-drawer{
+    position:fixed;
+    top:0;
+    bottom:0;
+    right:auto !important;
+    left:0 !important;
+    z-index:999999;
+    display:block !important;
+    visibility:hidden !important;
+    width:min(87vw,420px) !important;
+    height:100vh;
+    height:100dvh;
+    overflow:hidden;
+    color:var(--rlmm-text);
+    background:
+      radial-gradient(circle at 2% 11%,rgba(186,255,0,.14),transparent 25%),
+      radial-gradient(circle at 100% 75%,rgba(186,255,0,.10),transparent 28%),
+      linear-gradient(155deg,#0b0e0b 0%,#070907 55%,#0a0c09 100%);
+    border-right:1px solid rgba(186,255,0,.22);
+    box-shadow:30px 0 80px rgba(0,0,0,.62);
+    pointer-events:none;
+    transform:translateX(-104%) !important;
+    transition:transform .36s cubic-bezier(.22,.8,.22,1);
+    -webkit-font-smoothing:antialiased;
+  }
+
+  .rlmm-drawer:after{
+    content:"";
+    position:absolute;
+    inset:0;
+    z-index:-1;
+    pointer-events:none;
+    opacity:.34;
+    background-image:
+      linear-gradient(rgba(255,255,255,.018) 1px,transparent 1px),
+      linear-gradient(90deg,rgba(255,255,255,.014) 1px,transparent 1px);
+    background-size:28px 28px;
+    mask-image:linear-gradient(to bottom,black,transparent 70%);
+  }
+
+  body.admin-bar .rlmm-drawer{
+    top:46px;
+    height:calc(100dvh - 46px);
+  }
+
+  body.rlmm-is-open{
+    overflow:hidden !important;
+    touch-action:none;
+  }
+
+  body.rlmm-is-open .rlmm-backdrop{
+    visibility:visible;
+    opacity:1;
+  }
+
+  body.rlmm-is-open .rlmm-drawer{
+    visibility:visible !important;
+    pointer-events:auto;
+    transform:translateX(0) !important;
+  }
+
+  body.rlmm-is-open .mobile-nav:not(.rlmm-drawer),
+  body.rlmm-is-open .wd-side-hidden.mobile-nav:not(.rlmm-drawer){
+    visibility:hidden !important;
+    opacity:0 !important;
+    pointer-events:none !important;
+    transform:translate3d(-105%,0,0) !important;
+  }
+
+  .rlmm-scroll{
+    width:100%;
+    height:100%;
+    overflow-x:hidden;
+    overflow-y:auto;
+    overscroll-behavior:contain;
+    scrollbar-width:thin;
+    scrollbar-color:rgba(186,255,0,.38) transparent;
+    padding:8px 10px max(8px,env(safe-area-inset-bottom));
+  }
+
+  /* Server-rendered WoodMart mobile menu replacement. */
+  .mobile-nav{
+    width:min(87vw,420px) !important;
+    max-width:420px !important;
+    padding:0 !important;
+    overflow:hidden !important;
+    color:var(--rlmm-text) !important;
+    background:
+      radial-gradient(circle at 2% 11%,rgba(186,255,0,.14),transparent 25%),
+      radial-gradient(circle at 100% 75%,rgba(186,255,0,.10),transparent 28%),
+      linear-gradient(155deg,#0b0e0b 0%,#070907 55%,#0a0c09 100%) !important;
+    border-right:1px solid rgba(186,255,0,.22) !important;
+    box-shadow:30px 0 80px rgba(0,0,0,.62) !important;
+  }
+
+  .mobile-nav .rlmm-native-list{
+    display:block !important;
+    width:100% !important;
+    height:100% !important;
+    margin:0 !important;
+    padding:0 !important;
+    overflow:hidden !important;
+    background:transparent !important;
+  }
+
+  .mobile-nav .rlmm-native-shell{
+    display:block !important;
+    width:100% !important;
+    height:100% !important;
+    margin:0 !important;
+    padding:0 !important;
+    border:0 !important;
+    list-style:none !important;
+    background:transparent !important;
+  }
+
+  .mobile-nav .rlmm-native-shell:before,
+  .mobile-nav .rlmm-native-shell:after{
+    display:none !important;
+    content:none !important;
+  }
+
+  .mobile-nav .rlmm-native-shell > .rlmm-scroll{
+    height:100vh !important;
+    height:100dvh !important;
+  }
+
+  .mobile-nav:has(.rlmm-native-list) > .wd-heading,
+  .mobile-nav:has(.rlmm-native-list) > .mobile-nav-tabs,
+  .mobile-nav:has(.rlmm-native-list) > .login-side-opener{
+    display:none !important;
+  }
+
+  .rlmm-brand-card{
+    position:relative;
+    min-height:116px;
+    display:flex;
+    flex-direction:column;
+    justify-content:center;
+    margin-bottom:9px;
+    padding:17px 18px 14px;
+    overflow:hidden;
+    border:1px solid rgba(186,255,0,.17);
+    border-radius:17px;
+    background:
+      radial-gradient(circle at 5% 5%,rgba(186,255,0,.16),transparent 37%),
+      linear-gradient(145deg,rgba(255,255,255,.035),rgba(255,255,255,.012));
+    box-shadow:inset 0 1px rgba(255,255,255,.035),0 16px 38px rgba(0,0,0,.22);
+  }
+
+  .rlmm-brand{
+    display:inline-flex;
+    width:calc(100% - 42px);
+    max-width:292px;
+    flex-direction:column;
+    align-items:flex-start;
+    justify-content:center;
+    color:#fff !important;
+    text-decoration:none !important;
+  }
+
+  .rlmm-logo-lockup{
+    display:flex;
+    flex-direction:column;
+    align-items:flex-start;
+    gap:5px;
+    width:100%;
+  }
+
+  .rlmm-website-logo-frame{
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    width:245px;
+    max-width:245px;
+    padding:5px 9px;
+    border-radius:9px;
+    background:#fff;
+  }
+
+  .rlmm-website-logo{
+    display:block;
+    width:100%;
+    max-width:100%;
+    max-height:48px;
+    object-fit:contain;
+  }
+
+  .rlmm-wordmark-tagline{
+    display:flex;
+    align-items:center;
+    gap:6px;
+    margin-top:0;
+    color:#b7bcb3;
+    font-family:Inter,"Segoe UI",Arial,sans-serif;
+    font-size:7px;
+    font-weight:800;
+    letter-spacing:1.55px;
+    white-space:nowrap;
+  }
+
+  .rlmm-wordmark-tagline i{
+    width:4px;
+    height:4px;
+    flex:0 0 4px;
+    border-radius:50%;
+    background:var(--rlmm-lime);
+  }
+
+  .rlmm-brand-card p{
+    margin:12px 0 0 !important;
+    color:#afb5ac !important;
+    font-family:Inter,"Segoe UI",Arial,sans-serif !important;
+    font-size:15px !important;
+    font-weight:500 !important;
+    line-height:1.45 !important;
+    letter-spacing:.05px;
+  }
+
+  .rlmm-close{
+    position:absolute;
+    top:13px;
+    right:13px;
+    width:38px;
+    height:38px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    padding:0 !important;
+    border:1px solid rgba(255,255,255,.13) !important;
+    border-radius:50% !important;
+    color:#fff !important;
+    background:rgba(255,255,255,.045) !important;
+    box-shadow:inset 0 1px rgba(255,255,255,.04);
+    cursor:pointer;
+    transition:border-color .2s ease,color .2s ease,background .2s ease,transform .2s ease;
+  }
+
+  .rlmm-close:hover,
+  .rlmm-close:focus-visible{
+    color:#090a08 !important;
+    border-color:var(--rlmm-lime) !important;
+    background:var(--rlmm-lime) !important;
+    transform:rotate(4deg);
+  }
+
+  .rlmm-close-svg{
+    width:23px;
+    height:23px;
+  }
+
+  .rlmm-nav-card{
+    display:flex;
+    flex-direction:column;
+    margin-bottom:9px;
+    padding:4px 8px;
+    border:1px solid rgba(255,255,255,.10);
+    border-radius:16px;
+    background:linear-gradient(150deg,rgba(255,255,255,.026),rgba(255,255,255,.009));
+    box-shadow:inset 0 1px rgba(255,255,255,.018),0 14px 32px rgba(0,0,0,.18);
+  }
+
+  .rlmm-nav-item{
+    position:relative;
+    min-height:46px;
+    display:grid !important;
+    grid-template-columns:36px minmax(0,1fr) 20px;
+    align-items:center;
+    gap:9px;
+    margin:0 !important;
+    padding:3px 9px !important;
+    border:1px solid transparent;
+    border-radius:12px;
+    color:#f2f4ef !important;
+    background:transparent;
+    font-family:Inter,"Segoe UI",Arial,sans-serif !important;
+    text-decoration:none !important;
+    transition:color .2s ease,background .2s ease,border-color .2s ease,transform .2s ease;
+  }
+
+  .rlmm-nav-item + .rlmm-nav-item:before{
+    content:"";
+    position:absolute;
+    top:-1px;
+    left:8px;
+    right:8px;
+    height:1px;
+    background:var(--rlmm-line);
+  }
+
+  .rlmm-nav-item:hover,
+  .rlmm-nav-item:focus-visible{
+    color:var(--rlmm-lime) !important;
+    background:rgba(186,255,0,.055);
+    border-color:rgba(186,255,0,.18);
+    transform:translateX(2px);
+    outline:none;
+  }
+
+  .rlmm-nav-item.is-active{
+    margin:1px -1px !important;
+    color:var(--rlmm-lime) !important;
+    border-color:var(--rlmm-lime);
+    border-left-width:5px;
+    background:
+      radial-gradient(circle at 10% 50%,rgba(186,255,0,.15),transparent 38%),
+      rgba(186,255,0,.045);
+    box-shadow:0 0 26px rgba(186,255,0,.07),inset 0 1px rgba(255,255,255,.025);
+  }
+
+  .rlmm-nav-item.is-active:before,
+  .rlmm-nav-item.is-active + .rlmm-nav-item:before{
+    display:none;
+  }
+
+  .rlmm-nav-icon{
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    width:36px;
+    height:36px;
+    color:currentColor;
+  }
+
+  .rlmm-icon-svg{
+    width:27px;
+    height:27px;
+    display:block;
+  }
+
+  .rlmm-nav-label{
+    min-width:0;
+    color:inherit;
+    font-size:15.5px;
+    font-weight:800;
+    line-height:1.2;
+    letter-spacing:-.15px;
+  }
+
+  .rlmm-nav-arrow{
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    color:#a7ada4;
+    font-family:Arial,sans-serif;
+    font-size:27px;
+    font-weight:300;
+    line-height:1;
+    transition:color .2s ease,transform .2s ease;
+  }
+
+  .rlmm-nav-item:hover .rlmm-nav-arrow,
+  .rlmm-nav-item:focus-visible .rlmm-nav-arrow,
+  .rlmm-nav-item.is-active .rlmm-nav-arrow{
+    color:var(--rlmm-lime);
+    transform:translateX(2px);
+  }
+
+  .rlmm-nav-card-secondary .rlmm-nav-item{
+    min-height:46px;
+  }
+
+  .rlmm-refer-card{
+    position:relative;
+    min-height:78px;
+    display:grid !important;
+    grid-template-columns:48px minmax(0,1fr) 20px;
+    align-items:center;
+    gap:11px;
+    margin-bottom:5px;
+    padding:11px 14px !important;
+    overflow:hidden;
+    border:1px solid rgba(186,255,0,.35);
+    border-radius:16px;
+    color:#fff !important;
+    background:
+      radial-gradient(circle at 5% 40%,rgba(186,255,0,.15),transparent 32%),
+      radial-gradient(circle at 100% 100%,rgba(186,255,0,.13),transparent 40%),
+      linear-gradient(135deg,#10150d,#0b0e0a);
+    box-shadow:inset 0 1px rgba(255,255,255,.03),0 18px 38px rgba(0,0,0,.22);
+    text-decoration:none !important;
+    transition:transform .2s ease,border-color .2s ease,box-shadow .2s ease;
+  }
+
+  .rlmm-refer-card:after{
+    content:"";
+    position:absolute;
+    right:-32px;
+    bottom:-52px;
+    width:170px;
+    height:120px;
+    pointer-events:none;
+    background:linear-gradient(140deg,transparent 15%,rgba(186,255,0,.07));
+    transform:skewX(-24deg);
+  }
+
+  .rlmm-refer-card:hover,
+  .rlmm-refer-card:focus-visible{
+    border-color:var(--rlmm-lime);
+    box-shadow:0 20px 45px rgba(0,0,0,.26),0 0 28px rgba(186,255,0,.07);
+    transform:translateY(-2px);
+    outline:none;
+  }
+
+  .rlmm-refer-icon{
+    position:relative;
+    z-index:1;
+    width:48px;
+    height:48px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    color:var(--rlmm-lime);
+    filter:drop-shadow(0 0 12px rgba(186,255,0,.28));
+  }
+
+  .rlmm-refer-icon svg{
+    width:46px;
+    height:46px;
+  }
+
+  .rlmm-refer-copy{
+    position:relative;
+    z-index:1;
+    display:flex;
+    min-width:0;
+    flex-direction:column;
+  }
+
+  .rlmm-refer-copy small{
+    margin-bottom:3px;
+    color:#8f968c;
+    font-family:Inter,"Segoe UI",Arial,sans-serif;
+    font-size:9px;
+    font-weight:700;
+    line-height:1.2;
+    letter-spacing:1.4px;
+  }
+
+  .rlmm-refer-copy strong{
+    color:#fff;
+    font-family:Inter,"Segoe UI",Arial,sans-serif;
+    font-size:18px;
+    font-weight:900;
+    line-height:1.12;
+    letter-spacing:-.35px;
+  }
+
+  .rlmm-refer-copy > span{
+    margin-top:4px;
+    color:#b2b7af;
+    font-family:Inter,"Segoe UI",Arial,sans-serif;
+    font-size:12px;
+    line-height:1.3;
+  }
+
+  .rlmm-refer-arrow{
+    position:relative;
+    z-index:1;
+    color:var(--rlmm-lime);
+    font-family:Arial,sans-serif;
+    font-size:29px;
+    font-weight:300;
+    line-height:1;
+  }
+
+  .rlmm-footer{
+    min-height:48px;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:10px;
+    padding:6px 8px 1px;
+  }
+
+  .rlmm-socials{
+    display:flex;
+    align-items:center;
+    gap:7px;
+  }
+
+  .rlmm-socials a{
+    width:33px;
+    height:33px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    border-radius:8px;
+    color:#d8ddd4 !important;
+    background:transparent;
+    text-decoration:none !important;
+    transition:color .2s ease,background .2s ease,transform .2s ease;
+  }
+
+  .rlmm-socials a:hover,
+  .rlmm-socials a:focus-visible{
+    color:#090a08 !important;
+    background:var(--rlmm-lime);
+    transform:translateY(-2px);
+    outline:none;
+  }
+
+  .rlmm-socials a[hidden]{
+    display:none !important;
+  }
+
+  .rlmm-socials svg{
+    width:21px;
+    height:21px;
+  }
+
+  .rlmm-slogan{
+    display:flex;
+    align-items:center;
+    justify-content:flex-end;
+    gap:8px;
+    color:#9ea49b;
+    font-family:Inter,"Segoe UI",Arial,sans-serif;
+    font-size:10px;
+    font-weight:600;
+    line-height:1.2;
+    white-space:nowrap;
+  }
+
+  .rlmm-slogan i{
+    width:5px;
+    height:5px;
+    flex:0 0 5px;
+    border-radius:50%;
+    background:var(--rlmm-lime);
+    box-shadow:0 0 9px rgba(186,255,0,.48);
+  }
+
+}
+
+@media(max-width:380px){
+  .rlmm-scroll{
+    padding-left:9px;
+    padding-right:9px;
+  }
+
+  .rlmm-brand-card{
+    min-height:112px;
+    padding-left:15px;
+    padding-right:15px;
+  }
+
+  .rlmm-website-logo-frame{
+    width:225px;
+  }
+
+  .rlmm-brand-card p{
+    font-size:14px !important;
+  }
+
+  .rlmm-nav-card{
+    padding-left:7px;
+    padding-right:7px;
+  }
+
+  .rlmm-nav-item{
+    grid-template-columns:34px minmax(0,1fr) 18px;
+    gap:8px;
+    min-height:44px;
+    padding-left:8px !important;
+    padding-right:8px !important;
+  }
+
+  .rlmm-nav-icon{
+    width:34px;
+    height:34px;
+  }
+
+  .rlmm-icon-svg{
+    width:25px;
+    height:25px;
+  }
+
+  .rlmm-nav-label{
+    font-size:15px;
+  }
+
+  .rlmm-refer-card{
+    grid-template-columns:44px minmax(0,1fr) 18px;
+    gap:10px;
+    padding:10px 12px !important;
+  }
+
+  .rlmm-refer-icon,
+  .rlmm-refer-icon svg{
+    width:43px;
+    height:43px;
+  }
+
+  .rlmm-refer-copy strong{
+    font-size:17px;
+  }
+
+  .rlmm-footer{
+    gap:8px;
+  }
+}
+
+@media(prefers-reduced-motion:reduce){
+  .rlmm-backdrop,
+  .rlmm-drawer,
+  .rlmm-close,
+  .rlmm-nav-item,
+  .rlmm-nav-arrow,
+  .rlmm-refer-card,
+  .rlmm-socials a{
+    transition:none !important;
+  }
+}

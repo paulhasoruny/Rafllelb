@@ -1,0 +1,88 @@
+/* RaffleLB Refer & Earn premium account presentation — v1.2.0 */
+body.rafflelb-account-page .rl-ref-wrap {
+    --rlr-lime:#baff00;
+    --rlr-white:#f7f9f4;
+    --rlr-muted:#b2baae;
+    --rlr-line:rgba(255,255,255,.10);
+    --rlr-surface:#10130f;
+    --rlr-raised:#171b15;
+    width:100%!important;
+    max-width:none!important;
+    color:var(--rlr-white)!important;
+    font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,Helvetica,sans-serif!important;
+}
+body.rafflelb-account-page .rl-ref-head {
+    display:flex!important;
+    align-items:center!important;
+    gap:18px!important;
+    padding:25px!important;
+    border:1px solid rgba(186,255,0,.22)!important;
+    border-radius:20px!important;
+    background:radial-gradient(circle at 92% 0,rgba(186,255,0,.10),transparent 36%),linear-gradient(145deg,#171c15,#0f120e)!important;
+    box-shadow:0 22px 58px rgba(0,0,0,.18)!important;
+}
+body.rafflelb-account-page .rl-ref-brand-icon { display:block!important; width:62px!important; height:62px!important; flex:0 0 62px!important; margin:0!important; object-fit:contain!important; }
+body.rafflelb-account-page .rl-ref-head>div>span,
+body.rafflelb-account-page .rl-ref-card-kicker { display:block!important; margin-bottom:6px!important; color:var(--rlr-lime)!important; font-size:11px!important; font-weight:750!important; letter-spacing:.11em!important; }
+body.rafflelb-account-page .rl-ref-head h2 { margin:0 0 7px!important; color:var(--rlr-white)!important; font-size:31px!important; line-height:1.15!important; font-weight:750!important; letter-spacing:-.025em!important; }
+body.rafflelb-account-page .rl-ref-head p { margin:0!important; color:var(--rlr-muted)!important; font-size:15px!important; line-height:1.55!important; }
+body.rafflelb-account-page .rl-ref-stats { display:grid!important; grid-template-columns:repeat(4,minmax(0,1fr))!important; gap:12px!important; margin:15px 0!important; }
+body.rafflelb-account-page .rl-ref-stats>div { min-width:0!important; padding:18px!important; border:1px solid var(--rlr-line)!important; border-radius:17px!important; background:linear-gradient(145deg,var(--rlr-raised),var(--rlr-surface))!important; }
+body.rafflelb-account-page .rl-ref-stats span { display:block!important; color:#aeb6aa!important; font-size:11px!important; font-weight:700!important; letter-spacing:.08em!important; }
+body.rafflelb-account-page .rl-ref-stats b { display:block!important; margin:9px 0 5px!important; color:var(--rlr-white)!important; font-size:27px!important; line-height:1!important; font-weight:750!important; }
+body.rafflelb-account-page .rl-ref-stats>div:first-child { border-color:rgba(186,255,0,.22)!important; background:linear-gradient(145deg,rgba(186,255,0,.11),var(--rlr-surface))!important; }
+body.rafflelb-account-page .rl-ref-stats>div:first-child b { color:var(--rlr-lime)!important; }
+body.rafflelb-account-page .rl-ref-stats small { display:block!important; color:var(--rlr-muted)!important; font-size:12px!important; line-height:1.4!important; }
+body.rafflelb-account-page .rl-ref-feature-grid { display:grid!important; grid-template-columns:minmax(0,1.25fr) minmax(270px,.75fr)!important; gap:15px!important; }
+body.rafflelb-account-page .rl-ref-card { margin:0!important; padding:23px!important; border:1px solid var(--rlr-line)!important; border-radius:19px!important; background:linear-gradient(145deg,var(--rlr-raised),var(--rlr-surface))!important; box-shadow:0 18px 44px rgba(0,0,0,.13)!important; }
+body.rafflelb-account-page .rl-ref-card h3 { margin:0 0 8px!important; color:var(--rlr-white)!important; font-size:21px!important; line-height:1.25!important; font-weight:700!important; }
+body.rafflelb-account-page .rl-ref-card p { color:#c0c7bc!important; font-size:15px!important; line-height:1.6!important; }
+body.rafflelb-account-page .rl-ref-share-card { border-color:rgba(186,255,0,.19)!important; background:radial-gradient(circle at 100% 0,rgba(186,255,0,.10),transparent 36%),linear-gradient(145deg,var(--rlr-raised),var(--rlr-surface))!important; }
+body.rafflelb-account-page .rl-ref-link { display:flex!important; gap:10px!important; margin-top:17px!important; }
+body.rafflelb-account-page .rl-ref-link input { flex:1!important; min-width:0!important; min-height:49px!important; padding:12px 14px!important; border:1px solid rgba(255,255,255,.13)!important; border-radius:13px!important; background:#0a0d0a!important; color:var(--rlr-white)!important; -webkit-text-fill-color:var(--rlr-white)!important; font-size:14px!important; }
+body.rafflelb-account-page #rl-copy-ref,
+body.rafflelb-account-page #rl-copy-ref:hover,
+body.rafflelb-account-page #rl-copy-ref:focus { min-height:49px!important; padding:11px 18px!important; border:1px solid var(--rlr-lime)!important; border-radius:13px!important; background:var(--rlr-lime)!important; color:#070807!important; -webkit-text-fill-color:#070807!important; font-size:13px!important; font-weight:750!important; box-shadow:0 9px 24px rgba(186,255,0,.13)!important; }
+body.rafflelb-account-page .rl-wa { display:inline-flex!important; align-items:center!important; justify-content:center!important; min-height:45px!important; margin-top:11px!important; padding:10px 16px!important; border:1px solid rgba(186,255,0,.28)!important; border-radius:12px!important; background:rgba(186,255,0,.065)!important; color:var(--rlr-lime)!important; -webkit-text-fill-color:var(--rlr-lime)!important; font-size:13px!important; font-weight:750!important; text-decoration:none!important; }
+body.rafflelb-account-page .rl-ref-wallet-card { border-color:rgba(186,255,0,.20)!important; }
+body.rafflelb-account-page .rl-ref-wallet-value { display:flex!important; align-items:baseline!important; gap:8px!important; margin:17px 0 12px!important; }
+body.rafflelb-account-page .rl-ref-wallet-value strong { color:var(--rlr-lime)!important; font-size:39px!important; line-height:1!important; font-weight:750!important; letter-spacing:-.035em!important; }
+body.rafflelb-account-page .rl-ref-wallet-value span { color:#d7dcd3!important; font-size:12px!important; font-weight:700!important; letter-spacing:.08em!important; }
+body.rafflelb-account-page .rl-ref-rate { margin-bottom:0!important; padding-top:12px!important; border-top:1px solid var(--rlr-line)!important; color:var(--rlr-muted)!important; font-size:13px!important; }
+body.rafflelb-account-page .rl-ref-rate strong { color:var(--rlr-white)!important; }
+body.rafflelb-account-page .rl-ref-history { margin-top:15px!important; }
+body.rafflelb-account-page .rl-ref-history-head { display:flex!important; align-items:flex-end!important; justify-content:space-between!important; gap:16px!important; margin-bottom:12px!important; }
+body.rafflelb-account-page .rl-ref-history-head h3 { margin:0!important; }
+body.rafflelb-account-page .rl-ref-history-head>strong { color:var(--rlr-lime)!important; font-size:12px!important; font-weight:750!important; letter-spacing:.07em!important; }
+body.rafflelb-account-page .rl-ref-table { margin-top:14px!important; overflow:hidden!important; border:1px solid var(--rlr-line)!important; border-radius:15px!important; }
+body.rafflelb-account-page .rl-ref-tr { display:grid!important; grid-template-columns:1.4fr 1fr .7fr!important; align-items:center!important; gap:14px!important; min-height:58px!important; padding:13px 15px!important; border:0!important; border-top:1px solid var(--rlr-line)!important; color:#e1e5de!important; font-size:14px!important; }
+body.rafflelb-account-page .rl-ref-tr:first-child { border-top:0!important; }
+body.rafflelb-account-page .rl-ref-th { min-height:44px!important; background:rgba(255,255,255,.035)!important; color:#aeb6aa!important; font-size:11px!important; font-weight:700!important; letter-spacing:.08em!important; }
+body.rafflelb-account-page .rl-ref-tr .ok { display:inline-flex!important; width:max-content!important; padding:5px 9px!important; border-radius:999px!important; background:rgba(186,255,0,.09)!important; color:var(--rlr-lime)!important; font-size:12px!important; font-weight:750!important; }
+body.rafflelb-account-page .rl-ref-tr .pending { color:#d8c076!important; font-size:12px!important; font-weight:700!important; }
+body.rafflelb-account-page .rl-ref-note { margin:15px 2px 0!important; color:#9ea69a!important; font-size:13px!important; line-height:1.55!important; }
+
+@media(max-width:1024px) {
+    body.rafflelb-account-page .rl-ref-stats { grid-template-columns:1fr 1fr!important; }
+    body.rafflelb-account-page .rl-ref-feature-grid { grid-template-columns:1fr!important; }
+}
+@media(max-width:767px) {
+    body.rafflelb-account-page .rl-ref-head { align-items:flex-start!important; padding:20px!important; }
+    body.rafflelb-account-page .rl-ref-brand-icon { width:52px!important; height:52px!important; flex-basis:52px!important; }
+    body.rafflelb-account-page .rl-ref-head h2 { font-size:26px!important; }
+    body.rafflelb-account-page .rl-ref-stats { grid-template-columns:1fr 1fr!important; gap:10px!important; }
+    body.rafflelb-account-page .rl-ref-stats>div { padding:15px!important; }
+    body.rafflelb-account-page .rl-ref-card { padding:18px!important; }
+    body.rafflelb-account-page .rl-ref-link { flex-direction:column!important; }
+    body.rafflelb-account-page #rl-copy-ref { width:100%!important; }
+    body.rafflelb-account-page .rl-wa { width:100%!important; }
+    body.rafflelb-account-page .rl-ref-tr { grid-template-columns:1fr auto!important; gap:7px 12px!important; padding:14px!important; }
+    body.rafflelb-account-page .rl-ref-th { display:none!important; }
+    body.rafflelb-account-page .rl-ref-tr>span:nth-child(2) { grid-column:1; color:var(--rlr-muted)!important; font-size:12px!important; }
+    body.rafflelb-account-page .rl-ref-tr>span:nth-child(3) { grid-column:2; grid-row:1/3; }
+}
+@media(max-width:430px) {
+    body.rafflelb-account-page .rl-ref-head { display:block!important; }
+    body.rafflelb-account-page .rl-ref-brand-icon { margin-bottom:12px!important; }
+    body.rafflelb-account-page .rl-ref-stats { grid-template-columns:1fr!important; }
+}

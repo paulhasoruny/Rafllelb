@@ -1,0 +1,44 @@
+[
+  {
+    "name": "RaffleLB Premium Mobile Menu",
+    "version": "1.1.2",
+    "file": "rafflelb-premium-mobile-menu/rafflelb-premium-mobile-menu.php",
+    "class": "RaffleLB_Premium_Mobile_Menu"
+  },
+  {
+    "name": "RaffleLB Custom Checkout",
+    "version": "4.8.6",
+    "file": "rafflelb-custom-checkout/rafflelb-custom-checkout.php",
+    "class": null
+  },
+  {
+    "name": "RaffleLB Draw Engine",
+    "version": "0.34.18",
+    "file": "rafflelb-draw-engine/rafflelb-draw-engine.php",
+    "class": "RaffleLB_Draw_Engine"
+  },
+  {
+    "name": "RaffleLB Notifications",
+    "version": "1.0.1",
+    "file": "rafflelb-notifications/rafflelb-notifications.php",
+    "class": "RaffleLB_Notifications"
+  },
+  {
+    "name": "RaffleLB OMT Pay Manual Gateway",
+    "version": "1.0.1",
+    "file": "rafflelb-omt-pay-manual-gateway/rafflelb-omt-pay-manual-gateway.php",
+    "class": null
+  },
+  {
+    "name": "RaffleLB Raffle Manager",
+    "version": "1.4.1",
+    "file": "rafflelb-raffle-manager/rafflelb-raffle-manager.php",
+    "class": "RaffleLB_Raffle_Manager"
+  },
+  {
+    "name": "RaffleLB Referral & Points",
+    "version": "1.2.14",
+    "file": "rafflelb-referral-points/rafflelb-referral-points.php",
+    "class": "RaffleLB_Referral_Points"
+  }
+]

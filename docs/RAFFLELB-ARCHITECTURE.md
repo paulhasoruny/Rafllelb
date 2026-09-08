@@ -21,15 +21,31 @@ Rafllelb/
     ├── rafflelb-custom-checkout/
     ├── rafflelb-referral-points/
     ├── rafflelb-notifications/
-    ├── rafflelb-omt-pay/
+    ├── rafflelb-omt-pay-manual-gateway/
     ├── rafflelb-whish-manual-gateway/
     ├── rafflelb-premium-mobile-menu/
     ├── rafflelb-cart-manager/
     └── rafflelb-admin/
 ```
 
-Directories whose plugin source has not been added to this repo yet contain a
-placeholder `README.md`.
+All fourteen plugins are present in this repository.
+
+| Plugin folder | Plugin name | Version |
+| --- | --- | --- |
+| `rafflelb-core` | RaffleLB Core | 0.1.1 |
+| `rafflelb-draw-engine` | RaffleLB Draw Engine | 0.34.18.9 |
+| `rafflelb-raffle-manager` | RaffleLB Raffle Manager | 1.4.1 |
+| `rafflelb-account` | RaffleLB Account | 0.1.0 |
+| `rafflelb-homepage` | RaffleLB Homepage | 0.1.2 |
+| `rafflelb-shop` | RaffleLB Shop | 0.1.43 |
+| `rafflelb-custom-checkout` | RaffleLB Custom Checkout | 4.8.6 |
+| `rafflelb-referral-points` | RaffleLB Referral & Points | 1.2.14 |
+| `rafflelb-notifications` | RaffleLB Notifications | 1.0.1 |
+| `rafflelb-omt-pay-manual-gateway` | RaffleLB OMT Pay Manual Gateway | 1.0.1 |
+| `rafflelb-whish-manual-gateway` | RaffleLB Whish Manual Gateway | 1.1.4 |
+| `rafflelb-premium-mobile-menu` | RaffleLB Premium Mobile Menu | 1.1.2 |
+| `rafflelb-cart-manager` | RaffleLB Cart Manager | 0.1.2 |
+| `rafflelb-admin` | RaffleLB Admin | 1.0.7 |
 
 ---
 
@@ -67,7 +83,8 @@ without explicit approval:
 Internal schema compatibility stays at **0.34.18** even when the WordPress
 plugin header version increases.
 
-Known baseline: **0.34.18.9** · Shop bridge: `SHOP_BRIDGE_VERSION = 1`
+Known baseline: **0.34.18.9** · Shop bridge: `SHOP_BRIDGE_VERSION = '1'`, verified against
+Shop's check in `rafflelb-shop.php`.
 
 ---
 
@@ -146,11 +163,17 @@ Owns raffle and customer notification behaviour. Listens to events including
 
 Not responsible for selecting winners.
 
+Known baseline: **1.0.1**
+
 ---
 
-## RaffleLB OMT Pay
+## RaffleLB OMT Pay Manual Gateway
 
 Owns OMT payment gateway functionality.
+
+Canonical folder: `rafflelb-omt-pay-manual-gateway` (not `rafflelb-omt-pay`).
+
+Known baseline: **1.0.1**
 
 ---
 
