@@ -1,3 +1,36 @@
+v0.34.18.16 — Desktop sticky navigation breathing room
+
+- On desktop sticky headers only, raises the visible `.whb-row.whb-sticky-row` and its inner container from 65px to 82px, preserving centered controls and the bottom-attached lime divider.
+- Normal desktop, mobile, mobile sticky, logged-in/logged-out mobile-logo sizing, Draw Engine schema VERSION (0.34.18), and all raffle/cart/account/bridge/database logic are unchanged.
+
+v0.34.18.15 — Logged-out mobile logo expansion
+
+- On mobile only, `body:not(.logged-in)` expands `.whb-mobile-center .wd-logo` from 170px to 204px and its proportional image cap from 60px to 68px.
+- Logged-in header geometry, prepared/sticky header sizing, divider behavior, Draw Engine schema VERSION (0.34.18), and all raffle/cart/account/bridge/database logic are unchanged.
+
+v0.34.18.14 — Mobile prepared-header reserve correction
+- Live measurements at 390px, 412px, and 430px show a 76px visible mobile row. After a sticky cycle, WoodMart retains `.whb-sticky-prepared` and computes the non-sticky outer header as 87px high with 87px top padding, leaving an 11px dark reserve beneath that row.
+- On mobile only, `.whb-sticky-prepared:not(.whb-sticked)` is restored to the measured 76px height/padding-top. The sticky state remains excluded, preserving the existing mobile sticky divider and behavior.
+- Desktop prepared-header correction, normal/sticky divider selectors, Draw Engine schema VERSION (0.34.18), and all raffle/cart/account/bridge/database logic are unchanged.
+
+v0.34.18.13 — Desktop prepared-header reserve correction
+- Live inspection identified no `.whb-header-bottom` or other empty WoodMart row. The only normal header row is the 78px `.whb-general-header`.
+- After a sticky cycle, WoodMart retains `.whb-sticky-prepared` on the normal outer header and computes its height/padding-top as 102px while the visible child row remains 78px, leaving a 24px dark reserve below the row.
+- On desktop only, `.whb-sticky-prepared:not(.whb-sticked)` is restored to the same 78px height/padding-top as the normal header. The real sticky state deliberately keeps WoodMart's 102px reserve unchanged.
+- Sticky divider selectors, mobile sticky behavior, Draw Engine schema VERSION (0.34.18), and all raffle/cart/account/bridge/database logic are unchanged.
+
+v0.34.18.12 — Desktop sticky divider and header-height consolidation
+- Live inspection confirms the normal desktop header hierarchy is consistently 78px high with zero vertical padding/margins; visible desktop columns are vertically centered within that row. The inactive 94px inner-height declaration has therefore been removed rather than relying on cascade order to override it.
+- WoodMart moves `.whb-row.whb-sticky-row` to the viewport when `.whb-header.whb-header_231291.whb-sticked` activates, while the original outer header remains as an off-screen 102px reserve. The divider is now moved from that off-screen outer wrapper to `.whb-sticked .whb-row:last-child::after` on every breakpoint.
+- Mobile sticky behavior is preserved. Normal headers continue to use the outer-header divider; sticky headers use exactly one in-boundary row divider.
+- Presentation only; raffle, cart, checkout, account, bridge, database logic, and internal schema VERSION (0.34.18) are unchanged.
+
+v0.34.18.11 — Header alignment and mobile sticky divider
+- Desktop: explicitly centers the existing WoodMart header columns within the fixed 78px `.whb-general-header-inner`; no header dimensions, logo/menu/control sizes, or horizontal spacing are changed.
+- Mobile sticky: moves the existing 2px lime divider from the outer header pseudo-element (which sits outside the sticky clipping boundary at `bottom:-2px`) to `.whb-sticked .whb-row:last-child::after` at `bottom:0`.
+- The outer pseudo-element is disabled only during mobile sticky state, so there is one divider in normal and sticky desktop/mobile states.
+- Presentation only; raffle, cart, checkout, account, bridge, and database logic are unchanged. Internal schema VERSION remains 0.34.18.
+
 v0.34.18.10 — Global header divider placement
 - Moved the RaffleLB lime divider from the inner `.whb-general-header` / sticky-row border to `body .whb-header.whb-header_231291::after`.
 - The 2px existing lime rule is now anchored at the outer header boundary (`bottom:-2px`), so it separates the header from page content without changing desktop/mobile header dimensions, control positions, or sticky behavior.

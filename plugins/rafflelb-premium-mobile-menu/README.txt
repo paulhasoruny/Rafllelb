@@ -1,5 +1,10 @@
 RAFFLELB PREMIUM MOBILE MENU
-Version 1.1.2
+Version 1.1.7
+
+1.1.7
+
+- Sends Raffles to the site-aware Shop raffle mode URL: `/shop/?rl_view=raffle#rl-shop-controls`.
+- Restores My Raffles to WooCommerce's existing `rafflelb-entries` account endpoint.
 
 INSTALLATION
 
@@ -18,8 +23,8 @@ WHAT IT DOES
 - Prevents common optimization tools from delaying the menu replacement script until after the first tap.
 - Replaces only the mobile drawer presentation.
 - Does not change account, raffle, order, referral, points, checkout or payment logic.
-- Uses the actual WordPress/WoodMart website logo, with Logo-Last.png as a fallback.
-- Uses the official SHOP • ENTER • WIN slogan.
+- Uses the bundled official RaffleLB WebP logo; it does not load a theme, WordPress, or remote logo image.
+- Sends Raffles to the Shop's existing Raffle Only view.
 - Uses the verified My Raffles endpoint: /my-account/rafflelb-entries/
 - Uses the verified Refer & Earn endpoint: /my-account/refer-and-earn/
 - Shows Login / Register to guests and My Account to logged-in users.

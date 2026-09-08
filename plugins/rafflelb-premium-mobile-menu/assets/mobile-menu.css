@@ -204,7 +204,7 @@
     display:flex;
     flex-direction:column;
     align-items:flex-start;
-    gap:5px;
+    gap:0;
     width:100%;
   }
 
@@ -214,48 +214,18 @@
     justify-content:center;
     width:245px;
     max-width:245px;
-    padding:5px 9px;
-    border-radius:9px;
-    background:#fff;
+    padding:0;
+    border-radius:0;
+    background:transparent;
   }
 
   .rlmm-website-logo{
     display:block;
     width:100%;
     max-width:100%;
-    max-height:48px;
+    height:auto;
+    max-height:none;
     object-fit:contain;
-  }
-
-  .rlmm-wordmark-tagline{
-    display:flex;
-    align-items:center;
-    gap:6px;
-    margin-top:0;
-    color:#b7bcb3;
-    font-family:Inter,"Segoe UI",Arial,sans-serif;
-    font-size:7px;
-    font-weight:800;
-    letter-spacing:1.55px;
-    white-space:nowrap;
-  }
-
-  .rlmm-wordmark-tagline i{
-    width:4px;
-    height:4px;
-    flex:0 0 4px;
-    border-radius:50%;
-    background:var(--rlmm-lime);
-  }
-
-  .rlmm-brand-card p{
-    margin:12px 0 0 !important;
-    color:#afb5ac !important;
-    font-family:Inter,"Segoe UI",Arial,sans-serif !important;
-    font-size:15px !important;
-    font-weight:500 !important;
-    line-height:1.45 !important;
-    letter-spacing:.05px;
   }
 
   .rlmm-close{
@@ -303,13 +273,13 @@
 
   .rlmm-nav-item{
     position:relative;
-    min-height:46px;
+    min-height:51px;
     display:grid !important;
     grid-template-columns:36px minmax(0,1fr) 20px;
     align-items:center;
     gap:9px;
     margin:0 !important;
-    padding:3px 9px !important;
+    padding:4px 9px !important;
     border:1px solid transparent;
     border-radius:12px;
     color:#f2f4ef !important;
@@ -339,19 +309,19 @@
   }
 
   .rlmm-nav-item.is-active{
-    margin:1px -1px !important;
-    color:var(--rlmm-lime) !important;
-    border-color:var(--rlmm-lime);
-    border-left-width:5px;
-    background:
-      radial-gradient(circle at 10% 50%,rgba(186,255,0,.15),transparent 38%),
-      rgba(186,255,0,.045);
-    box-shadow:0 0 26px rgba(186,255,0,.07),inset 0 1px rgba(255,255,255,.025);
+    /* Keep the semantic active class/aria-current, but render it exactly as a
+       neutral row after navigation. Hover and keyboard-focus feedback stays. */
+    margin:0 !important;
+    color:#f2f4ef !important;
+    border-color:transparent;
+    border-left-width:1px;
+    background:transparent;
+    box-shadow:none;
   }
 
   .rlmm-nav-item.is-active:before,
   .rlmm-nav-item.is-active + .rlmm-nav-item:before{
-    display:none;
+    display:block;
   }
 
   .rlmm-nav-icon{
@@ -391,14 +361,13 @@
   }
 
   .rlmm-nav-item:hover .rlmm-nav-arrow,
-  .rlmm-nav-item:focus-visible .rlmm-nav-arrow,
-  .rlmm-nav-item.is-active .rlmm-nav-arrow{
+  .rlmm-nav-item:focus-visible .rlmm-nav-arrow{
     color:var(--rlmm-lime);
     transform:translateX(2px);
   }
 
   .rlmm-nav-card-secondary .rlmm-nav-item{
-    min-height:46px;
+    min-height:51px;
   }
 
   .rlmm-refer-card{
@@ -550,28 +519,6 @@
     height:21px;
   }
 
-  .rlmm-slogan{
-    display:flex;
-    align-items:center;
-    justify-content:flex-end;
-    gap:8px;
-    color:#9ea49b;
-    font-family:Inter,"Segoe UI",Arial,sans-serif;
-    font-size:10px;
-    font-weight:600;
-    line-height:1.2;
-    white-space:nowrap;
-  }
-
-  .rlmm-slogan i{
-    width:5px;
-    height:5px;
-    flex:0 0 5px;
-    border-radius:50%;
-    background:var(--rlmm-lime);
-    box-shadow:0 0 9px rgba(186,255,0,.48);
-  }
-
 }
 
 @media(max-width:380px){
@@ -588,10 +535,6 @@
 
   .rlmm-website-logo-frame{
     width:225px;
-  }
-
-  .rlmm-brand-card p{
-    font-size:14px !important;
   }
 
   .rlmm-nav-card{

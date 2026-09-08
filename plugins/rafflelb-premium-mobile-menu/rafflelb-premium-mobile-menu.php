@@ -2,7 +2,7 @@
 /**
  * Plugin Name: RaffleLB Premium Mobile Menu
  * Description: Replaces the Woodmart mobile hamburger drawer with the premium RaffleLB navigation design.
- * Version: 1.1.2
+ * Version: 1.1.7
  * Author: RaffleLB
  * Text Domain: rafflelb-premium-mobile-menu
  */
@@ -12,7 +12,7 @@ if (!defined('ABSPATH')) {
 }
 
 final class RaffleLB_Premium_Mobile_Menu {
-    const VERSION = '1.1.2';
+    const VERSION = '1.1.7';
     const OPTION  = 'rafflelb_mobile_menu_socials';
 
     public static function init() {
@@ -112,34 +112,8 @@ final class RaffleLB_Premium_Mobile_Menu {
         return home_url('/shop/');
     }
 
-    private static function website_logo_url() {
-        $logo_id = absint(get_theme_mod('custom_logo'));
-
-        if ($logo_id) {
-            $url = wp_get_attachment_image_url($logo_id, 'full');
-            if ($url) {
-                return $url;
-            }
-        }
-
-        if (function_exists('woodmart_get_opt')) {
-            foreach (array('logo-mobile', 'logo_mobile', 'logo') as $option_name) {
-                $logo = woodmart_get_opt($option_name);
-
-                if (is_array($logo) && !empty($logo['url'])) {
-                    return esc_url_raw($logo['url']);
-                }
-
-                if (is_numeric($logo)) {
-                    $url = wp_get_attachment_image_url(absint($logo), 'full');
-                    if ($url) {
-                        return $url;
-                    }
-                }
-            }
-        }
-
-        return content_url('/uploads/2026/08/Logo-Last.png');
+    private static function raffle_shop_url() {
+        return add_query_arg('rl_view', 'raffle', self::shop_url()) . '#rl-shop-controls';
     }
 
     private static function is_active($item) {
@@ -148,7 +122,10 @@ final class RaffleLB_Premium_Mobile_Menu {
                 return function_exists('is_shop') && (is_shop() || is_product_category() || is_product());
 
             case 'raffles':
-                return is_page('raffles');
+                return function_exists('is_shop')
+                    && is_shop()
+                    && isset($_GET['rl_view'])
+                    && 'raffle' === sanitize_key(wp_unslash($_GET['rl_view']));
 
             case 'how-it-works':
                 return is_front_page();
@@ -220,7 +197,7 @@ final class RaffleLB_Premium_Mobile_Menu {
     }
 
     private static function render_menu_content() {
-        $website_logo = self::website_logo_url();
+        $menu_logo = plugins_url('assets/images/rafflelb-logo.webp', __FILE__);
         $socials = wp_parse_args(
             (array) get_option(self::OPTION, array()),
             array(
@@ -241,18 +218,16 @@ final class RaffleLB_Premium_Mobile_Menu {
             <a class="rlmm-brand" href="<?php echo esc_url(home_url('/')); ?>" aria-label="RaffleLB home">
                 <span class="rlmm-logo-lockup">
                     <span class="rlmm-website-logo-frame">
-                        <img class="rlmm-website-logo" src="<?php echo esc_url($website_logo); ?>" alt="RaffleLB" loading="eager">
+                        <img class="rlmm-website-logo" src="<?php echo esc_url($menu_logo); ?>" alt="RaffleLB — Shop, Win, Be Rewarded" width="2172" height="724" loading="eager" decoding="async">
                     </span>
-                    <span class="rlmm-wordmark-tagline">SHOP <i></i> ENTER <i></i> WIN</span>
                 </span>
             </a>
 
-            <p>More than raffles. A bigger tomorrow.</p>
         </header>
 
         <nav class="rlmm-nav-card" aria-label="Main mobile navigation">
             <?php self::nav_item('shop', 'Shop', self::shop_url(), 'shop'); ?>
-            <?php self::nav_item('raffles', 'Raffles', self::page_url('raffles', '/raffles/'), 'raffles'); ?>
+            <?php self::nav_item('raffles', 'Raffles', self::raffle_shop_url(), 'raffles'); ?>
             <?php self::nav_item('how-it-works', 'How It Works', home_url('/#how-it-works'), 'how'); ?>
             <?php self::nav_item('winners', 'Winners', self::page_url('winners', '/winners/'), 'winners'); ?>
             <?php self::nav_item('my-raffles', 'My Raffles', self::account_url('rafflelb-entries'), 'ticket'); ?>
@@ -289,9 +264,6 @@ final class RaffleLB_Premium_Mobile_Menu {
                 <?php endforeach; ?>
             </div>
 
-            <div class="rlmm-slogan">
-                <span>Shop</span><i></i><span>Enter</span><i></i><span>Win</span>
-            </div>
         </footer>
         <?php
     }

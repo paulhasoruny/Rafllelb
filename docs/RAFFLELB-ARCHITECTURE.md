@@ -33,7 +33,7 @@ All fourteen plugins are present in this repository.
 | Plugin folder | Plugin name | Version |
 | --- | --- | --- |
 | `rafflelb-core` | RaffleLB Core | 0.1.2 |
-| `rafflelb-draw-engine` | RaffleLB Draw Engine | 0.34.18.10 |
+| `rafflelb-draw-engine` | RaffleLB Draw Engine | 0.34.18.16 |
 | `rafflelb-raffle-manager` | RaffleLB Raffle Manager | 1.4.1 |
 | `rafflelb-account` | RaffleLB Account | 0.1.0 |
 | `rafflelb-homepage` | RaffleLB Homepage | 0.1.2 |
@@ -43,7 +43,7 @@ All fourteen plugins are present in this repository.
 | `rafflelb-notifications` | RaffleLB Notifications | 1.0.1 |
 | `rafflelb-omt-pay-manual-gateway` | RaffleLB OMT Pay Manual Gateway | 1.0.1 |
 | `rafflelb-whish-manual-gateway` | RaffleLB Whish Manual Gateway | 1.1.4 |
-| `rafflelb-premium-mobile-menu` | RaffleLB Premium Mobile Menu | 1.1.2 |
+| `rafflelb-premium-mobile-menu` | RaffleLB Premium Mobile Menu | 1.1.7 |
 | `rafflelb-cart-manager` | RaffleLB Cart Manager | 0.1.2 |
 | `rafflelb-admin` | RaffleLB Admin | 1.0.7 |
 
@@ -89,7 +89,7 @@ without explicit approval:
 Internal schema compatibility stays at **0.34.18** even when the WordPress
 plugin header version increases.
 
-Known baseline: **0.34.18.10** · Shop bridge: `SHOP_BRIDGE_VERSION = '1'`, verified against
+Known baseline: **0.34.18.16** · Shop bridge: `SHOP_BRIDGE_VERSION = '1'`, verified against
 Shop's check in `rafflelb-shop.php`.
 
 ---
@@ -193,6 +193,12 @@ Owns Whish / manual payment gateway functionality.
 
 Owns custom mobile navigation and menu behaviour. Do not redesign the global
 mobile header or menu inside Shop.
+
+Consumes two contracts it does not own: Shop's `rl_view=raffle` catalogue mode
+plus the `#rl-shop-controls` anchor, and WooCommerce's `rafflelb-entries`
+account endpoint. Changing either contract breaks the mobile menu's links.
+
+Known baseline: **1.1.7**
 
 ---
 
