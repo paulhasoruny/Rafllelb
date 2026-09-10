@@ -614,3 +614,41 @@ body.rafflelb-admin-mode.rafflelb-product-edit #poststuff [style*="background-co
     background:#0f120e!important;
     color:var(--rl-admin-text)!important;
 }
+
+/* v1.1.4 — WooCommerce admin order preview modal (the "eye" icon on Orders).
+ * This modal is appended straight to <body> by WooCommerce's own
+ * admin-order-preview.js (a Backbone view), not into #wpwrap/#wpbody-content,
+ * so the existing generic wpbody/.widefat rules above never reached it. Real
+ * WooCommerce class names (stable across core versions):
+ * .wc-backbone-modal[-backdrop|-content|-header|-main|-footer],
+ * .wc-order-preview-table/-addresses/-address/-status, .modal-close-link. */
+body.rafflelb-admin-mode .wc-backbone-modal-backdrop{background:rgba(4,5,3,.72)!important}
+body.rafflelb-admin-mode .wc-backbone-modal-content{background:var(--rl-admin-surface)!important;color:var(--rl-admin-text)!important;border-radius:8px;box-shadow:0 20px 55px rgba(0,0,0,.45)}
+body.rafflelb-admin-mode .wc-backbone-modal-content *{color:inherit}
+body.rafflelb-admin-mode .wc-backbone-modal-header{background:var(--rl-admin-surface2)!important;border-bottom:1px solid var(--rl-admin-border)!important}
+body.rafflelb-admin-mode .wc-backbone-modal-header h1{color:var(--rl-admin-text)!important}
+body.rafflelb-admin-mode .wc-backbone-modal-header .modal-close-link{color:var(--rl-admin-muted)!important}
+body.rafflelb-admin-mode .wc-backbone-modal-header .modal-close-link:hover,
+body.rafflelb-admin-mode .wc-backbone-modal-header .modal-close-link:focus{color:var(--rl-admin-lime)!important}
+body.rafflelb-admin-mode .wc-backbone-modal-main article{background:var(--rl-admin-surface)!important;color:var(--rl-admin-text)!important}
+body.rafflelb-admin-mode .wc-backbone-modal-main .wc-order-preview-table{background:var(--rl-admin-surface)!important;border-color:var(--rl-admin-border)!important}
+body.rafflelb-admin-mode .wc-backbone-modal-main .wc-order-preview-table th,
+body.rafflelb-admin-mode .wc-backbone-modal-main .wc-order-preview-table td{border-color:var(--rl-admin-border)!important;color:var(--rl-admin-text)!important;background:transparent!important}
+body.rafflelb-admin-mode .wc-backbone-modal-main .wc-order-preview-table thead th{background:var(--rl-admin-surface2)!important;color:var(--rl-admin-muted)!important}
+body.rafflelb-admin-mode .wc-backbone-modal-main .wc-order-preview-table tfoot tr:last-child th,
+body.rafflelb-admin-mode .wc-backbone-modal-main .wc-order-preview-table tfoot tr:last-child td{border-top:2px solid var(--rl-admin-border)!important;color:#fff!important;font-weight:700}
+body.rafflelb-admin-mode .wc-backbone-modal-main .wc-order-preview-table img{background:#fff;border-radius:4px}
+body.rafflelb-admin-mode .wc-order-preview-addresses{border-top:1px solid var(--rl-admin-border)!important}
+body.rafflelb-admin-mode .wc-order-preview-address{background:var(--rl-admin-surface2)!important;border:1px solid var(--rl-admin-border)!important;color:var(--rl-admin-text)!important}
+body.rafflelb-admin-mode .wc-order-preview-address h2{color:#fff!important}
+body.rafflelb-admin-mode .wc-order-preview-address a{color:var(--rl-admin-lime)!important}
+body.rafflelb-admin-mode .wc-order-preview-address p,
+body.rafflelb-admin-mode .wc-order-preview-address address{color:var(--rl-admin-text)!important}
+body.rafflelb-admin-mode .wc-order-preview-status{display:inline-block;padding:3px 10px;border-radius:999px;background:var(--rl-admin-surface2)!important;color:var(--rl-admin-lime)!important;border:1px solid var(--rl-admin-border)!important}
+body.rafflelb-admin-mode .wc-backbone-modal-footer{background:var(--rl-admin-surface2)!important;border-top:1px solid var(--rl-admin-border)!important}
+body.rafflelb-admin-mode .wc-backbone-modal-footer .inner{background:transparent!important}
+body.rafflelb-admin-mode .wc-backbone-modal-footer .button{background:transparent!important;border-color:var(--rl-admin-border)!important;color:var(--rl-admin-text)!important}
+body.rafflelb-admin-mode .wc-backbone-modal-footer .button-primary,
+body.rafflelb-admin-mode .wc-backbone-modal-footer .button.button-primary{background:var(--rl-admin-lime)!important;border-color:var(--rl-admin-lime)!important;color:#0b0e08!important;text-shadow:none!important;box-shadow:none!important}
+body.rafflelb-admin-mode .wc-backbone-modal-footer .button:hover{border-color:var(--rl-admin-lime)!important;color:var(--rl-admin-lime)!important}
+body.rafflelb-admin-mode .wc-backbone-modal-footer .button-primary:hover{background:#d0ff43!important;border-color:#d0ff43!important;color:#0b0e08!important}

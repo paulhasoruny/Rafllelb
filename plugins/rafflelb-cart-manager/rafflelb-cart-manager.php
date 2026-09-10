@@ -2,7 +2,7 @@
 /**
  * Plugin Name: RaffleLB Cart Manager
  * Description: Product-first cart inspection and removal using RaffleLB Draw Engine reservations.
- * Version: 0.1.2
+ * Version: 0.1.3
  * Requires at least: 6.5
  * Requires PHP: 7.4
  * Requires Plugins: woocommerce

@@ -1,13 +1,13 @@
 <?php
 /** Plugin Name: RaffleLB Products
  * Description: Product Studio for WooCommerce and RaffleLB operations.
- * Version: 0.2.9
+ * Version: 0.2.10
  * Author: RaffleLB
  * Requires Plugins: woocommerce */
 defined('ABSPATH') || exit;
 
 final class RaffleLB_Products {
-    const VERSION = '0.2.9';
+    const VERSION = '0.2.10';
     const SLUG = 'rafflelb-products';
     const CAPABILITY = 'manage_woocommerce';
     const ENABLED = '_rafflelb_draw_enabled';

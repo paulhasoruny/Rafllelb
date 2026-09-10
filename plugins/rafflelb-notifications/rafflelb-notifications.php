@@ -2,14 +2,14 @@
 /**
  * Plugin Name: RaffleLB Notifications
  * Description: A notification badge on the account icon, a "Notifications" tab in My Account, and an admin screen to create notifications and control the automatic winner / draw-completed ones. Listens to RaffleLB Draw Engine's rafflelb_draw_completed hook instead of duplicating any draw logic.
- * Version: 1.2.0
+ * Version: 1.2.1
  * Author: RaffleLB
  */
 
 if (!defined('ABSPATH')) exit;
 
 final class RaffleLB_Notifications {
-    const VERSION = '1.2.0';
+    const VERSION = '1.2.1';
     const TABLE = 'rafflelb_notifications';
     const ENDPOINT = 'rafflelb-notifications';
 
@@ -706,82 +706,128 @@ final class RaffleLB_Notifications {
         $notify_draw_complete = self::option_enabled(self::OPT_NOTIFY_DRAW_COMPLETE);
         $notify_fulfilled = self::option_enabled(self::OPT_NOTIFY_FULFILLED);
 
-        echo '<div class="wrap"><h1>RaffleLB Notifications</h1>';
-        echo '<style>
-        .rlbn-card{background:#fff;border:1px solid #dcdcde;border-radius:8px;padding:18px 20px;margin:16px 0;max-width:820px}
-        .rlbn-danger{border-color:#d63638;background:#fffafa}
-        .rlbn-danger h2{color:#b32d2e}
-        .rlbn-danger-note{margin:8px 0 16px;color:#50575e}
-        .rlbn-delete-all{background:#d63638!important;border-color:#d63638!important;color:#fff!important}
-        .rlbn-delete-all:hover,.rlbn-delete-all:focus{background:#b32d2e!important;border-color:#b32d2e!important;color:#fff!important}
-        </style>';
+        echo '<div class="wrap rlbn-page"><header class="rlbn-header"><span class="rlbn-kicker">RAFFLELB / NOTIFICATIONS</span><h1>Notifications</h1><p>Automatic winner and draw delivery, plus one-off announcements to your customers.</p></header>';
+        self::print_admin_styles();
 
         self::render_admin_notices();
 
-        echo '<div class="rlbn-card"><h2>Automatic Notifications</h2>';
-        echo '<p class="description">Draw Engine records permanent draw and fulfillment state. This plugin owns customer delivery: winner notifications/email, draw-completed alerts for other entrants, and the optional prize-fulfilled notification.</p>';
+        echo '<section class="rlbn-panel"><div class="rlbn-panel-head"><h2>Automatic Notifications</h2><p>Draw Engine records permanent draw and fulfillment state. This plugin owns customer delivery only: winner notifications/email, draw-completed alerts for other entrants, and the optional prize-fulfilled notification.</p></div>';
         echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '">';
         echo '<input type="hidden" name="action" value="rafflelb_notify_save_settings">';
         wp_nonce_field('rafflelb_notify_save_settings');
-        echo '<p><label><input type="checkbox" name="notify_winner" value="1" ' . checked($notify_winner, true, false) . '> Notify the winner in My Account and by email when a draw is completed</label></p>';
-        echo '<p><label><input type="checkbox" name="notify_draw_complete" value="1" ' . checked($notify_draw_complete, true, false) . '> Notify every other entrant that the draw is complete</label></p>';
-        echo '<p><label><input type="checkbox" name="notify_fulfilled" value="1" ' . checked($notify_fulfilled, true, false) . '> Notify the winner in My Account when prize fulfillment is marked complete</label></p>';
-        submit_button('Save Settings');
-        echo '</form></div>';
+        echo '<div class="rlbn-options">';
+        echo '<label class="rlbn-option"><input type="checkbox" name="notify_winner" value="1" ' . checked($notify_winner, true, false) . '><span class="rlbn-option-text"><strong>Notify the winner</strong><small>In My Account and by email, as soon as a draw is completed.</small></span></label>';
+        echo '<label class="rlbn-option"><input type="checkbox" name="notify_draw_complete" value="1" ' . checked($notify_draw_complete, true, false) . '><span class="rlbn-option-text"><strong>Notify every other entrant</strong><small>Lets everyone who entered know the draw is complete.</small></span></label>';
+        echo '<label class="rlbn-option"><input type="checkbox" name="notify_fulfilled" value="1" ' . checked($notify_fulfilled, true, false) . '><span class="rlbn-option-text"><strong>Notify on prize fulfillment</strong><small>Tells the winner in My Account once fulfillment is marked complete.</small></span></label>';
+        echo '</div>';
+        echo '<div class="rlbn-actions"><button type="submit" class="button button-primary">Save Settings</button></div>';
+        echo '</form></section>';
 
-        echo '<div class="rlbn-card"><h2>Send a Notification</h2>';
+        echo '<section class="rlbn-panel"><div class="rlbn-panel-head"><h2>Send a Notification</h2><p>A one-off announcement, delivered the same way as automatic notifications.</p></div>';
         echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '">';
         echo '<input type="hidden" name="action" value="rafflelb_notify_send">';
         wp_nonce_field('rafflelb_notify_send');
-        echo '<table class="form-table"><tbody>';
-        echo '<tr><th><label for="notify_title">Title</label></th><td><input type="text" id="notify_title" name="notify_title" class="large-text" required></td></tr>';
-        echo '<tr><th><label for="notify_message">Message</label></th><td><textarea id="notify_message" name="notify_message" rows="4" class="large-text" required></textarea></td></tr>';
-        echo '<tr><th><label for="notify_link">Link (optional)</label></th><td><input type="url" id="notify_link" name="notify_link" class="large-text" placeholder="https://..."></td></tr>';
-        echo '<tr><th>Send to</th><td>';
-        echo '<p><label><input type="radio" name="notify_target" value="all" checked> All registered users</label></p>';
-        echo '<p><label><input type="radio" name="notify_target" value="specific"> A specific user</label> ';
-        echo '<input type="text" name="notify_target_user" placeholder="Email, username, or user ID" class="regular-text"></p>';
-        echo '</td></tr>';
-        echo '</tbody></table>';
-        submit_button('Send Notification');
-        echo '</form></div>';
+        echo '<div class="rlbn-field"><label for="notify_title">Title</label><input type="text" id="notify_title" name="notify_title" required></div>';
+        echo '<div class="rlbn-field"><label for="notify_message">Message</label><textarea id="notify_message" name="notify_message" rows="4" required></textarea></div>';
+        echo '<div class="rlbn-field"><label for="notify_link">Link <span class="rlbn-optional">(optional)</span></label><input type="url" id="notify_link" name="notify_link" placeholder="https://..."></div>';
+        echo '<div class="rlbn-field"><label>Send to</label>';
+        echo '<div class="rlbn-radio-group">';
+        echo '<label class="rlbn-radio"><input type="radio" name="notify_target" value="all" checked><span>All registered users</span></label>';
+        echo '<label class="rlbn-radio"><input type="radio" name="notify_target" value="specific"><span>A specific user</span></label>';
+        echo '</div>';
+        echo '<input type="text" name="notify_target_user" placeholder="Email, username, or user ID" class="rlbn-target-user">';
+        echo '</div>';
+        echo '<div class="rlbn-actions"><button type="submit" class="button button-primary">Send Notification</button></div>';
+        echo '</form></section>';
 
-        echo '<div class="rlbn-card rlbn-danger"><h2>Delete All Notifications</h2>';
-        echo '<p class="rlbn-danger-note"><strong>This removes every notification for every user.</strong> It clears both read and unread notifications, so notification badges will also disappear for all users on their next page load.</p>';
+        echo '<section class="rlbn-panel rlbn-danger"><div class="rlbn-panel-head"><h2>Delete All Notifications</h2><p>This removes every notification for every user. It clears both read and unread notifications, so notification badges will also disappear for all users on their next page load.</p></div>';
         echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" onsubmit="return confirm(\'Delete ALL notifications for ALL users? This cannot be undone.\');">';
         echo '<input type="hidden" name="action" value="rafflelb_notify_delete_all">';
         wp_nonce_field('rafflelb_notify_delete_all');
-        submit_button('Delete All Notifications', 'delete rlbn-delete-all', 'submit', false);
-        echo '</form></div>';
+        echo '<div class="rlbn-actions"><button type="submit" class="button rlbn-delete-all">Delete All Notifications</button></div>';
+        echo '</form></section>';
 
         global $wpdb;
         $rows = $wpdb->get_results("SELECT * FROM {$wpdb->prefix}" . self::TABLE . " ORDER BY id DESC LIMIT 50");
 
-        echo '<div class="rlbn-card"><h2>Recent Notifications</h2>';
+        echo '<section class="rlbn-panel"><div class="rlbn-panel-head"><h2>Recent Notifications</h2></div>';
         if (!$rows) {
-            echo '<p>No notifications sent yet.</p>';
+            echo '<p class="rlbn-empty">No notifications sent yet.</p>';
         } else {
-            echo '<table class="widefat striped"><thead><tr><th>Recipient</th><th>Type</th><th>Title</th><th>Created</th><th>Email</th><th>Read</th></tr></thead><tbody>';
+            echo '<div class="rlbn-table-wrap"><table class="widefat striped rlbn-table"><thead><tr><th>Recipient</th><th>Type</th><th>Title</th><th>Created</th><th>Email</th><th>Read</th></tr></thead><tbody>';
             foreach ($rows as $row) {
                 $user = get_user_by('id', $row->user_id);
                 echo '<tr>';
                 echo '<td>' . ($user ? esc_html($user->user_email) : '#' . esc_html($row->user_id)) . '</td>';
                 echo '<td>' . esc_html(self::type_label($row->type)) . '</td>';
                 echo '<td>' . esc_html($row->title) . '</td>';
-                echo '<td>' . esc_html($row->created_at) . '</td>';
+                echo '<td class="rlbn-muted">' . esc_html($row->created_at) . '</td>';
                 if ($row->type === 'winner') {
-                    echo '<td>' . (!empty($row->email_sent_at) ? '<strong style="color:#4d7600">Sent</strong><br><small>' . esc_html($row->email_sent_at) . '</small>' : 'Not sent') . '</td>';
+                    echo '<td>' . (!empty($row->email_sent_at) ? '<span class="rlbn-pill rlbn-pill--sent">Sent</span><br><small>' . esc_html($row->email_sent_at) . '</small>' : '<span class="rlbn-pill">Not sent</span>') . '</td>';
                 } else {
-                    echo '<td>&mdash;</td>';
+                    echo '<td class="rlbn-muted">&mdash;</td>';
                 }
                 echo '<td>' . (!empty($row->is_read) ? 'Yes' : 'No') . '</td>';
                 echo '</tr>';
             }
-            echo '</tbody></table>';
+            echo '</tbody></table></div>';
         }
-        echo '</div>';
+        echo '</section>';
 
         echo '</div>';
+    }
+
+    private static function print_admin_styles() {
+        echo '<style>
+        .rlbn-page{--bg:#0b0d0a;--surface:#12150f;--surface2:#171b14;--line:#2a3027;--text:#f3f6ef;--muted:#9da698;--lime:#baff00;--lime-ink:#071008;--red:#ff6b5c;max-width:900px;font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:var(--text)}
+        .rlbn-page .rlbn-header{margin:18px 0 22px}
+        .rlbn-page .rlbn-kicker{display:block;margin-bottom:6px;color:var(--lime);font-size:10px;font-weight:800;letter-spacing:.14em;text-transform:uppercase}
+        .rlbn-page h1{margin:0 0 6px;color:#fff;font-size:26px;font-weight:700;letter-spacing:-.02em}
+        .rlbn-page .rlbn-header p{margin:0;color:var(--muted);font-size:13px}
+        .rlbn-page .rlbn-panel{padding:22px 24px;margin:0 0 18px;border:1px solid var(--line);border-radius:12px;background:var(--surface);max-width:820px}
+        .rlbn-page .rlbn-panel-head{margin-bottom:18px}
+        .rlbn-page .rlbn-panel-head h2{margin:0 0 6px;color:#fff;font-size:16px;font-weight:700}
+        .rlbn-page .rlbn-panel-head p{margin:0;color:var(--muted);font-size:12.5px;line-height:1.55;max-width:640px}
+        .rlbn-page .rlbn-options{display:flex;flex-direction:column;gap:10px;margin-bottom:18px}
+        .rlbn-page .rlbn-option{display:flex;align-items:flex-start;gap:12px;padding:14px 16px;border:1px solid var(--line);border-radius:9px;background:#0d100c;cursor:pointer;transition:border-color .12s ease,background .12s ease}
+        .rlbn-page .rlbn-option:hover{border-color:#4a5a3a;background:#10130e}
+        .rlbn-page .rlbn-option:has(input:checked){border-color:var(--lime);background:rgba(186,255,0,.06)}
+        .rlbn-page .rlbn-option-text strong{display:block;color:#fff;font-size:13.5px;font-weight:650}
+        .rlbn-page .rlbn-option-text small{display:block;margin-top:3px;color:var(--muted);font-size:12px;line-height:1.5}
+        .rlbn-page .rlbn-field{margin-bottom:16px;max-width:520px}
+        .rlbn-page .rlbn-field label{display:block;margin-bottom:7px;color:#dce4d6;font-size:12.5px;font-weight:650}
+        .rlbn-page .rlbn-optional{color:var(--muted);font-weight:400}
+        .rlbn-page .rlbn-field input[type=text],.rlbn-page .rlbn-field input[type=url],.rlbn-page .rlbn-field textarea{box-sizing:border-box;width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:7px;background:#0d100c;color:#fff;font:inherit;font-size:13px}
+        .rlbn-page .rlbn-field input:focus,.rlbn-page .rlbn-field textarea:focus,.rlbn-page .rlbn-target-user:focus{outline:none;border-color:var(--lime);box-shadow:0 0 0 3px rgba(186,255,0,.15)}
+        .rlbn-page .rlbn-field textarea{resize:vertical}
+        .rlbn-page .rlbn-radio-group{display:flex;flex-wrap:wrap;gap:16px;margin-bottom:10px}
+        .rlbn-page .rlbn-radio{display:flex;align-items:center;gap:8px;color:#dce4d6;font-size:13px;cursor:pointer}
+        .rlbn-page .rlbn-target-user{box-sizing:border-box;width:100%;max-width:340px;padding:9px 12px;border:1px solid var(--line);border-radius:7px;background:#0d100c;color:#fff;font:inherit;font-size:13px}
+        .rlbn-page .rlbn-actions{margin-top:4px}
+        .rlbn-page .button-primary{background:var(--lime)!important;border-color:var(--lime)!important;color:var(--lime-ink)!important;text-shadow:none!important;box-shadow:none!important;font-weight:700}
+        .rlbn-page .button-primary:hover,.rlbn-page .button-primary:focus{background:#d0ff43!important;border-color:#d0ff43!important;color:var(--lime-ink)!important}
+        .rlbn-page .rlbn-danger{border-color:rgba(255,107,92,.35);background:#160f0d}
+        .rlbn-page .rlbn-danger .rlbn-panel-head h2{color:#ffb3a8}
+        .rlbn-page .rlbn-delete-all{background:transparent!important;border-color:var(--red)!important;color:var(--red)!important}
+        .rlbn-page .rlbn-delete-all:hover,.rlbn-page .rlbn-delete-all:focus{background:var(--red)!important;color:#1a0a08!important}
+        .rlbn-page .rlbn-table-wrap{overflow:auto;border:1px solid var(--line);border-radius:9px}
+        .rlbn-page .rlbn-table{width:100%;border-collapse:collapse;background:var(--surface)!important}
+        .rlbn-page .rlbn-table th,.rlbn-page .rlbn-table td{padding:11px 13px;border-bottom:1px solid var(--line);color:var(--text)}
+        .rlbn-page .rlbn-table thead th{background:var(--surface2)!important;color:var(--muted);font-size:10.5px;font-weight:700;letter-spacing:.07em;text-transform:uppercase}
+        .rlbn-page .rlbn-table tbody tr{background:var(--surface)!important}
+        .rlbn-page .rlbn-table tbody tr:nth-child(2n){background:#0e110d!important}
+        .rlbn-page .rlbn-muted{color:var(--muted)}
+        .rlbn-page .rlbn-pill{display:inline-block;padding:2px 8px;border:1px solid var(--line);border-radius:999px;color:var(--muted);font-size:10.5px;font-weight:700;text-transform:uppercase}
+        .rlbn-page .rlbn-pill--sent{border-color:var(--lime);background:rgba(186,255,0,.12);color:#e6ffab}
+        .rlbn-page .rlbn-empty{color:var(--muted)}
+        .rlbn-page input[type=checkbox],.rlbn-page input[type=radio]{appearance:none;-webkit-appearance:none;width:18px;height:18px;flex:0 0 18px;margin:1px 0 0;border:1px solid #687060;border-radius:4px;background:#0a0d09;cursor:pointer}
+        .rlbn-page input[type=radio]{border-radius:50%;width:16px;height:16px;margin-top:2px}
+        .rlbn-page input[type=checkbox]:checked{border-color:var(--lime);background:var(--lime);background-image:linear-gradient(45deg,transparent 45%,#071004 46% 54%,transparent 55%),linear-gradient(-45deg,transparent 39%,#071004 40% 48%,transparent 49%);background-size:70% 70%;background-position:center;background-repeat:no-repeat}
+        .rlbn-page input[type=radio]:checked{border:5px solid var(--lime);background:#0a0d09}
+        .rlbn-page input[type=checkbox]:focus-visible,.rlbn-page input[type=radio]:focus-visible{outline:2px solid var(--lime);outline-offset:2px}
+        .rlbn-page input[type=checkbox]:hover,.rlbn-page input[type=radio]:hover{border-color:var(--lime)}
+        @media(max-width:600px){.rlbn-page .rlbn-panel{padding:18px}.rlbn-page .rlbn-radio-group{flex-direction:column;gap:10px}}
+        </style>';
     }
 
     private static function render_admin_notices() {

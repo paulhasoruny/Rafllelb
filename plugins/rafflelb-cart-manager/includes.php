@@ -145,8 +145,8 @@ final class RLCM {
     }
     public static function assets($hook) {
         if (strpos($hook, self::SLUG) === false && $hook !== 'toplevel_page_rafflelb') return;
-        wp_enqueue_style('rlcm', plugins_url('admin.css', __FILE__), array(), '0.1.2');
-        wp_enqueue_script('rlcm', plugins_url('admin.js', __FILE__), array(), '0.1.2', true);
+        wp_enqueue_style('rlcm', plugins_url('admin.css', __FILE__), array(), '0.1.3');
+        wp_enqueue_script('rlcm', plugins_url('admin.js', __FILE__), array(), '0.1.3', true);
     }
 
     public static function inventory() {

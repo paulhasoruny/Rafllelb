@@ -2,7 +2,7 @@
 Contributors: rafflelb
 Requires at least: 6.5
 Requires PHP: 7.4
-Stable tag: 0.1.2
+Stable tag: 0.1.3
 License: GPLv2 or later
 
 Product-first administration of saved WooCommerce carts and existing RaffleLB holds.
@@ -72,6 +72,19 @@ It does not restore manually removed items or alter remaining holds. No custom t
 or schedules are created. Uninstall removes only this plugin's two option flags.
 
 == Changelog ==
+= 0.1.3 =
+* Compatibility review: Draw Engine's sync_hold_from_cart() changed since the
+  0.1.2 contract was pinned (it now also blocks a guest-only session from
+  refreshing a raffle hold before reconciling it). Reviewed against how Cart
+  Manager calls it - same public signature, same table, same reconciliation
+  behavior for the removal flow - and re-pinned the compatibility contract to
+  the current, reviewed source. Every other pinned method
+  (draw_id, cart_item_purchase_mode, cart_draw_qty, token, release_token,
+  release_current_hold, stats, claimed, held, cleanup_expired_holds,
+  draw_status) is unchanged. No Cart Manager removal logic changed; this
+  restores cart/reservation removal by re-enabling the existing safety gate
+  now that its one flagged method has been reviewed and confirmed safe.
+
 = 0.1.1 =
 * Show only active Draw Engine reservation holders for raffle products.
 * Hide stale/expired raffle carts and raffle products with zero active holds.
