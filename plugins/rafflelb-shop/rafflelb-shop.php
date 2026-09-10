@@ -2,14 +2,14 @@
 /**
  * Plugin Name: RaffleLB Shop
  * Description: Existing RaffleLB catalog and product presentation with reversible Draw Engine delegation.
- * Version: 0.1.89
+ * Version: 0.1.90
  * Author: RaffleLB
  * Requires PHP: 7.4
  */
 if (!defined('ABSPATH')) { exit; }
 require_once plugin_dir_path(__FILE__) . 'includes/class-rafflelb-store-only-renderer.php';
 final class RaffleLB_Shop {
-    const VERSION = '0.1.89';
+    const VERSION = '0.1.90';
     public static function ready() {
         return class_exists('RaffleLB\\Core\\Contracts')
             && version_compare(\RaffleLB\Core\Contracts::VERSION, '0.1.0', '>=')

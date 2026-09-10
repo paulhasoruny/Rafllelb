@@ -208,6 +208,18 @@ body.rafflelb-store-product .rl-product-classification a{text-decoration:none!im
 body.rafflelb-store-product .rl-product-left>*,body.rafflelb-store-product .rl-product-right>*{flex:0 0 auto}
 body.rafflelb-store-product .rl-product-left>*:last-child,body.rafflelb-store-product .rl-product-right>*:last-child{flex:1 1 auto;margin-bottom:0}
 body.rafflelb-store-product .rl-product-left>.rl-product-details-panel{margin-top:14px}
+/* 0.1.90: Store Only desktop left column is trimmed from the shared 1fr
+   (~618px at 1536px) to a fixed 580px. Gallery and Product Information stay
+   the same width as each other, the gap stays the shared 36px and the right
+   column stays fluid. Desktop only - tablet/mobile keep the shared responsive
+   layout. Raffle and Store & Raffle are untouched. */
+body.rafflelb-store-product .rl-product-layout{grid-template-columns:580px minmax(0,1fr);gap:36px}
+body.rafflelb-store-product .rl-product-left,
+body.rafflelb-store-product .rl-product-left>.woocommerce-product-gallery,
+body.rafflelb-store-product .rl-product-left>.product-images,
+body.rafflelb-store-product .rl-product-left>.wd-product-gallery,
+body.rafflelb-store-product .rl-product-left>.product-gallery,
+body.rafflelb-store-product .rl-product-left>.rl-product-details-panel{width:100%;max-width:580px}
 }
 /* Approved compact Buy Direct card: sized by its own content (width:max-content)
    so it never stretches to the shared column width. */
