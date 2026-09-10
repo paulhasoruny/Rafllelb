@@ -2,14 +2,14 @@
 /**
  * Plugin Name: RaffleLB Raffle Manager
  * Description: A dedicated "Raffles" admin section (like WooCommerce Products) for creating, editing, and monitoring every raffle in one place. Reads and writes the same product fields, meta, and database tables as RaffleLB Draw Engine instead of duplicating its logic.
- * Version: 1.6.7
+ * Version: 1.6.8
  * Author: RaffleLB
  */
 
 if (!defined('ABSPATH')) exit;
 
 final class RaffleLB_Raffle_Manager {
-    const VERSION = '1.6.7';
+    const VERSION = '1.6.8';
 
     // Mirrors RaffleLB Draw Engine's own constants and table names so this
     // plugin reads/writes the exact same product meta and DB tables without
@@ -131,25 +131,6 @@ final class RaffleLB_Raffle_Manager {
         if ($status !== 'winner_selected' && get_post_meta($pid, self::META_EARLY_CLOSED, true) === 'yes') return true;
         if ($status === 'winner_selected' && $fulfillment !== null && $fulfillment !== 'fulfilled') return true;
         return false;
-    }
-
-    /** Paid vs pending revenue for a raffle's active entries, using only the
-     *  existing WooCommerce order API (order->is_paid()) — never a manually
-     *  derived financial figure. Read-only, no writes. */
-    private static function revenue_breakdown($pid, $price) {
-        global $wpdb;
-        $order_rows = $wpdb->get_results($wpdb->prepare(
-            "SELECT order_id, COUNT(*) qty FROM {$wpdb->prefix}" . self::ENTRY_TABLE . " WHERE product_id=%d AND status='active' AND order_id>0 GROUP BY order_id",
-            $pid
-        ));
-        $paid = 0.0;
-        $pending = 0.0;
-        foreach ((array) $order_rows as $row) {
-            $order = wc_get_order(absint($row->order_id));
-            $amount = (float) $price * absint($row->qty);
-            if ($order && $order->is_paid()) { $paid += $amount; } else { $pending += $amount; }
-        }
-        return ['paid' => $paid, 'pending' => $pending];
     }
 
     /** Recent Activity: reads the existing rafflelb_entry_history table this
@@ -857,7 +838,6 @@ final class RaffleLB_Raffle_Manager {
         global $wpdb;
         $available = max(0, $total - $claimed - $active_holds);
         $pct = $total > 0 ? min(100, round(($claimed / $total) * 100)) : 0;
-        $breakdown = self::revenue_breakdown($id, $price);
         $result = $wpdb->get_row($wpdb->prepare("SELECT * FROM {$wpdb->prefix}" . self::RESULT_TABLE . " WHERE product_id=%d LIMIT 1", $id));
 
         echo '<div class="rlbrm-card rlbrm-overview-card">';
@@ -870,8 +850,11 @@ final class RaffleLB_Raffle_Manager {
         echo '<div><span>Available</span><strong>' . esc_html($available) . '</strong><small>after active holds</small></div>';
         echo '<div><span>Capacity</span><strong>' . esc_html($total) . '</strong></div>';
         echo '<div><span>Active Holds</span><strong>' . esc_html($active_holds) . '</strong><small>reserved, not yet paid</small></div>';
-        echo '<div><span>Paid Revenue</span><strong>' . wp_kses_post(wc_price($breakdown['paid'])) . '</strong></div>';
-        echo '<div><span>Pending Revenue</span><strong>' . wp_kses_post(wc_price($breakdown['pending'])) . '</strong><small>orders not yet paid</small></div>';
+        /* Same current-price x claimed-count figure already shown in the stats
+         * bar above (render_monitor's own $revenue) — an operational estimate,
+         * not an authoritative accounting total, since it doesn't account for
+         * historical price changes. No paid/pending split is derived from it. */
+        echo '<div><span>Entry Revenue</span><strong>' . wp_kses_post(wc_price($revenue)) . '</strong><small>estimate at current entry price</small></div>';
         echo '</div>';
 
         echo '<div class="rlbrm-overview-sections">';
@@ -1209,7 +1192,11 @@ final class RaffleLB_Raffle_Manager {
         $paged = min($paged, $total_pages);
         $page_rows = array_slice($rows, ($paged - 1) * $per_page, $per_page);
 
-        $base_url = add_query_arg(['page' => self::SLUG, 'action' => 'view', 'id' => $id], admin_url('admin.php'));
+        /* All Entries nav/search/pagination links are built from a base URL that
+         * already carries the #entries fragment, so add_query_arg() (which
+         * preserves an existing fragment) keeps every one of them on this tab
+         * after navigation instead of falling back to Overview. */
+        $base_url = add_query_arg(['page' => self::SLUG, 'action' => 'view', 'id' => $id], admin_url('admin.php')) . '#entries';
         $export_url = wp_nonce_url(add_query_arg(['action' => 'rafflelb_rm_export_entries', 'product_id' => $id], admin_url('admin-post.php')), 'rafflelb_rm_export_entries_' . $id);
 
         echo '<div class="rlbrm-card">';
@@ -1222,7 +1209,7 @@ final class RaffleLB_Raffle_Manager {
             echo '<a class="' . ($entry_filter === $key ? 'current' : '') . '" href="' . esc_url($url) . '">' . esc_html($label) . '</a>';
         }
         echo '</nav>';
-        echo '<form method="get" class="rlbrm-inline-search">';
+        echo '<form method="get" class="rlbrm-inline-search" action="' . esc_url($base_url) . '">';
         echo '<input type="hidden" name="page" value="' . esc_attr(self::SLUG) . '"><input type="hidden" name="action" value="view"><input type="hidden" name="id" value="' . esc_attr($id) . '">';
         if ($entry_filter !== 'all') echo '<input type="hidden" name="rme_filter" value="' . esc_attr($entry_filter) . '">';
         echo '<input type="search" name="rme_s" value="' . esc_attr($search) . '" placeholder="Search entry #, customer, email or order #">';
@@ -1282,8 +1269,14 @@ final class RaffleLB_Raffle_Manager {
 
     private static function render_orders_section($id, $view_url) {
         global $wpdb;
+        /* Discovery only: a cancelled/refunded order's entries correctly become
+         * void, so restricting discovery to status='active' silently drops
+         * that order from every list, including the new Cancelled/Failed
+         * filter. Read across all historical entries for this raffle instead
+         * — this changes nothing about entry status, restores no void entry,
+         * and never touches the order itself. */
         $order_ids = $wpdb->get_col($wpdb->prepare(
-            "SELECT DISTINCT order_id FROM {$wpdb->prefix}" . self::ENTRY_TABLE . " WHERE product_id=%d AND status='active' AND order_id>0 ORDER BY order_id DESC",
+            "SELECT DISTINCT order_id FROM {$wpdb->prefix}" . self::ENTRY_TABLE . " WHERE product_id=%d AND order_id>0 ORDER BY order_id DESC",
             $id
         ));
         if (!$order_ids) return;
@@ -1306,7 +1299,9 @@ final class RaffleLB_Raffle_Manager {
             $orders[] = ['order' => $order, 'id' => $order_id, 'bucket' => $bucket];
         }
 
-        $base_url = add_query_arg(['page' => self::SLUG, 'action' => 'view', 'id' => $id], admin_url('admin.php'));
+        /* Order filter links are built from a base URL carrying #orders so they
+         * stay on this tab after navigation, matching the Entries tab fix. */
+        $base_url = add_query_arg(['page' => self::SLUG, 'action' => 'view', 'id' => $id], admin_url('admin.php')) . '#orders';
 
         echo '<div class="rlbrm-card rlbrm-border-lime">';
         echo '<h2>Orders</h2>';
@@ -1330,21 +1325,32 @@ final class RaffleLB_Raffle_Manager {
             $order = $o['order'];
             $order_id = $o['id'];
 
-            $summary = $wpdb->get_row($wpdb->prepare(
+            /* Active and void counts are calculated separately so a cancelled
+             * order with zero active entries never shows a fabricated range. */
+            $active_summary = $wpdb->get_row($wpdb->prepare(
                 "SELECT MIN(entry_number) first_entry, MAX(entry_number) last_entry, COUNT(*) qty FROM {$wpdb->prefix}" . self::ENTRY_TABLE . " WHERE product_id=%d AND order_id=%d AND status='active'",
                 $id, $order_id
             ));
-            $qty = $summary ? absint($summary->qty) : 0;
-            $first = '#' . str_pad((string) absint($summary->first_entry ?? 0), 3, '0', STR_PAD_LEFT);
-            $last = '#' . str_pad((string) absint($summary->last_entry ?? 0), 3, '0', STR_PAD_LEFT);
-            $range = $qty > 1 ? ($first . '–' . $last) : $first;
+            $active_qty = $active_summary ? absint($active_summary->qty) : 0;
+            $void_qty = (int) $wpdb->get_var($wpdb->prepare(
+                "SELECT COUNT(*) FROM {$wpdb->prefix}" . self::ENTRY_TABLE . " WHERE product_id=%d AND order_id=%d AND status!='active'",
+                $id, $order_id
+            ));
+            if ($active_qty > 0) {
+                $first = '#' . str_pad((string) absint($active_summary->first_entry), 3, '0', STR_PAD_LEFT);
+                $last = '#' . str_pad((string) absint($active_summary->last_entry), 3, '0', STR_PAD_LEFT);
+                $entries_display = $active_qty . ' (' . ($active_qty > 1 ? $first . '–' . $last : $first) . ')';
+                if ($void_qty > 0) $entries_display .= ' <span class="rlbrm-muted">+' . esc_html($void_qty) . ' void</span>';
+            } else {
+                $entries_display = '<span class="rlbrm-no-winner">0 active</span> <span class="rlbrm-muted">(' . esc_html($void_qty) . ' void)</span>';
+            }
             $name = self::customer_name($order->get_user_id(), $order);
             $payment_status = $o['bucket'] === 'paid' ? 'Paid' : ($o['bucket'] === 'cancelled' ? 'Not paid' : 'Pending');
 
             echo '<tr>';
             echo '<td><a href="' . esc_url($order->get_edit_order_url()) . '">#' . esc_html($order_id) . '</a></td>';
             echo '<td>' . esc_html($name) . '</td>';
-            echo '<td>' . esc_html($qty) . ' (' . esc_html($range) . ')</td>';
+            echo '<td>' . wp_kses_post($entries_display) . '</td>';
             echo '<td>' . wp_kses_post($order->get_formatted_order_total()) . '</td>';
             echo '<td class="rlbrm-muted">' . esc_html($order->get_payment_method_title() ?: '—') . '</td>';
             echo '<td><span class="rlbrm-pill rlbrm-pill--' . esc_attr($o['bucket']) . '">' . esc_html($payment_status) . '</span></td>';
@@ -1408,8 +1414,8 @@ final class RaffleLB_Raffle_Manager {
             }
             fputcsv($out, [
                 str_pad((string) absint($entry->entry_number), 3, '0', STR_PAD_LEFT),
-                $name,
-                $email,
+                self::csv_safe($name),
+                self::csv_safe($email),
                 $entry->order_id,
                 $entry->status === 'active' ? 'Confirmed' : 'Void',
                 $entry->created_at,
@@ -1417,6 +1423,18 @@ final class RaffleLB_Raffle_Manager {
         }
         fclose($out);
         exit;
+    }
+
+    /** Neutralize spreadsheet-formula injection in user-controlled CSV cells.
+     *  A leading =, +, -, or @ makes Excel/Sheets evaluate the cell as a
+     *  formula; prefixing with a tab keeps the value readable as plain text
+     *  without altering the underlying data being exported. */
+    private static function csv_safe($value) {
+        $value = (string) $value;
+        if ($value !== '' && in_array($value[0], ['=', '+', '-', '@'], true)) {
+            return "\t" . $value;
+        }
+        return $value;
     }
 
     public static function handle_trash() {

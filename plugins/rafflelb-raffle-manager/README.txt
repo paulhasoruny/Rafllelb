@@ -1,3 +1,21 @@
+RaffleLB Raffle Manager v1.6.8
+
+Correction pass on the v1.6.7 Operations redesign (visual design, status pills, Overview/Entries/Orders layout, and Needs Attention logic are unchanged from 1.6.7):
+- Entries tab: search, the All/Active/Void filter, Clear, and pagination now return to #entries instead of dropping back to Overview after navigation.
+- Orders tab: the All/Paid+Processing/Pending/Cancelled+Failed filter now returns to #orders the same way.
+- Orders tab: order discovery now reads all historical entries for the raffle, not only active ones, so a cancelled/refunded order whose entries were correctly voided still appears (and shows correctly under Cancelled/Failed) instead of disappearing from the list. Active and void entry counts are now calculated separately per order, so an order with zero active entries shows "0 active (N void)" instead of a bogus #000 range. This is read-only discovery - no entry status, void state, or order is changed.
+- Overview: removed the v1.6.7 Paid/Pending Revenue split, which implied more precision than the underlying data supports (current entry price multiplied by entry count, not the historical transaction price). Overview now shows a single "Entry Revenue" figure - the same current-price x claimed-count estimate already shown in the stats bar - labeled as an estimate rather than as authoritative paid/pending accounting.
+- Export Entries CSV: customer name and email cells are now neutralized against spreadsheet-formula injection (a leading =, +, -, or @ is tab-prefixed) before being written with fputcsv(). Capability check, nonce verification, and the read-only nature of the export are unchanged.
+
+RaffleLB Raffle Manager v1.6.7
+
+Operations UI/UX redesign (presentational only - every function that writes or authoritatively computes raffle state is unchanged from 1.6.6):
+- Raffle Operations list: redesigned Prize, Status, Entry/Capacity, Winner, Fulfillment and Actions columns with a clearer visual hierarchy (thumbnail + title + SKU, status/fulfillment pills, price + claimed/total + progress bar, structured winner block, primary/secondary/tertiary actions).
+- New "Needs Attention" filter/tab, derived from existing draw status, early-close meta, and fulfillment status - no new database state, no Draw Engine change.
+- Overview tab rebuilt into a metric grid plus Raffle/Winner/Fulfillment summary sections and a Recent Activity list read from the existing entry-history table. No draw/winner/fulfillment controls are duplicated here.
+- Entries tab: added an Email column, an Active/Void filter, search across entry #/customer/email/order #, and a read-only "Export Entries CSV" action. The existing Void Entry mechanism is unchanged.
+- Orders tab: added Payment method, Payment status and Date columns and a status filter, using existing WooCommerce order APIs only. The existing cancel/refund action and its nonce are unchanged.
+
 RaffleLB Raffle Manager v1.6.3
 
 - Completed the Monitor workspace split without changing Draw Engine handlers.
