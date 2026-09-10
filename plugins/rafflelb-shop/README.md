@@ -1,4 +1,4 @@
-# RaffleLB Shop 0.1.90 — shared product shell
+# RaffleLB Shop 0.1.91 — shared product shell
 
 0.1.90 trims the Store Only desktop left column to a fixed 580px (gallery and
 Product Information together), above the 901px breakpoint only. The shared
