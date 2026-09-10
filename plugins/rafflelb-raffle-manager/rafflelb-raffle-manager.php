@@ -2,14 +2,14 @@
 /**
  * Plugin Name: RaffleLB Raffle Manager
  * Description: A dedicated "Raffles" admin section (like WooCommerce Products) for creating, editing, and monitoring every raffle in one place. Reads and writes the same product fields, meta, and database tables as RaffleLB Draw Engine instead of duplicating its logic.
- * Version: 1.6.6
+ * Version: 1.6.7
  * Author: RaffleLB
  */
 
 if (!defined('ABSPATH')) exit;
 
 final class RaffleLB_Raffle_Manager {
-    const VERSION = '1.6.6';
+    const VERSION = '1.6.7';
 
     // Mirrors RaffleLB Draw Engine's own constants and table names so this
     // plugin reads/writes the exact same product meta and DB tables without
@@ -55,6 +55,7 @@ final class RaffleLB_Raffle_Manager {
         add_action('admin_post_rafflelb_rm_trash_raffle', [__CLASS__, 'handle_trash']);
         add_action('admin_post_rafflelb_rm_reset_winners', [__CLASS__, 'handle_reset_winners']);
         add_action('admin_post_rafflelb_rm_delete_test_orders', [__CLASS__, 'handle_delete_test_orders']);
+        add_action('admin_post_rafflelb_rm_export_entries', [__CLASS__, 'handle_export_entries']);
     }
 
     public static function missing_draw_engine_notice() {
@@ -122,6 +123,48 @@ final class RaffleLB_Raffle_Manager {
         return 'live';
     }
 
+    /** Needs Attention: purely derived from data this plugin already reads —
+     *  draw status, the existing early-close meta, and the existing per-row
+     *  fulfillment status. No new database state and no Draw Engine change. */
+    private static function needs_attention($pid, $status, $fulfillment = null) {
+        if ($status === 'ready_to_draw') return true;
+        if ($status !== 'winner_selected' && get_post_meta($pid, self::META_EARLY_CLOSED, true) === 'yes') return true;
+        if ($status === 'winner_selected' && $fulfillment !== null && $fulfillment !== 'fulfilled') return true;
+        return false;
+    }
+
+    /** Paid vs pending revenue for a raffle's active entries, using only the
+     *  existing WooCommerce order API (order->is_paid()) — never a manually
+     *  derived financial figure. Read-only, no writes. */
+    private static function revenue_breakdown($pid, $price) {
+        global $wpdb;
+        $order_rows = $wpdb->get_results($wpdb->prepare(
+            "SELECT order_id, COUNT(*) qty FROM {$wpdb->prefix}" . self::ENTRY_TABLE . " WHERE product_id=%d AND status='active' AND order_id>0 GROUP BY order_id",
+            $pid
+        ));
+        $paid = 0.0;
+        $pending = 0.0;
+        foreach ((array) $order_rows as $row) {
+            $order = wc_get_order(absint($row->order_id));
+            $amount = (float) $price * absint($row->qty);
+            if ($order && $order->is_paid()) { $paid += $amount; } else { $pending += $amount; }
+        }
+        return ['paid' => $paid, 'pending' => $pending];
+    }
+
+    /** Recent Activity: reads the existing rafflelb_entry_history table this
+     *  plugin already queries elsewhere (Reset/Cleanup). Read-only; no new
+     *  audit system, no write. */
+    private static function recent_activity($pid, $limit = 8) {
+        global $wpdb;
+        $table = $wpdb->prefix . self::HISTORY_TABLE;
+        if ($wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $table)) !== $table) return [];
+        return (array) $wpdb->get_results($wpdb->prepare(
+            "SELECT * FROM {$table} WHERE product_id=%d ORDER BY event_at DESC, id DESC LIMIT %d",
+            $pid, $limit
+        ));
+    }
+
     private static function customer_name($user_id, $order) {
         if ($user_id) {
             $user = get_user_by('id', $user_id);
@@ -134,21 +177,39 @@ final class RaffleLB_Raffle_Manager {
         return 'Guest';
     }
 
-    private static function status_badge($status) {
+    /** Status pill: [label, modifier]. Presentational only — the status
+     *  string itself still comes only from draw_status()/Draw Engine data. */
+    private static function status_pill_parts($status) {
         $map = [
-            'live'             => ['LIVE', '#3c6e00', '#eaffcf'],
-            'ready_to_draw'    => ['READY TO DRAW', '#7a4b00', '#fff2d6'],
-            'winner_selected'  => ['WINNER SELECTED', '#10130d', '#e8ffb0'],
+            'live'             => ['LIVE', 'live'],
+            'ready_to_draw'    => ['READY TO DRAW', 'ready'],
+            'winner_selected'  => ['WINNER SELECTED', 'winner'],
         ];
-        [$label, $fg, $bg] = $map[$status] ?? ['UNKNOWN', '#555', '#eee'];
-        return '<span class="rlbrm-badge" style="color:' . esc_attr($fg) . ';background:' . esc_attr($bg) . '">' . esc_html($label) . '</span>';
+        return $map[$status] ?? [strtoupper(str_replace('_', ' ', (string) $status)), 'default'];
+    }
+
+    private static function status_badge($status) {
+        [$label, $mod] = self::status_pill_parts($status);
+        return '<span class="rlbrm-pill rlbrm-pill--' . esc_attr($mod) . '">' . esc_html($label) . '</span>';
+    }
+
+    /** Fulfillment pill: [label, modifier]. The stored value stays one of the
+     *  4 real Draw Engine fulfillment states (pending/contacted/claimed/
+     *  fulfilled) — only the displayed label groups "contacted"/"claimed"
+     *  under one readable "In Progress" pill. No new state is written. */
+    private static function fulfillment_pill_parts($status) {
+        $map = [
+            'pending'   => ['NOT STARTED', 'notstarted'],
+            'contacted' => ['IN PROGRESS', 'progress'],
+            'claimed'   => ['IN PROGRESS', 'progress'],
+            'fulfilled' => ['FULFILLED', 'fulfilled'],
+        ];
+        return $map[$status] ?? ['NOT STARTED', 'notstarted'];
     }
 
     private static function fulfillment_badge($status) {
-        $labels = ['pending' => 'Pending', 'contacted' => 'Contacted', 'claimed' => 'Claimed', 'fulfilled' => 'Fulfilled'];
-        $label = $labels[$status] ?? 'Pending';
-        $bg = $status === 'fulfilled' ? '#e8ffb0' : '#f0f0f1';
-        return '<span class="rlbrm-badge" style="background:' . esc_attr($bg) . ';color:#222">' . esc_html($label) . '</span>';
+        [$label, $mod] = self::fulfillment_pill_parts($status);
+        return '<span class="rlbrm-pill rlbrm-pill--' . esc_attr($mod) . '">' . esc_html($label) . '</span>';
     }
 
     private static function print_styles() {
@@ -157,7 +218,6 @@ final class RaffleLB_Raffle_Manager {
         .rlbrm-border-amber{border-left:5px solid #dba617}
         .rlbrm-border-lime{border-left:5px solid #9cff00}
         .rlbrm-border-dark{border-left:5px solid #10130d}
-        .rlbrm-badge{display:inline-block;padding:3px 10px;border-radius:999px;font-size:11px;font-weight:700;letter-spacing:.03em;text-transform:uppercase}
         .rlbrm-bar{display:block;width:120px;height:6px;background:#eee;border-radius:99px;overflow:hidden;margin-bottom:4px}
         .rlbrm-bar span{display:block;height:100%;background:#9cff00}
         .rlbrm-image-field .rlbrm-image-preview img{display:block;max-width:150px;max-height:150px;padding:6px;border:1px solid #dcdcde;background:#fff;margin-bottom:8px;border-radius:4px}
@@ -169,7 +229,73 @@ final class RaffleLB_Raffle_Manager {
         /* v1.5.0 — operations UI only; existing forms and actions are preserved. */
         .rafflelb-rm{max-width:1500px;color:#f7f8f4;font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}.rafflelb-rm h1,.rafflelb-rm h2,.rafflelb-rm h3{color:#fff}.rafflelb-rm .widefat,.rafflelb-rm .rlbrm-card{background:#11130f;border-color:#2a3027;color:#e7ebe2;box-shadow:0 10px 26px rgba(0,0,0,.12)}.rafflelb-rm .widefat thead th,.rafflelb-rm .widefat td{border-color:#2a3027;color:inherit}.rafflelb-rm .widefat thead th{background:#171a15;color:#9ba496;font-size:11px;text-transform:uppercase;letter-spacing:.07em}.rafflelb-rm .widefat tr:hover td{background:#171a15}.rafflelb-rm .subsubsub{float:none;display:flex;flex-wrap:wrap;gap:8px;margin:16px 0}.rafflelb-rm .subsubsub li{margin:0}.rafflelb-rm .subsubsub a{display:inline-flex;padding:8px 11px;border:1px solid #2a3027;border-radius:7px;background:#11130f;color:#c9d0c5}.rafflelb-rm .subsubsub a.current{background:#baff00;border-color:#baff00;color:#090a08;font-weight:700}.rafflelb-rm input[type=search],.rafflelb-rm input[type=text],.rafflelb-rm select,.rafflelb-rm textarea{background:#0d110d!important;border-color:#364031!important;color:#fff!important}.rafflelb-rm .button-primary{background:#baff00!important;border-color:#baff00!important;color:#090a08!important}.rlbrm-card{background:#11130f}.rlbrm-bar{background:#293128}.rlbrm-bar span{background:#baff00}.rlbrm-stats{gap:18px}.rlbrm-stats>div{padding:10px;border-left:1px solid #2a3027}.rlbrm-stats>div:first-child{border-left:0}@media(max-width:782px){.rafflelb-rm .widefat{display:block;overflow-x:auto;white-space:nowrap}.rafflelb-rm .subsubsub{gap:6px}.rlbrm-stats{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}.rlbrm-stats>div{border-left:0;border-top:1px solid #2a3027}.rlbrm-stats>div:first-child{border-top:0}}
         .rlbrm-workspace-tabs{display:flex;flex-wrap:wrap;gap:6px;margin:18px 0}.rlbrm-workspace-tabs button{padding:9px 12px;border:1px solid #2a3027;border-radius:8px;background:#11130f;color:#c9d0c5;cursor:pointer}.rlbrm-workspace-tabs button.is-active{background:#baff00;border-color:#baff00;color:#090a08;font-weight:700}.rlbrm-workspace-panel{display:none}.rlbrm-workspace-panel.is-active{display:block}.rlbrm-workspace-panel .rlbrm-card{margin-top:0}.rlbrm-overview-head{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;margin-bottom:18px}.rlbrm-overview-head h2{margin:0 0 5px}.rlbrm-overview-head p{margin:0;color:#9ba496}.rlbrm-overview-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}.rlbrm-overview-grid>div{padding:14px;border:1px solid #2a3027;border-radius:10px;background:#0d110d}.rlbrm-overview-grid span:first-child{display:block;color:#9ba496;font-size:11px;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px}.rlbrm-overview-grid strong{display:block;color:#fff;font-size:18px}.rlbrm-overview-grid small{display:block;color:#7f887a;margin-top:4px}.rlbrm-overview-grid .rlbrm-bar{margin-top:9px;width:100%}.rlbrm-fulfillment-stepper{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin:14px 0 20px}.rlbrm-fulfillment-step{padding:12px;border:1px solid #2a3027;border-radius:10px;background:#0d110d;color:#8f988a}.rlbrm-fulfillment-step span{display:inline-block;width:9px;height:9px;border-radius:50%;background:#495044;margin-right:7px}.rlbrm-fulfillment-step.is-current{border-color:#baff00;color:#fff}.rlbrm-fulfillment-step.is-current span,.rlbrm-fulfillment-step.is-complete span{background:#baff00}.rlbrm-fulfillment-step.is-complete{color:#dfe8d8}.rlbrm-audit-hash{display:block;max-width:100%;white-space:normal;overflow-wrap:anywhere;color:#dfe8d8}.rlbrm-fulfillment-lock{margin:10px 0;padding:10px 12px;border:1px solid #5a431b;border-radius:8px;background:#21190d}@media(max-width:900px){.rlbrm-overview-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.rlbrm-fulfillment-stepper{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:600px){.rlbrm-overview-grid,.rlbrm-fulfillment-stepper{grid-template-columns:1fr}.rlbrm-overview-head{flex-direction:column}}
-        .rlbrm-list-header{display:flex;justify-content:space-between;align-items:center;gap:20px;margin:20px 0}.rlbrm-list-header h1{margin:0}.rlbrm-list-header p{color:#9ba496}.rlbrm-kicker{font-size:10px!important;font-weight:800;letter-spacing:.12em;color:#baff00!important}.rlbrm-list-tabs{display:flex;gap:8px;flex-wrap:wrap;margin:18px 0}.rlbrm-list-tabs a{padding:8px 11px;border:1px solid #2a3027;border-radius:8px;background:#11130f;color:#c9d0c5;text-decoration:none}.rlbrm-list-tabs a.current{background:#baff00;color:#090a08;border-color:#baff00}.rlbrm-list-toolbar{display:flex;gap:8px;align-items:center;margin:12px 0}.rlbrm-list-wrap{overflow:auto}.rlbrm-raffle-cell{display:flex;gap:12px;align-items:center}.rlbrm-raffle-cell small{display:block;color:#9ba496;margin-top:4px}.rlbrm-thumb{width:60px;height:60px;object-fit:cover;border-radius:9px}.rlbrm-table th:nth-child(6),.rlbrm-table td:nth-child(6){min-width:145px}.rlbrm-table th:nth-child(7),.rlbrm-table td:nth-child(7){min-width:112px;text-align:center}.rlbrm-winner-entry{display:block;color:#9ba496;margin-top:4px}.rlbrm-row-ready_to_draw td{background:rgba(186,255,0,.04)}@media(max-width:782px){.rlbrm-list-header{align-items:flex-start;flex-direction:column}.rlbrm-list-toolbar{flex-wrap:wrap}.rlbrm-table{min-width:970px}}
+        .rlbrm-list-header{display:flex;justify-content:space-between;align-items:center;gap:20px;margin:20px 0}.rlbrm-list-header h1{margin:0}.rlbrm-list-header p{color:#9ba496}.rlbrm-kicker{font-size:10px!important;font-weight:800;letter-spacing:.12em;color:#baff00!important}.rlbrm-list-tabs{display:flex;gap:8px;flex-wrap:wrap;margin:18px 0}.rlbrm-list-tabs a{padding:8px 11px;border:1px solid #2a3027;border-radius:8px;background:#11130f;color:#c9d0c5;text-decoration:none}.rlbrm-list-tabs a.current{background:#baff00;color:#090a08;border-color:#baff00}.rlbrm-list-toolbar{display:flex;gap:8px;align-items:center;margin:12px 0}.rlbrm-list-wrap{overflow:auto}.rlbrm-raffle-cell{display:flex;gap:12px;align-items:center}.rlbrm-raffle-cell small{display:block;color:#9ba496;margin-top:4px}.rlbrm-thumb{width:60px;height:60px;object-fit:cover;border-radius:9px}.rlbrm-table th:nth-child(4),.rlbrm-table td:nth-child(4){min-width:150px}.rlbrm-table th:nth-child(5),.rlbrm-table td:nth-child(5){min-width:120px}.rlbrm-table th:nth-child(3){min-width:170px}.rlbrm-table th:nth-child(6),.rlbrm-table td:nth-child(6){min-width:150px}.rlbrm-row-ready_to_draw td{background:rgba(186,255,0,.04)}@media(max-width:782px){.rlbrm-list-header{align-items:flex-start;flex-direction:column}.rlbrm-list-toolbar{flex-wrap:wrap}.rlbrm-table{min-width:970px}}
+        /* v1.6.7 — Operations UI/UX redesign. Purely presentational; no business logic. */
+        .rlbrm-pill{display:inline-flex;align-items:center;padding:4px 9px;border:1px solid #2a3027;border-radius:999px;background:#12160f;color:#cdd6c5;font-size:10px;font-weight:750;letter-spacing:.05em;text-transform:uppercase;white-space:nowrap}
+        .rlbrm-pill--live{border-color:#baff00;background:rgba(186,255,0,.14);color:#e6ffab}
+        .rlbrm-pill--ready{border-color:#dba617;background:rgba(219,166,23,.14);color:#ffd98a}
+        .rlbrm-pill--winner{border-color:#f4f0d8;background:#1c1f14;color:#fff6c9}
+        .rlbrm-pill--default,.rlbrm-pill--notstarted{color:#9ba496}
+        .rlbrm-pill--progress{border-color:#dba617;color:#ffd98a}
+        .rlbrm-pill--fulfilled{border-color:#3c6e00;background:rgba(60,110,0,.16);color:#c7e79b}
+        .rlbrm-pill--active,.rlbrm-pill--paid{border-color:#3c6e00;background:rgba(60,110,0,.14);color:#c7e79b}
+        .rlbrm-pill--void,.rlbrm-pill--cancelled{border-color:#5a2a22;background:rgba(180,35,24,.10);color:#e3a89c}
+        .rlbrm-pill--pending{border-color:#dba617;color:#ffd98a}
+        .rlbrm-raffle-cell{display:flex;gap:12px;align-items:flex-start}
+        .rlbrm-thumb-wrap{flex:0 0 auto}
+        .rlbrm-thumb{width:56px;height:56px;object-fit:cover;border-radius:9px;border:1px solid #232920}
+        .rlbrm-prize-main{min-width:0}
+        .rlbrm-prize-name{display:block;color:#fff;font-size:14px;font-weight:650;line-height:1.35}
+        .rlbrm-prize-name a{color:inherit;text-decoration:none}
+        .rlbrm-prize-name a:hover{text-decoration:underline}
+        .rlbrm-prize-sku{display:block;margin-top:3px;color:#818c7e;font-size:11.5px;font-weight:500}
+        .rlbrm-attention-flag{display:inline-block;margin-top:6px;padding:2px 7px;border:1px solid #dba617;border-radius:999px;color:#ffd98a;font-size:9px;font-weight:800;letter-spacing:.05em;text-transform:uppercase}
+        .rlbrm-row-attention td:first-child{box-shadow:inset 3px 0 0 #dba617}
+        .rlbrm-cell-label{display:block;color:#818c7e;font-size:9.5px;font-weight:700;letter-spacing:.07em;text-transform:uppercase}
+        .rlbrm-cell-value{display:block;margin-top:3px;color:#fff;font-size:14.5px;font-weight:700}
+        .rlbrm-cell-sub{display:block;margin-top:4px;color:#9ba496;font-size:11.5px}
+        .rlbrm-entry-cell .rlbrm-bar{margin-top:6px;width:140px}
+        .rlbrm-winner-cell strong{display:block;color:#fff;font-size:13.5px;font-weight:650}
+        .rlbrm-winner-flag{display:block;margin-bottom:3px;color:#ffd98a;font-size:9.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase}
+        .rlbrm-winner-cell small{display:block;margin-top:3px;color:#818c7e;font-size:11px}
+        .rlbrm-no-winner{color:#6f786a;font-size:12.5px;font-style:normal}
+        .rlbrm-actions-cell{display:flex;flex-direction:column;align-items:flex-start;gap:6px}
+        .rlbrm-action{text-decoration:none}
+        .rlbrm-action--primary{color:#baff00;font-size:12.5px;font-weight:750}
+        .rlbrm-action--secondary{color:#c9d0c5;font-size:12px;font-weight:550}
+        .rlbrm-action--tertiary{color:#7f887a;font-size:11.5px;font-weight:500}
+        .rlbrm-action:hover{text-decoration:underline}
+        .rlbrm-list-tabs a.rlbrm-tab-attention{border-color:#dba617;color:#ffd98a}
+        .rlbrm-list-tabs a.rlbrm-tab-attention.current{background:#dba617;border-color:#dba617;color:#1c1400}
+        .rlbrm-muted{color:#9ba496}
+        .rlbrm-section-head{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;margin-bottom:14px}
+        .rlbrm-section-head h2{margin:0}
+        .rlbrm-subtoolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+        .rlbrm-inline-tabs{display:flex;gap:6px;flex-wrap:wrap}
+        .rlbrm-inline-tabs a{padding:6px 10px;border:1px solid #2a3027;border-radius:7px;background:#11130f;color:#c9d0c5;text-decoration:none;font-size:12px}
+        .rlbrm-inline-tabs a.current{background:#baff00;border-color:#baff00;color:#090a08;font-weight:700}
+        .rlbrm-inline-search{display:flex;gap:8px;flex-wrap:wrap}
+        .rlbrm-metric-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:18px}
+        .rlbrm-metric-grid>div{padding:14px;border:1px solid #2a3027;border-radius:10px;background:#0d110d}
+        .rlbrm-metric-grid span:first-child{display:block;color:#9ba496;font-size:11px;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px}
+        .rlbrm-metric-grid strong{display:block;color:#fff;font-size:18px}
+        .rlbrm-metric-grid small{display:block;color:#7f887a;margin-top:4px}
+        .rlbrm-overview-sections{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin-top:6px}
+        .rlbrm-overview-section{padding:16px;border:1px solid #2a3027;border-radius:10px;background:#0d110d}
+        .rlbrm-overview-section h3{margin:0 0 12px;color:#fff;font-size:13px;text-transform:uppercase;letter-spacing:.06em}
+        .rlbrm-overview-section dl{margin:0}
+        .rlbrm-overview-section dl div{display:flex;justify-content:space-between;gap:10px;padding:7px 0;border-top:1px solid #202620}
+        .rlbrm-overview-section dl div:first-child{border-top:0}
+        .rlbrm-overview-section dt{color:#9ba496;font-size:12px}
+        .rlbrm-overview-section dd{margin:0;color:#fff;font-size:12.5px;text-align:right}
+        .rlbrm-overview-activity{margin-top:14px}
+        .rlbrm-activity-list{margin:0;padding:0;list-style:none}
+        .rlbrm-activity-list li{padding:9px 0;border-top:1px solid #202620;color:#dfe8d8;font-size:12.5px}
+        .rlbrm-activity-list li:first-child{border-top:0}
+        .rlbrm-activity-event{color:#fff;font-weight:650}
+        .rlbrm-activity-list small{display:block;margin-top:3px;color:#7f887a;font-size:11px}
+        @media(max-width:1100px){.rlbrm-metric-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.rlbrm-overview-sections{grid-template-columns:1fr}}
+        @media(max-width:782px){.rlbrm-metric-grid{grid-template-columns:1fr}.rlbrm-subtoolbar{flex-direction:column;align-items:stretch}.rlbrm-inline-search{flex-wrap:wrap}.rlbrm-table{min-width:1080px}}
         </style>';
     }
 
@@ -198,7 +324,7 @@ final class RaffleLB_Raffle_Manager {
 
         global $wpdb;
         $rows = [];
-        $counts = ['live' => 0, 'ready_to_draw' => 0, 'winner_selected' => 0, 'needs_fulfillment' => 0, 'fulfilled' => 0];
+        $counts = ['live' => 0, 'ready_to_draw' => 0, 'winner_selected' => 0, 'needs_fulfillment' => 0, 'fulfilled' => 0, 'needs_attention' => 0];
         foreach ($ids as $pid) {
             $status = self::draw_status($pid);
             $counts[$status] = ($counts[$status] ?? 0) + 1;
@@ -221,7 +347,15 @@ final class RaffleLB_Raffle_Manager {
                     $counts[$composite]++;
                 }
             }
-            $matches_filter = $status_filter === '' || $status === $status_filter || ($status_filter === 'needs_fulfillment' && isset($row['fulfillment']) && $row['fulfillment'] !== 'fulfilled') || ($status_filter === 'fulfilled' && isset($row['fulfillment']) && $row['fulfillment'] === 'fulfilled');
+
+            $row['needs_attention'] = self::needs_attention($pid, $status, $row['fulfillment'] ?? null);
+            if ($row['needs_attention']) $counts['needs_attention']++;
+
+            $matches_filter = $status_filter === ''
+                || $status === $status_filter
+                || ($status_filter === 'needs_fulfillment' && isset($row['fulfillment']) && $row['fulfillment'] !== 'fulfilled')
+                || ($status_filter === 'fulfilled' && isset($row['fulfillment']) && $row['fulfillment'] === 'fulfilled')
+                || ($status_filter === 'needs_attention' && $row['needs_attention']);
             if (!$matches_filter) continue;
 
             $rows[] = $row;
@@ -244,17 +378,21 @@ final class RaffleLB_Raffle_Manager {
         echo '<header class="rlbrm-list-header"><div><p class="rlbrm-kicker">RAFFLELB / OPERATIONS</p><h1>Raffle Operations</h1><p>Manage live raffles, draws, winners and fulfillment. ' . esc_html(count($ids)) . ' total raffles.</p></div><a href="' . esc_url(admin_url('admin.php?page=' . self::SLUG_ADD)) . '" class="button button-primary">+ Create Raffle</a></header>';
 
         $tabs = [
-            ''                => 'All ' . count($ids),
-            'live'            => 'Live ' . $counts['live'],
-            'ready_to_draw'   => 'Ready to Draw ' . $counts['ready_to_draw'],
-            'winner_selected' => 'Winner Selected ' . $counts['winner_selected'],
-            'needs_fulfillment' => 'Needs Fulfillment ' . $counts['needs_fulfillment'],
-            'fulfilled' => 'Fulfilled ' . $counts['fulfilled'],
+            ''                   => 'All ' . count($ids),
+            'live'               => 'Live ' . $counts['live'],
+            'ready_to_draw'      => 'Ready to Draw ' . $counts['ready_to_draw'],
+            'winner_selected'    => 'Winner Selected ' . $counts['winner_selected'],
+            'needs_fulfillment'  => 'Needs Fulfillment ' . $counts['needs_fulfillment'],
+            'fulfilled'          => 'Fulfilled ' . $counts['fulfilled'],
+            'needs_attention'    => 'Needs Attention ' . $counts['needs_attention'],
         ];
         $links = [];
         foreach ($tabs as $key => $label) {
             $url = $key === '' ? $base_url : add_query_arg('rm_status', $key, $base_url);
-            $class = $status_filter === $key ? ' class="current"' : '';
+            $classes = [];
+            if ($status_filter === $key) $classes[] = 'current';
+            if ($key === 'needs_attention') $classes[] = 'rlbrm-tab-attention';
+            $class = $classes ? ' class="' . esc_attr(implode(' ', $classes)) . '"' : '';
             $links[] = '<a href="' . esc_url($url) . '"' . $class . '>' . esc_html($label) . '</a>';
         }
         echo '<nav class="rlbrm-list-tabs" aria-label="Raffle states">' . implode('', $links) . '</nav>';
@@ -277,25 +415,46 @@ final class RaffleLB_Raffle_Manager {
                 echo '<p>No raffles yet. <a href="' . esc_url(admin_url('admin.php?page=' . self::SLUG_ADD)) . '">Create your first raffle.</a></p>';
             }
         } else {
-            echo '<div class="rlbrm-list-wrap"><table class="widefat rlbrm-table"><thead><tr><th>Raffle</th><th>Entry Price</th><th>Entries</th><th>Revenue</th><th>Status</th><th>Winner</th><th>Fulfillment</th><th>Action</th></tr></thead><tbody>';
+            echo '<div class="rlbrm-list-wrap"><table class="widefat rlbrm-table"><thead><tr><th>Prize</th><th>Status</th><th>Entry / Capacity</th><th>Winner</th><th>Fulfillment</th><th>Action</th></tr></thead><tbody>';
             foreach ($page_rows as $row) {
                 $pid = $row['id'];
                 $view_url = add_query_arg(['page' => self::SLUG, 'action' => 'view', 'id' => $pid], admin_url('admin.php'));
                 $edit_url = add_query_arg(['page' => self::SLUG, 'action' => 'edit', 'id' => $pid], admin_url('admin.php'));
                 $pct = $row['total'] > 0 ? min(100, round(($row['claimed'] / $row['total']) * 100)) : 0;
-                $retail_price = get_post_meta($pid, self::META_BUY_NOW_PRICE, true);
-
                 $price = (float) get_post_meta($pid, '_regular_price', true);
-                echo '<tr class="rlbrm-row-' . esc_attr($row['status']) . '">';
-                echo '<td class="rlbrm-raffle-cell">' . get_the_post_thumbnail($pid, [60, 60], ['class' => 'rlbrm-thumb']) . '<div><strong><a href="' . esc_url($view_url) . '">' . esc_html(get_the_title($pid)) . '</a></strong><small>' . esc_html($row['total'] - $row['claimed']) . ' remaining</small></div></td>';
-                echo '<td>' . wp_kses_post(wc_price($price)) . '</td>';
-                echo '<td><strong>' . esc_html($row['claimed']) . ' / ' . esc_html($row['total']) . '</strong><span class="rlbrm-bar"><span style="width:' . esc_attr($pct) . '%"></span></span></td>';
-                echo '<td>' . wp_kses_post(wc_price($row['claimed'] * $price)) . '</td>';
-                echo '<td>' . self::status_badge($row['status']) . '</td>';
-                echo '<td>' . (isset($row['winner']) ? esc_html($row['winner']) . '<small class="rlbrm-winner-entry">#' . esc_html(str_pad((string) $row['entry_number'], 3, '0', STR_PAD_LEFT)) . '</small>' : '—') . '</td>';
-                echo '<td>' . (isset($row['fulfillment']) ? self::fulfillment_badge($row['fulfillment']) : '—') . '</td>';
-                $cta = $row['status'] === 'ready_to_draw' ? 'Draw Winner →' : ((isset($row['fulfillment']) && $row['fulfillment'] !== 'fulfilled') ? 'Manage Fulfillment →' : 'Manage →');
-                echo '<td><a class="button button-primary button-small" href="' . esc_url($view_url) . '">' . $cta . '</a> <a class="button button-small" href="' . esc_url($edit_url) . '">Edit</a></td>';
+                $sku = get_post_meta($pid, '_sku', true);
+                $row_classes = 'rlbrm-row-' . $row['status'] . ($row['needs_attention'] ? ' rlbrm-row-attention' : '');
+
+                echo '<tr class="' . esc_attr($row_classes) . '">';
+
+                echo '<td class="rlbrm-raffle-cell"><span class="rlbrm-thumb-wrap">' . get_the_post_thumbnail($pid, [56, 56], ['class' => 'rlbrm-thumb']) . '</span>'
+                    . '<div class="rlbrm-prize-main"><strong class="rlbrm-prize-name"><a href="' . esc_url($view_url) . '">' . esc_html(get_the_title($pid)) . '</a></strong>'
+                    . '<small class="rlbrm-prize-sku">' . esc_html($sku !== '' ? 'SKU ' . $sku : 'ID ' . $pid) . '</small></div></td>';
+
+                echo '<td>' . self::status_badge($row['status']) . ($row['needs_attention'] ? '<span class="rlbrm-attention-flag" title="Needs admin action">Needs attention</span>' : '') . '</td>';
+
+                echo '<td><div class="rlbrm-entry-cell"><span class="rlbrm-cell-label">Entry price</span><strong class="rlbrm-cell-value">' . wp_kses_post(wc_price($price)) . '</strong>'
+                    . '<span class="rlbrm-cell-sub">' . esc_html($row['claimed']) . ' / ' . esc_html($row['total']) . ' claimed · ' . esc_html($pct) . '%</span>'
+                    . '<span class="rlbrm-bar"><span style="width:' . esc_attr($pct) . '%"></span></span></div></td>';
+
+                if (isset($row['winner'])) {
+                    echo '<td><div class="rlbrm-winner-cell"><span class="rlbrm-winner-flag">Winner selected</span><strong>' . esc_html($row['winner']) . '</strong>'
+                        . '<small>Entry #' . esc_html(str_pad((string) $row['entry_number'], 3, '0', STR_PAD_LEFT)) . '</small></div></td>';
+                } else {
+                    echo '<td><span class="rlbrm-no-winner">No winner yet</span></td>';
+                }
+
+                echo '<td>' . (isset($row['fulfillment']) ? self::fulfillment_badge($row['fulfillment']) : '<span class="rlbrm-no-winner">—</span>') . '</td>';
+
+                echo '<td class="rlbrm-actions-cell"><a class="rlbrm-action rlbrm-action--primary" href="' . esc_url($view_url) . '">Manage →</a>';
+                if ($row['status'] === 'ready_to_draw') {
+                    echo '<a class="rlbrm-action rlbrm-action--secondary" href="' . esc_url($view_url . '#draw') . '">Draw Winner</a>';
+                }
+                if (isset($row['fulfillment']) && $row['fulfillment'] !== 'fulfilled') {
+                    echo '<a class="rlbrm-action rlbrm-action--secondary" href="' . esc_url($view_url . '#fulfillment') . '">Manage Fulfillment</a>';
+                }
+                echo '<a class="rlbrm-action rlbrm-action--tertiary" href="' . esc_url($edit_url) . '">Edit</a></td>';
+
                 echo '</tr>';
             }
             echo '</tbody></table></div>';
@@ -690,24 +849,92 @@ final class RaffleLB_Raffle_Manager {
         echo '<section class="rlbrm-workspace-panel" data-rlbrm-panel="winner">' . ($winner_panel ?: '<div class="rlbrm-card">No winner has been recorded yet.</div>') . '</section>';
         echo '<section class="rlbrm-workspace-panel" data-rlbrm-panel="fulfillment">' . ($fulfillment_panel ?: '<div class="rlbrm-card">Fulfillment becomes available after a winner is recorded.</div>') . '</section>';
         echo '<section class="rlbrm-workspace-panel" data-rlbrm-panel="audit">' . ($audit_panel ?: '<div class="rlbrm-card">Audit details become available after a winner is recorded.</div>') . '</section>';
-        echo '<script>(function(){document.querySelectorAll(".rlbrm-workspace-tabs button").forEach(function(b){b.onclick=function(){var t=b.dataset.rlbrmTab;document.querySelectorAll(".rlbrm-workspace-tabs button").forEach(function(x){x.classList.toggle("is-active",x===b)});document.querySelectorAll(".rlbrm-workspace-panel").forEach(function(p){p.classList.toggle("is-active",p.dataset.rlbrmPanel===t)})}})})();</script>';
+        echo '<script>(function(){function activate(t){var b=null;document.querySelectorAll(".rlbrm-workspace-tabs button").forEach(function(x){if(x.dataset.rlbrmTab===t)b=x});if(!b)return;document.querySelectorAll(".rlbrm-workspace-tabs button").forEach(function(x){x.classList.toggle("is-active",x===b)});document.querySelectorAll(".rlbrm-workspace-panel").forEach(function(p){p.classList.toggle("is-active",p.dataset.rlbrmPanel===t)})}document.querySelectorAll(".rlbrm-workspace-tabs button").forEach(function(b){b.onclick=function(){activate(b.dataset.rlbrmTab)}});var hash=(window.location.hash||"").replace("#","");if(hash)activate(hash);})();</script>';
         echo '</div>';
     }
 
     private static function render_overview_section($id, $status, $total, $claimed, $price, $revenue, $buy_now_enabled, $item_type, $active_holds) {
+        global $wpdb;
         $available = max(0, $total - $claimed - $active_holds);
         $pct = $total > 0 ? min(100, round(($claimed / $total) * 100)) : 0;
+        $breakdown = self::revenue_breakdown($id, $price);
+        $result = $wpdb->get_row($wpdb->prepare("SELECT * FROM {$wpdb->prefix}" . self::RESULT_TABLE . " WHERE product_id=%d LIMIT 1", $id));
+
         echo '<div class="rlbrm-card rlbrm-overview-card">';
-        echo '<div class="rlbrm-overview-head"><div><h2>Operational Status</h2><p>Current raffle state and live capacity at a glance.</p></div>' . self::status_badge($status) . '</div>';
-        echo '<div class="rlbrm-overview-grid">';
-        echo '<div><span>Entries / Capacity</span><strong>' . esc_html($claimed) . ' / ' . esc_html($total) . '</strong><span class="rlbrm-bar"><span style="width:' . esc_attr($pct) . '%"></span></span></div>';
-        echo '<div><span>Entries Remaining</span><strong>' . esc_html($available) . '</strong><small>after active holds</small></div>';
-        echo '<div><span>Active Holds</span><strong>' . esc_html($active_holds) . '</strong></div>';
-        echo '<div><span>Raffle Price</span><strong>' . wp_kses_post(wc_price($price)) . '</strong></div>';
-        echo '<div><span>Entry Revenue</span><strong>' . wp_kses_post(wc_price($revenue)) . '</strong></div>';
-        if ($buy_now_enabled) echo '<div><span>Retail Price</span><strong>' . wp_kses_post(wc_price(get_post_meta($id, self::META_BUY_NOW_PRICE, true))) . '</strong></div>';
-        echo '<div><span>Delivery Type</span><strong>' . ($item_type === 'digital' ? 'Digital' : 'Tangible') . '</strong></div>';
+        echo '<div class="rlbrm-overview-head"><div><h2>Overview</h2><p>Current raffle state and live capacity at a glance.</p></div>' . self::status_badge($status) . '</div>';
+
+        echo '<div class="rlbrm-metric-grid">';
+        echo '<div><span>Status</span><strong>' . esc_html(self::status_pill_parts($status)[0]) . '</strong></div>';
+        echo '<div><span>Entry Price</span><strong>' . wp_kses_post(wc_price($price)) . '</strong></div>';
+        echo '<div><span>Claimed</span><strong>' . esc_html($claimed) . '</strong></div>';
+        echo '<div><span>Available</span><strong>' . esc_html($available) . '</strong><small>after active holds</small></div>';
+        echo '<div><span>Capacity</span><strong>' . esc_html($total) . '</strong></div>';
+        echo '<div><span>Active Holds</span><strong>' . esc_html($active_holds) . '</strong><small>reserved, not yet paid</small></div>';
+        echo '<div><span>Paid Revenue</span><strong>' . wp_kses_post(wc_price($breakdown['paid'])) . '</strong></div>';
+        echo '<div><span>Pending Revenue</span><strong>' . wp_kses_post(wc_price($breakdown['pending'])) . '</strong><small>orders not yet paid</small></div>';
         echo '</div>';
+
+        echo '<div class="rlbrm-overview-sections">';
+
+        echo '<section class="rlbrm-overview-section"><h3>Raffle</h3><dl>';
+        echo '<div><dt>Prize</dt><dd>' . esc_html(get_the_title($id)) . '</dd></div>';
+        echo '<div><dt>Status</dt><dd>' . self::status_badge($status) . '</dd></div>';
+        echo '<div><dt>Entry price</dt><dd>' . wp_kses_post(wc_price($price)) . '</dd></div>';
+        if ($buy_now_enabled) echo '<div><dt>Retail price</dt><dd>' . wp_kses_post(wc_price(get_post_meta($id, self::META_BUY_NOW_PRICE, true))) . '</dd></div>';
+        echo '<div><dt>Capacity</dt><dd>' . esc_html($total) . '</dd></div>';
+        echo '<div><dt>Claimed</dt><dd>' . esc_html($claimed) . '</dd></div>';
+        echo '<div><dt>Available</dt><dd>' . esc_html($available) . '</dd></div>';
+        echo '<div><dt>Delivery type</dt><dd>' . ($item_type === 'digital' ? 'Digital' : 'Tangible') . '</dd></div>';
+        echo '<div><dt>Progress</dt><dd><span class="rlbrm-bar" style="width:120px"><span style="width:' . esc_attr($pct) . '%"></span></span>' . esc_html($pct) . '%</dd></div>';
+        echo '</dl></section>';
+
+        echo '<section class="rlbrm-overview-section"><h3>Winner</h3>';
+        if ($result) {
+            $winner_order = wc_get_order(absint($result->order_id));
+            $winner_name = self::customer_name(absint($result->user_id), $winner_order);
+            echo '<dl>';
+            echo '<div><dt>Status</dt><dd>' . self::status_badge('winner_selected') . '</dd></div>';
+            echo '<div><dt>Winner</dt><dd>' . esc_html($winner_name) . '</dd></div>';
+            echo '<div><dt>Winning entry</dt><dd>#' . esc_html(str_pad((string) $result->entry_number, 3, '0', STR_PAD_LEFT)) . '</dd></div>';
+            echo '<div><dt>Selected at</dt><dd>' . esc_html($result->selected_at) . '</dd></div>';
+            echo '</dl>';
+        } else {
+            echo '<p class="rlbrm-no-winner">No winner yet</p>';
+        }
+        echo '</section>';
+
+        echo '<section class="rlbrm-overview-section"><h3>Fulfillment</h3>';
+        if ($result) {
+            $fulfillment_status = !empty($result->fulfillment_status) ? $result->fulfillment_status : 'pending';
+            echo '<dl>';
+            echo '<div><dt>Current state</dt><dd>' . self::fulfillment_badge($fulfillment_status) . '</dd></div>';
+            if (!empty($result->fulfilled_at)) echo '<div><dt>Fulfilled at</dt><dd>' . esc_html($result->fulfilled_at) . '</dd></div>';
+            echo '</dl>';
+        } else {
+            echo '<p class="rlbrm-no-winner">Fulfillment becomes available after a winner is recorded.</p>';
+        }
+        echo '</section>';
+
+        echo '</div>';
+
+        $activity = self::recent_activity($id);
+        echo '<section class="rlbrm-overview-section rlbrm-overview-activity"><h3>Recent Activity</h3>';
+        if ($activity) {
+            echo '<ul class="rlbrm-activity-list">';
+            foreach ($activity as $event) {
+                $actor = $event->user_id ? get_user_by('id', absint($event->user_id)) : false;
+                $label = ucwords(str_replace('_', ' ', (string) $event->event_type));
+                echo '<li><span class="rlbrm-activity-event">' . esc_html($label) . '</span> — entry #' . esc_html(str_pad((string) absint($event->entry_number), 3, '0', STR_PAD_LEFT))
+                    . ($actor ? ' by ' . esc_html($actor->display_name) : '')
+                    . (!empty($event->reason) ? ' (' . esc_html($event->reason) . ')' : '')
+                    . '<small>' . esc_html($event->event_at) . '</small></li>';
+            }
+            echo '</ul>';
+        } else {
+            echo '<p class="rlbrm-no-winner">No recent activity recorded for this raffle.</p>';
+        }
+        echo '</section>';
+
         echo '</div>';
     }
 
@@ -945,6 +1172,8 @@ final class RaffleLB_Raffle_Manager {
     private static function render_entries_section($id) {
         global $wpdb;
         $search = isset($_GET['rme_s']) ? sanitize_text_field(wp_unslash($_GET['rme_s'])) : '';
+        $entry_filter = isset($_GET['rme_filter']) ? sanitize_key(wp_unslash($_GET['rme_filter'])) : 'all';
+        if (!in_array($entry_filter, ['all', 'active', 'void'], true)) $entry_filter = 'all';
         $paged = max(1, isset($_GET['rme_paged']) ? absint($_GET['rme_paged']) : 1);
         $per_page = 20;
 
@@ -953,15 +1182,26 @@ final class RaffleLB_Raffle_Manager {
             $id
         ));
 
+        $active_count = 0;
+        $void_count = 0;
         $rows = [];
         foreach ($all as $entry) {
+            if ($entry->status === 'active') $active_count++; else $void_count++;
+            if ($entry_filter === 'active' && $entry->status !== 'active') continue;
+            if ($entry_filter === 'void' && $entry->status === 'active') continue;
+
             $order = wc_get_order(absint($entry->order_id));
             $name = self::customer_name(absint($entry->user_id), $order);
+            $email = $order ? $order->get_billing_email() : '';
+            if (!$email && $entry->user_id) {
+                $user = get_user_by('id', absint($entry->user_id));
+                if ($user) $email = $user->user_email;
+            }
             if ($search !== '') {
-                $haystack = strtolower($name . ' #' . $entry->order_id . ' #' . str_pad((string) $entry->entry_number, 3, '0', STR_PAD_LEFT));
+                $haystack = strtolower($name . ' ' . $email . ' #' . $entry->order_id . ' #' . str_pad((string) $entry->entry_number, 3, '0', STR_PAD_LEFT));
                 if (strpos($haystack, strtolower($search)) === false) continue;
             }
-            $rows[] = ['entry' => $entry, 'name' => $name, 'order' => $order];
+            $rows[] = ['entry' => $entry, 'name' => $name, 'email' => $email, 'order' => $order];
         }
 
         $total = count($rows);
@@ -970,31 +1210,43 @@ final class RaffleLB_Raffle_Manager {
         $page_rows = array_slice($rows, ($paged - 1) * $per_page, $per_page);
 
         $base_url = add_query_arg(['page' => self::SLUG, 'action' => 'view', 'id' => $id], admin_url('admin.php'));
+        $export_url = wp_nonce_url(add_query_arg(['action' => 'rafflelb_rm_export_entries', 'product_id' => $id], admin_url('admin-post.php')), 'rafflelb_rm_export_entries_' . $id);
 
         echo '<div class="rlbrm-card">';
-        echo '<h2>Entries (' . esc_html(count($all)) . ')</h2>';
-        echo '<form method="get" style="display:flex;gap:8px;margin-bottom:12px">';
+        echo '<div class="rlbrm-section-head"><h2>Entries (' . esc_html(count($all)) . ')</h2><a class="button" href="' . esc_url($export_url) . '">Export Entries CSV</a></div>';
+
+        echo '<div class="rlbrm-subtoolbar">';
+        echo '<nav class="rlbrm-inline-tabs" aria-label="Entry status">';
+        foreach (['all' => 'All ' . count($all), 'active' => 'Active ' . $active_count, 'void' => 'Void ' . $void_count] as $key => $label) {
+            $url = add_query_arg(array_filter(['rme_filter' => $key === 'all' ? '' : $key, 'rme_s' => $search]), $base_url);
+            echo '<a class="' . ($entry_filter === $key ? 'current' : '') . '" href="' . esc_url($url) . '">' . esc_html($label) . '</a>';
+        }
+        echo '</nav>';
+        echo '<form method="get" class="rlbrm-inline-search">';
         echo '<input type="hidden" name="page" value="' . esc_attr(self::SLUG) . '"><input type="hidden" name="action" value="view"><input type="hidden" name="id" value="' . esc_attr($id) . '">';
-        echo '<input type="search" name="rme_s" value="' . esc_attr($search) . '" placeholder="Search buyer or order #">';
+        if ($entry_filter !== 'all') echo '<input type="hidden" name="rme_filter" value="' . esc_attr($entry_filter) . '">';
+        echo '<input type="search" name="rme_s" value="' . esc_attr($search) . '" placeholder="Search entry #, customer, email or order #">';
         echo '<button type="submit" class="button">Search</button>';
-        if ($search !== '') echo '<a class="button" href="' . esc_url($base_url) . '">Clear</a>';
+        if ($search !== '') echo '<a class="button" href="' . esc_url(add_query_arg(array_filter(['rme_filter' => $entry_filter === 'all' ? '' : $entry_filter]), $base_url)) . '">Clear</a>';
         echo '</form>';
+        echo '</div>';
 
         if (!$page_rows) {
             echo '<p>No entries' . ($search !== '' ? ' match this search.' : ' yet.') . '</p>';
         } else {
             $winner_locked = self::draw_status($id) === 'winner_selected';
-            echo '<table class="widefat striped"><thead><tr><th>Entry #</th><th>Buyer</th><th>Order</th><th>Status</th><th>Date</th><th>Action</th></tr></thead><tbody>';
+            echo '<table class="widefat striped"><thead><tr><th>Entry #</th><th>Customer</th><th>Email</th><th>Order #</th><th>Status</th><th>Purchase date</th><th>Action</th></tr></thead><tbody>';
             foreach ($page_rows as $r) {
                 $entry = $r['entry'];
                 $status_label = $entry->status === 'active' ? 'Confirmed' : 'Void';
-                $status_color = $entry->status === 'active' ? '#3c6e00' : '#8a2a1c';
+                $status_mod = $entry->status === 'active' ? 'active' : 'void';
                 echo '<tr>';
                 echo '<td>#' . esc_html(str_pad((string) $entry->entry_number, 3, '0', STR_PAD_LEFT)) . '</td>';
                 echo '<td>' . esc_html($r['name']) . '</td>';
+                echo '<td class="rlbrm-muted">' . esc_html($r['email'] ?: '—') . '</td>';
                 echo '<td>' . ($r['order'] ? '<a href="' . esc_url($r['order']->get_edit_order_url()) . '">#' . esc_html($entry->order_id) . '</a>' : '#' . esc_html($entry->order_id)) . '</td>';
-                echo '<td><strong style="color:' . esc_attr($status_color) . '">' . esc_html($status_label) . '</strong></td>';
-                echo '<td>' . esc_html($entry->created_at) . '</td>';
+                echo '<td><span class="rlbrm-pill rlbrm-pill--' . esc_attr($status_mod) . '">' . esc_html($status_label) . '</span></td>';
+                echo '<td class="rlbrm-muted">' . esc_html($entry->created_at) . '</td>';
                 echo '<td>';
                 if ($entry->status === 'active' && !$winner_locked) {
                     echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" style="display:inline" onsubmit="return confirm(\'Void this entry only? Its WooCommerce order and all other entries will remain unchanged.\');">';
@@ -1017,7 +1269,7 @@ final class RaffleLB_Raffle_Manager {
             if ($total_pages > 1) {
                 echo '<div class="tablenav"><div class="tablenav-pages">';
                 for ($p = 1; $p <= $total_pages; $p++) {
-                    $url = add_query_arg(array_filter(['rme_s' => $search, 'rme_paged' => $p]), $base_url);
+                    $url = add_query_arg(array_filter(['rme_filter' => $entry_filter === 'all' ? '' : $entry_filter, 'rme_s' => $search, 'rme_paged' => $p]), $base_url);
                     echo $p === $paged
                         ? '<strong style="padding:4px 9px;border:1px solid #111;border-radius:4px;margin-right:4px">' . esc_html($p) . '</strong>'
                         : '<a class="button" style="margin-right:4px" href="' . esc_url($url) . '">' . esc_html($p) . '</a>';
@@ -1037,15 +1289,46 @@ final class RaffleLB_Raffle_Manager {
         if (!$order_ids) return;
 
         $winner_locked = self::draw_status($id) === 'winner_selected';
+        $order_filter = isset($_GET['rmo_filter']) ? sanitize_key(wp_unslash($_GET['rmo_filter'])) : 'all';
+        if (!in_array($order_filter, ['all', 'paid', 'pending', 'cancelled'], true)) $order_filter = 'all';
+        $paid_statuses = function_exists('wc_get_is_paid_statuses') ? wc_get_is_paid_statuses() : ['processing', 'completed'];
+
+        $orders = [];
+        $bucket_counts = ['paid' => 0, 'pending' => 0, 'cancelled' => 0];
+        foreach ($order_ids as $order_id) {
+            $order = wc_get_order(absint($order_id));
+            if (!$order) continue;
+            if ($order->has_status($paid_statuses)) { $bucket = 'paid'; }
+            elseif ($order->has_status(['cancelled', 'failed', 'refunded'])) { $bucket = 'cancelled'; }
+            else { $bucket = 'pending'; }
+            $bucket_counts[$bucket]++;
+            if ($order_filter !== 'all' && $order_filter !== $bucket) continue;
+            $orders[] = ['order' => $order, 'id' => $order_id, 'bucket' => $bucket];
+        }
+
+        $base_url = add_query_arg(['page' => self::SLUG, 'action' => 'view', 'id' => $id], admin_url('admin.php'));
 
         echo '<div class="rlbrm-card rlbrm-border-lime">';
         echo '<h2>Orders</h2>';
         echo '<p class="description">Cancelling or refunding an order here voids its active entries for this raffle (RaffleLB VOID protection). A reason is required.</p>';
-        echo '<table class="widefat striped"><thead><tr><th>Order</th><th>Customer</th><th>Entries</th><th>Order Status</th><th>Total</th><th>Action</th></tr></thead><tbody>';
 
-        foreach ($order_ids as $order_id) {
-            $order = wc_get_order(absint($order_id));
-            if (!$order) continue;
+        echo '<nav class="rlbrm-inline-tabs" aria-label="Order status" style="margin-bottom:12px">';
+        foreach (['all' => 'All ' . count($order_ids), 'paid' => 'Paid / Processing ' . $bucket_counts['paid'], 'pending' => 'Pending ' . $bucket_counts['pending'], 'cancelled' => 'Cancelled / Failed ' . $bucket_counts['cancelled']] as $key => $label) {
+            $url = add_query_arg(array_filter(['rmo_filter' => $key === 'all' ? '' : $key]), $base_url);
+            echo '<a class="' . ($order_filter === $key ? 'current' : '') . '" href="' . esc_url($url) . '">' . esc_html($label) . '</a>';
+        }
+        echo '</nav>';
+
+        if (!$orders) {
+            echo '<p>No orders match this filter.</p></div>';
+            return;
+        }
+
+        echo '<table class="widefat striped"><thead><tr><th>Order #</th><th>Customer</th><th>Entries</th><th>Amount</th><th>Payment method</th><th>Payment status</th><th>Order status</th><th>Date</th><th>Action</th></tr></thead><tbody>';
+
+        foreach ($orders as $o) {
+            $order = $o['order'];
+            $order_id = $o['id'];
 
             $summary = $wpdb->get_row($wpdb->prepare(
                 "SELECT MIN(entry_number) first_entry, MAX(entry_number) last_entry, COUNT(*) qty FROM {$wpdb->prefix}" . self::ENTRY_TABLE . " WHERE product_id=%d AND order_id=%d AND status='active'",
@@ -1056,14 +1339,19 @@ final class RaffleLB_Raffle_Manager {
             $last = '#' . str_pad((string) absint($summary->last_entry ?? 0), 3, '0', STR_PAD_LEFT);
             $range = $qty > 1 ? ($first . '–' . $last) : $first;
             $name = self::customer_name($order->get_user_id(), $order);
+            $payment_status = $o['bucket'] === 'paid' ? 'Paid' : ($o['bucket'] === 'cancelled' ? 'Not paid' : 'Pending');
 
             echo '<tr>';
             echo '<td><a href="' . esc_url($order->get_edit_order_url()) . '">#' . esc_html($order_id) . '</a></td>';
             echo '<td>' . esc_html($name) . '</td>';
             echo '<td>' . esc_html($qty) . ' (' . esc_html($range) . ')</td>';
-            echo '<td>' . esc_html(wc_get_order_status_name($order->get_status())) . '</td>';
             echo '<td>' . wp_kses_post($order->get_formatted_order_total()) . '</td>';
-            echo '<td style="min-width:280px">';
+            echo '<td class="rlbrm-muted">' . esc_html($order->get_payment_method_title() ?: '—') . '</td>';
+            echo '<td><span class="rlbrm-pill rlbrm-pill--' . esc_attr($o['bucket']) . '">' . esc_html($payment_status) . '</span></td>';
+            echo '<td class="rlbrm-muted">' . esc_html(wc_get_order_status_name($order->get_status())) . '</td>';
+            $created = $order->get_date_created();
+            echo '<td class="rlbrm-muted">' . esc_html($created ? wc_format_datetime($created) : '—') . '</td>';
+            echo '<td style="min-width:280px"><a class="rlbrm-action rlbrm-action--tertiary" href="' . esc_url($order->get_edit_order_url()) . '">View Order</a><br>';
             if ($winner_locked) {
                 echo '<strong style="color:#b42318">Locked — winner selected</strong>';
             } elseif ($order->has_status(['cancelled', 'refunded', 'failed'])) {
@@ -1087,6 +1375,49 @@ final class RaffleLB_Raffle_Manager {
     /* ---------------------------------------------------------------
      * Delete
      * ------------------------------------------------------------- */
+
+    /** Read-only CSV export of a raffle's entries. No entries/holds/results are
+     *  written; this only reads the same rows Entries already displays. */
+    public static function handle_export_entries() {
+        if (!current_user_can('manage_woocommerce')) {
+            wp_die('You are not allowed to export raffle entries.');
+        }
+        $id = isset($_GET['product_id']) ? absint($_GET['product_id']) : 0;
+        if (!$id) wp_die('Invalid raffle.');
+        check_admin_referer('rafflelb_rm_export_entries_' . $id);
+
+        global $wpdb;
+        $all = $wpdb->get_results($wpdb->prepare(
+            "SELECT * FROM {$wpdb->prefix}" . self::ENTRY_TABLE . " WHERE product_id=%d ORDER BY entry_number ASC",
+            $id
+        ));
+
+        nocache_headers();
+        header('Content-Type: text/csv; charset=utf-8');
+        header('Content-Disposition: attachment; filename="raffle-' . $id . '-entries-' . gmdate('Y-m-d') . '.csv"');
+
+        $out = fopen('php://output', 'w');
+        fputcsv($out, ['Entry #', 'Customer', 'Email', 'Order #', 'Status', 'Purchase Date']);
+        foreach ($all as $entry) {
+            $order = wc_get_order(absint($entry->order_id));
+            $name = self::customer_name(absint($entry->user_id), $order);
+            $email = $order ? $order->get_billing_email() : '';
+            if (!$email && $entry->user_id) {
+                $user = get_user_by('id', absint($entry->user_id));
+                if ($user) $email = $user->user_email;
+            }
+            fputcsv($out, [
+                str_pad((string) absint($entry->entry_number), 3, '0', STR_PAD_LEFT),
+                $name,
+                $email,
+                $entry->order_id,
+                $entry->status === 'active' ? 'Confirmed' : 'Void',
+                $entry->created_at,
+            ]);
+        }
+        fclose($out);
+        exit;
+    }
 
     public static function handle_trash() {
         if (!current_user_can('manage_woocommerce')) {
