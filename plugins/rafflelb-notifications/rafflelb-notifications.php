@@ -2,14 +2,14 @@
 /**
  * Plugin Name: RaffleLB Notifications
  * Description: A notification badge on the account icon, a "Notifications" tab in My Account, and an admin screen to create notifications and control the automatic winner / draw-completed ones. Listens to RaffleLB Draw Engine's rafflelb_draw_completed hook instead of duplicating any draw logic.
- * Version: 1.2.2
+ * Version: 1.2.3
  * Author: RaffleLB
  */
 
 if (!defined('ABSPATH')) exit;
 
 final class RaffleLB_Notifications {
-    const VERSION = '1.2.2';
+    const VERSION = '1.2.3';
     const TABLE = 'rafflelb_notifications';
     const ENDPOINT = 'rafflelb-notifications';
 
@@ -708,6 +708,7 @@ final class RaffleLB_Notifications {
 
         echo '<div class="wrap rlbn-page"><header class="rlbn-header"><span class="rlbn-kicker">RAFFLELB / NOTIFICATIONS</span><h1>Notifications</h1><p>Automatic winner and draw delivery, plus one-off announcements to your customers.</p></header>';
         self::print_admin_styles();
+        self::print_admin_script();
 
         self::render_admin_notices();
 
@@ -789,9 +790,9 @@ final class RaffleLB_Notifications {
         .rlbn-page .rlbn-panel-head h2{margin:0 0 6px;color:#fff;font-size:16px;font-weight:700}
         .rlbn-page .rlbn-panel-head p{margin:0;color:var(--muted);font-size:12.5px;line-height:1.55;max-width:640px}
         .rlbn-page .rlbn-options{display:flex;flex-direction:column;gap:10px;margin-bottom:18px}
-        .rlbn-page .rlbn-option{display:flex;align-items:flex-start;gap:12px;padding:14px 16px;border:1px solid var(--line);border-radius:9px;background:#0d100c;cursor:pointer;transition:border-color .12s ease,background .12s ease}
-        .rlbn-page .rlbn-option:hover{border-color:#4a5a3a;background:#10130e}
-        .rlbn-page .rlbn-option:has(input:checked){border-color:var(--lime);background:rgba(186,255,0,.06)}
+        .rlbn-page .rlbn-option{display:flex;align-items:flex-start;gap:12px;padding:14px 16px;border:1px solid #454b41;border-radius:9px;background:#0d100c;cursor:pointer;transition:border-color .12s ease,background .12s ease}
+        .rlbn-page .rlbn-option:hover{border-color:#5a6154}
+        .rlbn-page .rlbn-option.is-checked,.rlbn-page .rlbn-option:has(input:checked){border-color:var(--lime)!important;background:rgba(186,255,0,.07)!important}
         .rlbn-page .rlbn-option-text strong{display:block;color:#fff;font-size:13.5px;font-weight:650}
         .rlbn-page .rlbn-option-text small{display:block;margin-top:3px;color:var(--muted);font-size:12px;line-height:1.5}
         .rlbn-page .rlbn-field{margin-bottom:16px;max-width:520px}
@@ -820,14 +821,34 @@ final class RaffleLB_Notifications {
         .rlbn-page .rlbn-pill{display:inline-block;padding:2px 8px;border:1px solid var(--line);border-radius:999px;color:var(--muted);font-size:10.5px;font-weight:700;text-transform:uppercase}
         .rlbn-page .rlbn-pill--sent{border-color:var(--lime);background:rgba(186,255,0,.12);color:#e6ffab}
         .rlbn-page .rlbn-empty{color:var(--muted)}
-        .rlbn-page input[type=checkbox],.rlbn-page input[type=radio]{appearance:none;-webkit-appearance:none;width:18px;height:18px;flex:0 0 18px;margin:1px 0 0;border:1px solid #687060;border-radius:4px;background:#0a0d09;cursor:pointer}
-        .rlbn-page input[type=radio]{border-radius:50%;width:16px;height:16px;margin-top:2px}
-        .rlbn-page input[type=checkbox]:checked{border-color:var(--lime);background-color:var(--lime);background-image:url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 16 16%27%3E%3Cpath d=%27M3.5 8.4l3.1 3.1 5.9-6.6%27 fill=%27none%27 stroke=%27%23071008%27 stroke-width=%272.1%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27/%3E%3C/svg%3E");background-size:11px 11px;background-position:center;background-repeat:no-repeat}
-        .rlbn-page input[type=radio]:checked{border:5px solid var(--lime);background:#0a0d09}
+        .rlbn-page input[type=checkbox],.rlbn-page input[type=radio]{appearance:none!important;-webkit-appearance:none!important;width:18px!important;height:18px!important;flex:0 0 18px;margin:1px 0 0;border:1px solid #585858!important;border-radius:4px;background-color:#0a0d09!important;background-image:none!important;box-shadow:none!important;cursor:pointer}
+        .rlbn-page input[type=checkbox]::before,.rlbn-page input[type=radio]::before,.rlbn-page input[type=checkbox]::-ms-check{content:none!important;display:none!important}
+        .rlbn-page input[type=radio]{border-radius:50%!important;width:16px!important;height:16px!important;margin-top:2px}
+        .rlbn-page input[type=checkbox]:checked{border-color:var(--lime)!important;background-color:var(--lime)!important;background-image:url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 16 16%27%3E%3Cpath d=%27M3.5 8.4l3.1 3.1 5.9-6.6%27 fill=%27none%27 stroke=%27%23071008%27 stroke-width=%272.4%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27/%3E%3C/svg%3E")!important;background-size:12px 12px!important;background-position:center!important;background-repeat:no-repeat!important}
+        .rlbn-page input[type=radio]:checked{border:5px solid var(--lime)!important;background-color:#0a0d09!important}
         .rlbn-page input[type=checkbox]:focus-visible,.rlbn-page input[type=radio]:focus-visible{outline:2px solid var(--lime);outline-offset:2px}
-        .rlbn-page input[type=checkbox]:hover,.rlbn-page input[type=radio]:hover{border-color:var(--lime)}
+        .rlbn-page input[type=checkbox]:hover,.rlbn-page input[type=radio]:hover{border-color:var(--lime)!important}
         @media(max-width:600px){.rlbn-page .rlbn-panel{padding:18px}.rlbn-page .rlbn-radio-group{flex-direction:column;gap:10px}}
         </style>';
+    }
+
+    /** Presentational only: keeps each Automatic Notifications card's
+     *  enabled/disabled border+tint in sync with its checkbox without
+     *  depending on :has() support. No option value is read or written
+     *  here - the real setting is still whatever the form submits. */
+    private static function print_admin_script() {
+        echo '<script>
+        (function(){
+            function sync(box){
+                var card = box.closest(".rlbn-option");
+                if (card) card.classList.toggle("is-checked", box.checked);
+            }
+            document.querySelectorAll(".rlbn-page .rlbn-option input[type=checkbox]").forEach(function(box){
+                sync(box);
+                box.addEventListener("change", function(){ sync(box); });
+            });
+        })();
+        </script>';
     }
 
     private static function render_admin_notices() {
