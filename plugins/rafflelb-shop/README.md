@@ -1,3 +1,11 @@
+# RaffleLB Shop 0.1.94 — Store Only default-view status row text
+
+0.1.94 changes only the two labels in the default ALL PRODUCTS view's Store
+Only status row: `DIRECT PURCHASE` / `SHIPS FROM STOCK` (or `Currently
+unavailable`) becomes `STORE ONLY` / `DIRECT PURCHASE`. Same markup, same
+CSS, same row height/spacing/typography. No other archive-card content,
+query, or template changed.
+
 # RaffleLB Shop 0.1.93 — fix Raffle Only price box markup in the default view
 
 0.1.93 fixes one thing left over from 0.1.92: a genuine Raffle Only product in

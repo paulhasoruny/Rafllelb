@@ -2,14 +2,14 @@
 /**
  * Plugin Name: RaffleLB Shop
  * Description: Existing RaffleLB catalog and product presentation with reversible Draw Engine delegation.
- * Version: 0.1.93
+ * Version: 0.1.94
  * Author: RaffleLB
  * Requires PHP: 7.4
  */
 if (!defined('ABSPATH')) { exit; }
 require_once plugin_dir_path(__FILE__) . 'includes/class-rafflelb-store-only-renderer.php';
 final class RaffleLB_Shop {
-    const VERSION = '0.1.93';
+    const VERSION = '0.1.94';
     public static function ready() {
         return class_exists('RaffleLB\\Core\\Contracts')
             && version_compare(\RaffleLB\Core\Contracts::VERSION, '0.1.0', '>=')
@@ -1514,8 +1514,8 @@ final class RaffleLB_Shop {
                leaving it blank, without inventing any raffle information. */
             if (self::shop_view_mode() === 'both') {
                 echo '<div class="rl-shop-store-status" aria-label="Direct purchase">'
-                    . '<span class="rl-shop-store-status-badge">DIRECT PURCHASE</span>'
-                    . '<span class="rl-shop-store-status-note">' . esc_html($product->is_in_stock() ? 'Ships from stock' : 'Currently unavailable') . '</span>'
+                    . '<span class="rl-shop-store-status-badge">STORE ONLY</span>'
+                    . '<span class="rl-shop-store-status-note">DIRECT PURCHASE</span>'
                     . '</div>';
             }
             return;
