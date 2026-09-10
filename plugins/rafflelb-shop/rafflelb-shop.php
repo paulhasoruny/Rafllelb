@@ -2,14 +2,14 @@
 /**
  * Plugin Name: RaffleLB Shop
  * Description: Existing RaffleLB catalog and product presentation with reversible Draw Engine delegation.
- * Version: 0.1.88
+ * Version: 0.1.89
  * Author: RaffleLB
  * Requires PHP: 7.4
  */
 if (!defined('ABSPATH')) { exit; }
 require_once plugin_dir_path(__FILE__) . 'includes/class-rafflelb-store-only-renderer.php';
 final class RaffleLB_Shop {
-    const VERSION = '0.1.88';
+    const VERSION = '0.1.89';
     public static function ready() {
         return class_exists('RaffleLB\\Core\\Contracts')
             && version_compare(\RaffleLB\Core\Contracts::VERSION, '0.1.0', '>=')
@@ -293,6 +293,10 @@ final class RaffleLB_Shop {
         if (function_exists('is_product') && is_product()) {
             $product = self::current_product();
             if (!$product instanceof WC_Product) return $classes;
+            /* Shared product shell. Both modes render the same outer layout,
+               so both carry the mode-neutral shell class. The mode class below
+               scopes purchase components only. */
+            $classes[] = 'rafflelb-product-page';
             if (self::is_raffle_product($product)) {
                 $classes[] = 'rafflelb-raffle-product';
             } else {
@@ -398,13 +402,61 @@ final class RaffleLB_Shop {
         if (!function_exists('is_product') || !is_product()) return;
         $product = self::current_product();
         if (!$product instanceof WC_Product || self::is_raffle_product($product)) return;
-        /* Store Only now consumes the shared RaffleLB component stylesheet.
-         * The former Store-specific layout below is deliberately unreachable:
-         * its selector classes are no longer emitted by the renderer. */
+        /* Store Only consumes the shared RaffleLB product stylesheet, which is
+         * now the only single-product presentation source for both modes. The
+         * former parallel store-product.css copy of the shell is removed. */
         $css_url = plugins_url('assets/single-product.css', __FILE__) . '?ver=' . rawurlencode(self::VERSION);
         self::$early_style_printed = true;
         echo '<link rel="stylesheet" id="rafflelb-store-only-shared-product-css" href="' . esc_url($css_url) . '" media="all" data-no-optimize="1" data-noptimize="1" data-no-defer="1" data-no-minify="1" data-wpr-nooptimize="1">';
-        echo '<link rel="stylesheet" id="rafflelb-store-product-css" href="' . esc_url(plugins_url('assets/store-product.css', __FILE__) . '?ver=' . rawurlencode(self::VERSION)) . '" media="all" data-no-optimize="1" data-noptimize="1">';
+    }
+
+    /*
+     * Shared RaffleLB product shell.
+     *
+     * This is the single server-side source of the outer product layout:
+     * summary container, breadcrumb row, .rl-product-layout grid, both
+     * columns, gallery, Product Information, title and meta row. It emits the
+     * exact wrapper markup the raffle bootstrap composes on raffle pages, so
+     * both modes resolve to the same structure and the same shared CSS. The
+     * caller supplies only the purchase area for its mode.
+     */
+    public static function render_product_shell($product, callable $purchase_area) {
+        if (!$product instanceof WC_Product) return;
+
+        $classes = function_exists('wc_get_product_class') ? wc_get_product_class('', $product) : ['product'];
+
+        echo '<div id="product-' . esc_attr($product->get_id()) . '" class="' . esc_attr(implode(' ', $classes)) . '">';
+        /* The -wrap / -inner pair mirrors the theme chain the raffle bootstrap
+           mounts into, so both modes present the same wrapper structure. */
+        echo '<div class="product-image-summary-wrap">';
+        echo '<div class="product-image-summary rl-product-layout-ready">';
+        echo '<div class="product-image-summary-inner">';
+
+        echo '<div class="rl-product-breadcrumbs">';
+        if (function_exists('woocommerce_breadcrumb')) woocommerce_breadcrumb();
+        echo '</div>';
+
+        echo '<div class="rl-product-layout">';
+
+        echo '<div class="rl-product-left">';
+        woocommerce_show_product_images();
+        self::product_details_panel();
+        echo '</div>';
+
+        echo '<div class="rl-product-right">';
+        echo '<div class="summary entry-summary">';
+        echo '<h1 class="product_title entry-title">' . esc_html($product->get_name()) . '</h1>';
+        echo '<div class="rl-product-meta-row">';
+        echo '<span class="rl-stock-badge' . ($product->is_in_stock() ? ' is-in-stock' : ' is-out-of-stock') . '"><i aria-hidden="true"></i>' . esc_html($product->is_in_stock() ? 'IN STOCK' : 'OUT OF STOCK') . '</span>';
+        echo '<span class="rl-product-classification">' . wp_kses_post(wc_get_product_category_list($product->get_id(), ', ')) . '</span>';
+        echo '</div>';
+        echo '</div>';
+
+        $purchase_area($product);
+
+        echo '</div>';
+
+        echo '</div></div></div></div></div>';
     }
 
     public static function raffle_price_visibility_css() {

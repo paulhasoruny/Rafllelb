@@ -1,3 +1,37 @@
+# RaffleLB Shop 0.1.89 — shared product shell
+
+0.1.89 removes the second copy of the single-product layout. Raffle, Store &
+Raffle and Store Only now render one shared visual shell:
+
+    RaffleLB_Shop::render_product_shell()
+      div.product
+        div.product-image-summary-wrap
+          div.product-image-summary.rl-product-layout-ready
+            div.product-image-summary-inner
+              div.rl-product-breadcrumbs
+              div.rl-product-layout
+                div.rl-product-left    gallery + Product Information
+                div.rl-product-right   summary (title + stock/category) + purchase area
+
+Shop adds the mode-neutral body class `rafflelb-product-page` to every product
+page. `assets/single-product.css` scopes the whole shell to that class and is
+the only single-product stylesheet. Mode classes scope purchase components
+only: `rafflelb-raffle-product` for the raffle card, live panel, entry form and
+Raffle Details; `rafflelb-store-product` for the compact Buy Direct card.
+Store Only does not receive `rafflelb-raffle-product` and its metadata,
+purchase mode and Draw Engine routing are unchanged.
+
+`assets/store-product.css` is deleted. It was a 710-line duplicate of the shell
+whose desktop block forced `grid-template-columns:444px minmax(0,1fr)` and
+`max-width:444px` on the Store left column, which is what made Store Only look
+different from the approved product pages.
+
+Store Only purchasing stays native WooCommerce: `woocommerce_template_single_add_to_cart()`
+supplies price, stock, quantity validation and Add to Cart, and no RaffleLB
+purchase mode is submitted.
+
+---
+
 # RaffleLB Shop 0.1.43 — installation and rollback
 
 ## Install in order
