@@ -2,14 +2,14 @@
 /**
  * Plugin Name: RaffleLB Notifications
  * Description: A notification badge on the account icon, a "Notifications" tab in My Account, and an admin screen to create notifications and control the automatic winner / draw-completed ones. Listens to RaffleLB Draw Engine's rafflelb_draw_completed hook instead of duplicating any draw logic.
- * Version: 1.2.1
+ * Version: 1.2.2
  * Author: RaffleLB
  */
 
 if (!defined('ABSPATH')) exit;
 
 final class RaffleLB_Notifications {
-    const VERSION = '1.2.1';
+    const VERSION = '1.2.2';
     const TABLE = 'rafflelb_notifications';
     const ENDPOINT = 'rafflelb-notifications';
 
@@ -822,7 +822,7 @@ final class RaffleLB_Notifications {
         .rlbn-page .rlbn-empty{color:var(--muted)}
         .rlbn-page input[type=checkbox],.rlbn-page input[type=radio]{appearance:none;-webkit-appearance:none;width:18px;height:18px;flex:0 0 18px;margin:1px 0 0;border:1px solid #687060;border-radius:4px;background:#0a0d09;cursor:pointer}
         .rlbn-page input[type=radio]{border-radius:50%;width:16px;height:16px;margin-top:2px}
-        .rlbn-page input[type=checkbox]:checked{border-color:var(--lime);background:var(--lime);background-image:linear-gradient(45deg,transparent 45%,#071004 46% 54%,transparent 55%),linear-gradient(-45deg,transparent 39%,#071004 40% 48%,transparent 49%);background-size:70% 70%;background-position:center;background-repeat:no-repeat}
+        .rlbn-page input[type=checkbox]:checked{border-color:var(--lime);background-color:var(--lime);background-image:url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 16 16%27%3E%3Cpath d=%27M3.5 8.4l3.1 3.1 5.9-6.6%27 fill=%27none%27 stroke=%27%23071008%27 stroke-width=%272.1%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27/%3E%3C/svg%3E");background-size:11px 11px;background-position:center;background-repeat:no-repeat}
         .rlbn-page input[type=radio]:checked{border:5px solid var(--lime);background:#0a0d09}
         .rlbn-page input[type=checkbox]:focus-visible,.rlbn-page input[type=radio]:focus-visible{outline:2px solid var(--lime);outline-offset:2px}
         .rlbn-page input[type=checkbox]:hover,.rlbn-page input[type=radio]:hover{border-color:var(--lime)}
