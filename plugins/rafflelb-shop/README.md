@@ -1,3 +1,13 @@
+# RaffleLB Shop 0.1.93 — fix Raffle Only price box markup in the default view
+
+0.1.93 fixes one thing left over from 0.1.92: a genuine Raffle Only product in
+the default ALL PRODUCTS view was rendering its price in a generic
+`.rl-shop-prices` container (`.rl-shop-price-main`), which the CSS treats as
+the Store + Raffle dual-price grid. It now uses the same solo
+`.rl-shop-prices.is-raffle-only` / `.rl-shop-price-raffle` markup already used
+by the dedicated RAFFLE ONLY view, carrying the authoritative WooCommerce
+price. No other logic, CSS, query or template changed.
+
 # RaffleLB Shop 0.1.92 — default Shopping Mode becomes the full catalogue
 
 0.1.92 changes only Shop/archive Shopping Mode behavior and mode-aware card

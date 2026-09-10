@@ -2,14 +2,14 @@
 /**
  * Plugin Name: RaffleLB Shop
  * Description: Existing RaffleLB catalog and product presentation with reversible Draw Engine delegation.
- * Version: 0.1.92
+ * Version: 0.1.93
  * Author: RaffleLB
  * Requires PHP: 7.4
  */
 if (!defined('ABSPATH')) { exit; }
 require_once plugin_dir_path(__FILE__) . 'includes/class-rafflelb-store-only-renderer.php';
 final class RaffleLB_Shop {
-    const VERSION = '0.1.92';
+    const VERSION = '0.1.93';
     public static function ready() {
         return class_exists('RaffleLB\\Core\\Contracts')
             && version_compare(\RaffleLB\Core\Contracts::VERSION, '0.1.0', '>=')
@@ -352,7 +352,11 @@ final class RaffleLB_Shop {
             return '<div class="rl-shop-prices is-retail-only"><div class="rl-shop-price-main"><small>RETAIL PRICE</small><strong>' . wp_kses_post(wc_price($product->get_price())) . '</strong></div></div>';
         }
         if ($retail <= 0) {
-            return '<div class="rl-shop-prices"><div class="rl-shop-price-main"><small>RAFFLE ENTRY</small><strong>' . wp_kses_post(wc_price($entry)) . '</strong></div></div>';
+            /* Genuine Raffle Only card in the default ALL PRODUCTS view: use
+               the same solo raffle-price markup as rl_view=raffle, not the
+               generic dual-price container the CSS treats as the Store +
+               Raffle grid. $entry is the authoritative WooCommerce price. */
+            return '<div class="rl-shop-prices is-raffle-only"><div class="rl-shop-price-raffle"><small>RAFFLE ENTRY</small><span class="rl-shop-entry-value"><strong>' . wp_kses_post(wc_price($entry)) . '</strong><em>&nbsp;/&nbsp;entry</em></span></div></div>';
         }
 
         return '<div class="rl-shop-prices">'
