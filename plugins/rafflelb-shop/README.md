@@ -1,4 +1,33 @@
-# RaffleLB Shop 0.1.91 — shared product shell
+# RaffleLB Shop 0.1.92 — default Shopping Mode becomes the full catalogue
+
+0.1.92 changes only Shop/archive Shopping Mode behavior and mode-aware card
+contents. Single-product pages are untouched.
+
+The default STORE & RAFFLE Shopping Mode is now the complete catalogue: it
+shows Store Only, Raffle Only and Store + Raffle products, so a homepage
+category link never lands on a falsely empty view because its products
+happen to be a type the old default excluded. STORE ONLY and RAFFLE ONLY
+modes are unchanged (Store Only + Store & Raffle, and Raffle Only + Store &
+Raffle, respectively).
+
+In the default view each card now reflects the product's real classification
+instead of always showing both a Buy Now and an Enter Raffle control:
+- Genuine Store Only: real WooCommerce price, BUY NOW only.
+- Genuine Raffle Only: raffle entry price and availability, ENTER RAFFLE only.
+- Store + Raffle: unchanged, both routes.
+
+All three continue to share the existing card shell (image, title, price row,
+status row, bottom action row), so outer card width/height and the bottom
+action row stay identical across a row regardless of a product's type.
+
+The default view's catalogue query has no classification restriction at all
+(previously it wrongly required Store + Raffle's own meta), so it is simpler
+than either dedicated mode's query, not more expensive. The Store Only query
+optimization and Shopping Mode navigation capture are untouched.
+
+---
+
+# RaffleLB Shop 0.1.92 — shared product shell
 
 0.1.90 trims the Store Only desktop left column to a fixed 580px (gallery and
 Product Information together), above the 901px breakpoint only. The shared

@@ -2,14 +2,14 @@
 /**
  * Plugin Name: RaffleLB Shop
  * Description: Existing RaffleLB catalog and product presentation with reversible Draw Engine delegation.
- * Version: 0.1.91
+ * Version: 0.1.92
  * Author: RaffleLB
  * Requires PHP: 7.4
  */
 if (!defined('ABSPATH')) { exit; }
 require_once plugin_dir_path(__FILE__) . 'includes/class-rafflelb-store-only-renderer.php';
 final class RaffleLB_Shop {
-    const VERSION = '0.1.91';
+    const VERSION = '0.1.92';
     public static function ready() {
         return class_exists('RaffleLB\\Core\\Contracts')
             && version_compare(\RaffleLB\Core\Contracts::VERSION, '0.1.0', '>=')
@@ -345,7 +345,11 @@ final class RaffleLB_Shop {
         }
 
         if (!$is_raffle) {
-            return $price_html;
+            /* Genuine Store Only card in the default ALL PRODUCTS view: show
+               its real WooCommerce price in the same solo price-box shape a
+               Raffle Only card uses below, instead of the raw theme markup,
+               so the price row lines up with every other card. */
+            return '<div class="rl-shop-prices is-retail-only"><div class="rl-shop-price-main"><small>RETAIL PRICE</small><strong>' . wp_kses_post(wc_price($product->get_price())) . '</strong></div></div>';
         }
         if ($retail <= 0) {
             return '<div class="rl-shop-prices"><div class="rl-shop-price-main"><small>RAFFLE ENTRY</small><strong>' . wp_kses_post(wc_price($entry)) . '</strong></div></div>';
@@ -1161,7 +1165,10 @@ final class RaffleLB_Shop {
     private static function shop_mode_includes_product($mode, $product_mode) {
         if ($mode === 'retail') return $product_mode === 'retail' || $product_mode === 'both';
         if ($mode === 'raffle') return $product_mode === 'raffle' || $product_mode === 'both';
-        return $product_mode === 'both';
+        /* 'both' is the default Shopping Mode and is now the complete
+           catalogue: Store Only, Raffle Only and Store + Raffle are all
+           visible, so category/shop views never appear falsely empty. */
+        return true;
     }
 
     private static function shop_mode_meta_query($mode) {
@@ -1180,25 +1187,12 @@ final class RaffleLB_Shop {
             ];
         }
 
-        return [
-            'relation' => 'AND',
-            [
-                'key'     => \RaffleLB\Core\Contracts::META_ENABLED,
-                'value'   => 'yes',
-                'compare' => '=',
-            ],
-            [
-                'key'     => \RaffleLB\Core\Contracts::META_BUY_NOW_ENABLED,
-                'value'   => 'yes',
-                'compare' => '=',
-            ],
-            [
-                'key'     => \RaffleLB\Core\Contracts::META_BUY_NOW_PRICE,
-                'value'   => 0,
-                'type'    => 'NUMERIC',
-                'compare' => '>',
-            ],
-        ];
+        /* 'both' is the default ALL PRODUCTS view: Store Only, Raffle Only
+         * and Store + Raffle are all eligible, so no classification
+         * restriction is applied here at all (only the winner-selected
+         * exclusion the caller adds). This also makes the default view's
+         * query simpler than either dedicated mode's. */
+        return [];
     }
 
     public static function shop_mode_url($mode) {
@@ -1247,10 +1241,14 @@ final class RaffleLB_Shop {
         if ($mode === 'retail') {
             $query->set('rafflelb_store_catalog_scope', true);
         } else {
-            $meta_query[] = self::shop_mode_meta_query($mode);
+            $restriction = self::shop_mode_meta_query($mode);
+            if (!empty($restriction)) {
+                $meta_query[] = $restriction;
+            }
             /* Keep winner-selected raffles out of catalogue browsing, while a
              * genuine Store Only product stays visible even if legacy draw meta
-             * happens to exist on it. */
+             * happens to exist on it. Applies to both the 'raffle' mode and the
+             * default 'both' (all products) view. */
             $meta_query[] = [
                 'relation' => 'OR',
                 [
@@ -1504,7 +1502,20 @@ final class RaffleLB_Shop {
         if (!$is_shop_archive && !$is_cat_archive) return;
         if (self::shop_view_mode() === 'retail') return;
         global $product;
-        if (!self::is_raffle_product($product)) return;
+        if (!$product instanceof WC_Product) return;
+
+        if (!self::is_raffle_product($product)) {
+            /* Genuine Store Only card in the default ALL PRODUCTS view: fill
+               the same status slot a raffle card uses here instead of
+               leaving it blank, without inventing any raffle information. */
+            if (self::shop_view_mode() === 'both') {
+                echo '<div class="rl-shop-store-status" aria-label="Direct purchase">'
+                    . '<span class="rl-shop-store-status-badge">DIRECT PURCHASE</span>'
+                    . '<span class="rl-shop-store-status-note">' . esc_html($product->is_in_stock() ? 'Ships from stock' : 'Currently unavailable') . '</span>'
+                    . '</div>';
+            }
+            return;
+        }
 
         $stats = RaffleLB_Draw_Engine::shop_bridge_stats($product->get_id(), false);
         if (!$stats) return;
@@ -1551,11 +1562,32 @@ final class RaffleLB_Shop {
         $can_buy = $has_retail && !$product->is_type('variable') && $product->is_in_stock()
             && ($product_mode === 'retail' || !RaffleLB_Draw_Engine::shop_bridge_is_draw_closed($product));
 
+        /*
+         * The dedicated STORE ONLY / RAFFLE ONLY views show one purchase
+         * route for every card, chosen by the view itself, unchanged below.
+         * The default ALL PRODUCTS view instead reflects each product's own
+         * real capability, so a genuine Store Only or Raffle Only card never
+         * gets a control for the route it doesn't support.
+         */
+        $show_buy    = $mode !== 'raffle' && ($mode !== 'both' || $has_retail);
+        $show_raffle = $mode !== 'retail' && ($mode !== 'both' || $is_raffle);
+
+        /* Card action layout: dedicated views keep their existing single-mode
+           class name unchanged. The default view uses the same 'retail' /
+           'raffle' full-width class a card would get in the dedicated view
+           whenever it only has one real route, so a solo Buy Now or Enter
+           Raffle button spans the action row exactly like it already does
+           there; a genuine Store + Raffle card keeps the two-column split. */
+        $layout = $mode;
+        if ($mode === 'both') {
+            $layout = ($show_buy && $show_raffle) ? 'both' : ($show_buy ? 'retail' : 'raffle');
+        }
+
         $showed_buy_action = false;
 
-        echo '<div class="rl-shop-card-actions rl-shop-actions-' . esc_attr($mode) . '">';
+        echo '<div class="rl-shop-card-actions rl-shop-actions-' . esc_attr($layout) . '">';
 
-            if ($mode !== 'raffle') {
+            if ($show_buy) {
                 if ($can_buy) {
                     if (self::account_required()) {
                         echo '<a class="rl-shop-buy" href="' . esc_url(self::account_login_url($url)) . '"><span class="rl-shop-buy-label">LOGIN TO BUY</span><span class="rl-shop-buy-bag" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><path d="M6.5 8V6.5a5.5 5.5 0 0 1 11 0V8M4.5 8h15l1 13h-17l1-13Z"/></svg></span></a>';
@@ -1573,7 +1605,7 @@ final class RaffleLB_Shop {
                 $showed_buy_action = true;
             }
 
-            if ($mode !== 'retail') {
+            if ($show_raffle) {
                 if ($showed_buy_action) {
                     echo '<span class="rl-shop-card-actions-or" aria-hidden="true">OR</span>';
                 }
@@ -1778,7 +1810,7 @@ final class RaffleLB_Shop {
         .rl-raffle-card .product-element-top{position:relative!important;overflow:hidden!important;border:1px solid #20281f!important;border-radius:12px!important;background:#050705!important}.rl-raffle-card .product-element-top img{display:block!important;width:100%!important;aspect-ratio:16/9!important;height:auto!important;object-fit:contain!important;object-position:center!important;transform:none!important;transition:transform .28s ease!important}.rl-raffle-card .product-wrapper:hover .product-element-top img{transform:none!important}
         .rl-raffle-card .product-information{display:flex!important;flex-direction:column!important;flex:1 1 auto!important;padding:14px 7px 2px!important;background:transparent!important;text-align:left!important}.rl-raffle-card .wd-entities-title,.rl-raffle-card .product-title,.rl-raffle-card h3{min-height:44px!important;margin:0 0 7px!important;color:#f5f7f3!important;font-size:17px!important;line-height:1.32!important;font-weight:800!important;letter-spacing:-.018em!important;text-align:left!important}.rl-raffle-card .wd-entities-title a,.rl-raffle-card .product-title a,.rl-raffle-card h3 a{color:#f5f7f3!important}.rl-raffle-card .wd-product-cats,.rl-raffle-card .product-categories{margin:0 0 8px!important;color:#768073!important;font-size:9px!important;font-weight:800!important;letter-spacing:.09em!important;text-transform:uppercase!important;text-align:left!important}.rl-raffle-card .wd-product-cats a{color:#768073!important}
         .rl-raffle-card .price{display:block!important;min-height:0!important;margin:7px 0 11px!important}.rl-shop-prices{display:grid;grid-template-columns:1.15fr .85fr;gap:8px}.rl-shop-prices>div{min-width:0;padding:10px 11px;border:1px solid #252e24;border-radius:10px;background:#090d09}.rl-shop-prices small{display:block;margin-bottom:5px;color:#7f8a7b;font-size:7.5px!important;font-weight:900!important;letter-spacing:.11em!important}.rl-shop-prices strong,.rl-shop-prices strong *{color:#fff!important;font-size:22px!important;line-height:1!important;font-weight:900!important;letter-spacing:-.03em!important}.rl-shop-price-raffle{border-color:rgba(186,255,0,.25)!important}.rl-shop-price-raffle strong,.rl-shop-price-raffle strong *{color:#baff00!important;font-size:17px!important}.rl-shop-price-raffle em{margin-left:3px;color:#8f998c;font-size:8px;font-style:normal;font-weight:800;white-space:nowrap}
-        .rl-shop-raffle-box{margin:0 0 11px;padding:10px 11px;border:1px solid rgba(186,255,0,.18);border-radius:10px;background:rgba(186,255,0,.025)}.rl-shop-raffle-line,.rl-shop-raffle-meta{display:flex;align-items:center;justify-content:space-between;gap:10px}.rl-shop-raffle-live{display:flex;align-items:center;gap:6px;color:#dce5d8;font-size:8px;font-weight:900;letter-spacing:.08em}.rl-shop-raffle-live i{width:6px;height:6px;border-radius:50%;background:#baff00;box-shadow:0 0 10px rgba(186,255,0,.5)}.rl-shop-raffle-line strong,.rl-shop-raffle-line strong *{color:#baff00!important;font-size:12px!important;font-weight:900!important}.rl-shop-raffle-line strong small{color:#91a08d!important;font-size:7px!important}.rl-shop-raffle-progress{height:5px;margin:8px 0 7px;overflow:hidden;border-radius:99px;background:#242c23}.rl-shop-raffle-progress span{display:block;height:100%;border-radius:inherit;background:#baff00}.rl-shop-raffle-meta{color:#818c7e;font-size:8px;font-weight:800;text-transform:uppercase}.rl-shop-raffle-meta b{color:#c8d1c4;font-weight:900}.rl-shop-raffle-box.is-closed{border-color:#2a3129}.rl-shop-raffle-box.is-closed .rl-shop-raffle-line span,.rl-shop-raffle-box.is-closed .rl-shop-raffle-line strong{color:#899286!important;font-size:8px!important}
+        .rl-shop-raffle-box{margin:0 0 11px;padding:10px 11px;border:1px solid rgba(186,255,0,.18);border-radius:10px;background:rgba(186,255,0,.025)}.rl-shop-raffle-line,.rl-shop-raffle-meta{display:flex;align-items:center;justify-content:space-between;gap:10px}.rl-shop-raffle-live{display:flex;align-items:center;gap:6px;color:#dce5d8;font-size:8px;font-weight:900;letter-spacing:.08em}.rl-shop-raffle-live i{width:6px;height:6px;border-radius:50%;background:#baff00;box-shadow:0 0 10px rgba(186,255,0,.5)}.rl-shop-raffle-line strong,.rl-shop-raffle-line strong *{color:#baff00!important;font-size:12px!important;font-weight:900!important}.rl-shop-raffle-line strong small{color:#91a08d!important;font-size:7px!important}.rl-shop-raffle-progress{height:5px;margin:8px 0 7px;overflow:hidden;border-radius:99px;background:#242c23}.rl-shop-raffle-progress span{display:block;height:100%;border-radius:inherit;background:#baff00}.rl-shop-raffle-meta{color:#818c7e;font-size:8px;font-weight:800;text-transform:uppercase}.rl-shop-raffle-meta b{color:#c8d1c4;font-weight:900}.rl-shop-raffle-box.is-closed{border-color:#2a3129}.rl-shop-raffle-box.is-closed .rl-shop-raffle-line span,.rl-shop-raffle-box.is-closed .rl-shop-raffle-line strong{color:#899286!important;font-size:8px!important}.rl-shop-store-status{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0 0 11px;padding:10px 11px;border:1px solid #2a3129;border-radius:10px;background:#0b0f0a}.rl-shop-store-status-badge{color:#c7d0c3;font-size:8px;font-weight:900;letter-spacing:.08em;text-transform:uppercase}.rl-shop-store-status-note{color:#818c7e;font-size:8px;font-weight:800;text-transform:uppercase;text-align:right}
         .rl-shop-card-actions{display:grid;grid-template-columns:1.12fr .88fr;gap:8px;margin-top:auto}.rl-shop-card-actions-or{display:none}.rl-shop-buy-form{margin:0!important}.rl-shop-buy,.rl-shop-enter{display:flex!important;width:100%!important;height:44px!important;align-items:center!important;justify-content:space-between!important;gap:9px!important;margin:0!important;padding:0 13px!important;border-radius:9px!important;text-decoration:none!important;font-size:9px!important;font-weight:900!important;letter-spacing:.07em!important}.rl-shop-buy{border:1px solid #baff00!important;background:#baff00!important;color:#050705!important}.rl-shop-buy span{font-size:15px}.rl-shop-enter{border:1px solid #354033!important;background:#0b0f0b!important;color:#eef3eb!important}.rl-shop-enter span{color:#baff00!important;font-size:8px!important;font-weight:900!important;letter-spacing:0!important}.rl-shop-enter.is-muted span{color:#8c9688!important}.rl-shop-buy:hover{background:#c8ff2a!important;color:#050705!important}.rl-shop-enter:hover{border-color:#baff00!important;color:#fff!important}
         /* Desktop-only: reveal the "OR" between Buy Now / Enter Raffle
            (mobile already shows it via its own 767px rule further down).
@@ -1830,7 +1862,7 @@ final class RaffleLB_Shop {
         .rl-raffle-card .wd-entities-title,.rl-raffle-card .product-title,.rl-raffle-card h3{min-height:52px!important;font-size:20px!important;line-height:1.28!important;font-weight:850!important}
         .rl-raffle-card .wd-product-cats,.rl-raffle-card .product-categories{font-size:11px!important;line-height:1.35!important}
         .rl-shop-prices>div{padding:13px 14px!important}.rl-shop-prices small{font-size:10px!important;margin-bottom:7px!important}.rl-shop-prices strong,.rl-shop-prices strong *{font-size:27px!important}.rl-shop-price-raffle strong,.rl-shop-price-raffle strong *{font-size:22px!important}.rl-shop-price-raffle em{font-size:10px!important}
-        .rl-shop-raffle-box{padding:12px 13px!important}.rl-shop-raffle-live{font-size:10px!important}.rl-shop-raffle-line strong,.rl-shop-raffle-line strong *{font-size:15px!important}.rl-shop-raffle-line strong small{font-size:9px!important}.rl-shop-raffle-meta{font-size:10px!important}
+        .rl-shop-raffle-box{padding:12px 13px!important}.rl-shop-raffle-live{font-size:10px!important}.rl-shop-raffle-line strong,.rl-shop-raffle-line strong *{font-size:15px!important}.rl-shop-raffle-line strong small{font-size:9px!important}.rl-shop-raffle-meta{font-size:10px!important}.rl-shop-store-status{padding:12px 13px!important}.rl-shop-store-status-badge,.rl-shop-store-status-note{font-size:10px!important}
         .rl-shop-buy,.rl-shop-enter{height:48px!important;padding:0 14px!important;font-size:11px!important}.rl-shop-enter span{font-size:9px!important}
 
         /* Exact retail price inputs layered on top of WooCommerce's native min_price/max_price query args. */
@@ -3794,19 +3826,36 @@ final class RaffleLB_Shop {
                         $store_rows[] = (object) ['term_id' => (int) $term_id];
                     }
                 } else {
-                    $store_rows = $wpdb->get_results($wpdb->prepare(
-                        "SELECT DISTINCT tt.term_id
-                         FROM {$wpdb->posts} p
-                         INNER JOIN {$wpdb->term_relationships} tr ON tr.object_id = p.ID
-                         INNER JOIN {$wpdb->term_taxonomy} tt ON tt.term_taxonomy_id = tr.term_taxonomy_id AND tt.taxonomy = 'product_cat'
-                         INNER JOIN {$wpdb->postmeta} raffle_enabled ON raffle_enabled.post_id = p.ID AND raffle_enabled.meta_key = %s AND raffle_enabled.meta_value = 'yes'
-                         INNER JOIN {$wpdb->postmeta} buy_enabled ON buy_enabled.post_id = p.ID AND buy_enabled.meta_key = %s AND buy_enabled.meta_value = 'yes'
-                         INNER JOIN {$wpdb->postmeta} buy_price ON buy_price.post_id = p.ID AND buy_price.meta_key = %s AND CAST(buy_price.meta_value AS DECIMAL(18,4)) > 0
-                         WHERE p.post_type = 'product' AND p.post_status = 'publish'",
-                        \RaffleLB\Core\Contracts::META_ENABLED,
-                        \RaffleLB\Core\Contracts::META_BUY_NOW_ENABLED,
-                        \RaffleLB\Core\Contracts::META_BUY_NOW_PRICE
-                    ));
+                    /* Default ALL PRODUCTS view: a category has eligible
+                     * products if it contains anything except a winner-
+                     * selected raffle, i.e. exactly the catalogue eligibility
+                     * shop_catalog_scope() applies for this mode. Cached like
+                     * the Store map above since it also scans every category. */
+                    $cache_key = 'rafflelb_shop_all_categories_v1';
+                    $cached_ids = get_transient($cache_key);
+                    if ($cached_ids === false) {
+                        $enabled_key = \RaffleLB\Core\Contracts::META_ENABLED;
+                        $status_key = \RaffleLB\Core\Contracts::META_DRAW_STATUS;
+                        $all_rows = $wpdb->get_col($wpdb->prepare(
+                            "SELECT DISTINCT tt.term_id
+                             FROM {$wpdb->posts} p
+                             INNER JOIN {$wpdb->term_relationships} tr ON tr.object_id = p.ID
+                             INNER JOIN {$wpdb->term_taxonomy} tt ON tt.term_taxonomy_id = tr.term_taxonomy_id AND tt.taxonomy = 'product_cat'
+                             WHERE p.post_type = 'product' AND p.post_status = 'publish'
+                               AND (
+                                   NOT EXISTS (SELECT 1 FROM {$wpdb->postmeta} re WHERE re.post_id = p.ID AND re.meta_key = %s AND re.meta_value = 'yes')
+                                   OR NOT EXISTS (SELECT 1 FROM {$wpdb->postmeta} winner WHERE winner.post_id = p.ID AND winner.meta_key = %s AND winner.meta_value = 'winner_selected')
+                               )",
+                            $enabled_key,
+                            $status_key
+                        ));
+                        $cached_ids = array_values(array_unique(array_map('absint', (array) $all_rows)));
+                        set_transient($cache_key, $cached_ids, MINUTE_IN_SECONDS);
+                    }
+                    $store_rows = [];
+                    foreach ((array) $cached_ids as $term_id) {
+                        $store_rows[] = (object) ['term_id' => (int) $term_id];
+                    }
                 }
                 if (is_array($store_rows)) {
                     foreach ($store_rows as $row) {
