@@ -1,13 +1,13 @@
 <?php
 /** Plugin Name: RaffleLB Products
  * Description: Product Studio for WooCommerce and RaffleLB operations.
- * Version: 0.2.8
+ * Version: 0.2.9
  * Author: RaffleLB
  * Requires Plugins: woocommerce */
 defined('ABSPATH') || exit;
 
 final class RaffleLB_Products {
-    const VERSION = '0.2.8';
+    const VERSION = '0.2.9';
     const SLUG = 'rafflelb-products';
     const CAPABILITY = 'manage_woocommerce';
     const ENABLED = '_rafflelb_draw_enabled';
@@ -34,13 +34,23 @@ final class RaffleLB_Products {
         if ($hook !== 'admin_page_' . self::SLUG) return;
         wp_enqueue_style('rafflelb-products', plugin_dir_url(__FILE__) . 'assets/product-studio.css', [], self::VERSION);
         wp_enqueue_media();
-        /* Product Tags reuses the Select2 build WooCommerce already registers
-         * admin-wide rather than adding a second multi-select dependency. If
-         * it is somehow unavailable the field still works as a plain native
-         * multi-select (existing tags can be picked/removed; only the
+        /* Product Tags reuses whichever multi-select enhancer WooCommerce
+         * already registers admin-wide rather than adding a second one.
+         * Modern WooCommerce ships SelectWoo (a Select2 fork); prefer it and
+         * fall back to a bare Select2 registration for older WooCommerce
+         * builds. If neither is available the field still works as a plain
+         * native multi-select (existing tags can be picked/removed; only the
          * type-to-create convenience is lost). */
-        if (wp_style_is('select2', 'registered')) wp_enqueue_style('select2');
-        if (wp_script_is('select2', 'registered')) wp_enqueue_script('select2');
+        if (wp_script_is('selectWoo', 'registered')) {
+            wp_enqueue_script('selectWoo');
+        } elseif (wp_script_is('select2', 'registered')) {
+            wp_enqueue_script('select2');
+        }
+        if (wp_style_is('selectWoo', 'registered')) {
+            wp_enqueue_style('selectWoo');
+        } elseif (wp_style_is('select2', 'registered')) {
+            wp_enqueue_style('select2');
+        }
     }
 
     private static function url($a = []) { return add_query_arg(array_merge(['page' => self::SLUG], $a), admin_url('admin.php')); }
@@ -210,8 +220,11 @@ final class RaffleLB_Products {
         $x = self::profile($p);
         $s = $x['raffle'] ? self::stats($id) : false;
 
-        $tag_names = wp_get_post_terms($id, self::TAG_TAXONOMY, ['fields' => 'names']);
-        if (is_wp_error($tag_names)) $tag_names = [];
+        /* WP_Query primes the term cache for every taxonomy on the queried post
+         * type (product_tag included) in one batched query, so get_the_terms()
+         * here is a cache read, not a new query per row. */
+        $tag_terms = get_the_terms($id, self::TAG_TAXONOMY);
+        $tag_names = ($tag_terms && !is_wp_error($tag_terms)) ? wp_list_pluck($tag_terms, 'name') : [];
         $tag_html = '';
         if ($tag_names) {
             $shown = array_slice($tag_names, 0, 3);
@@ -351,7 +364,7 @@ final class RaffleLB_Products {
     private static function tag_assets() {
         $nonce = wp_create_nonce(self::TAG_NONCE);
         $ajax_url = admin_url('admin-ajax.php');
-        ?><script>jQuery(function($){var $select=$('.rlp-tag-select');if(!$select.length||typeof $.fn.select2!=='function')return;$select.select2({width:'100%',tags:true,tokenSeparators:[',','\n'],placeholder:$select.data('placeholder')||'Search or add a tag…',ajax:{url:<?php echo wp_json_encode($ajax_url); ?>,dataType:'json',delay:250,data:function(params){return {action:'rafflelb_products_tag_search',nonce:<?php echo wp_json_encode($nonce); ?>,q:params.term||''};},processResults:function(data){return {results:(data||[]).map(function(t){return {id:t.id,text:t.text};})};}},createTag:function(params){var term=$.trim(params.term);if(term==='')return null;return {id:term,text:term,newTag:true};}});});</script><?php
+        ?><script>jQuery(function($){var $select=$('.rlp-tag-select');if(!$select.length)return;var enhancer=null;if(typeof $.fn.selectWoo==='function'){enhancer='selectWoo';}else if(typeof $.fn.select2==='function'){enhancer='select2';}if(!enhancer)return;$select[enhancer]({width:'100%',tags:true,tokenSeparators:[',','\n'],placeholder:$select.data('placeholder')||'Search or add a tag…',ajax:{url:<?php echo wp_json_encode($ajax_url); ?>,dataType:'json',delay:250,data:function(params){return {action:'rafflelb_products_tag_search',nonce:<?php echo wp_json_encode($nonce); ?>,q:params.term||''};},processResults:function(data){return {results:(data||[]).map(function(t){return {id:t.id,text:t.text};})};}},createTag:function(params){var term=$.trim(params.term);if(term==='')return null;return {id:term,text:term,newTag:true};}});});</script><?php
     }
 
     public static function save() {
@@ -456,7 +469,8 @@ final class RaffleLB_Products {
         $saved = $p->save();
         if (!$saved) self::error($id, 'Product could not be saved.');
         wp_set_object_terms($saved, $cats, 'product_cat');
-        wp_set_object_terms($saved, $tags, self::TAG_TAXONOMY);
+        $tags_result = wp_set_object_terms($saved, $tags, self::TAG_TAXONOMY);
+        if (is_wp_error($tags_result)) self::error($saved, 'Product Tags could not be saved.');
 
         if (!$lock && $mode === 'store') {
             update_post_meta($saved, self::ENABLED, 'no');
