@@ -1,40 +1,59 @@
-RaffleLB Notifications v1.0.0
+RaffleLB Notifications v1.2.0
+
+WHAT CHANGED IN 1.2.0
+- Listens to Draw Engine's fulfillment-status event without writing fulfillment state itself.
+- Adds an optional My Account notification when the winner's prize is marked Prize Fulfilled.
+- Fulfillment notifications are deduplicated by permanent draw result id and are not repeated by page refreshes or same-status saves.
+- Adds the Prize Fulfilled notification type/icon to customer and admin notification views.
+- No fulfillment email is sent automatically; winner-email behavior remains unchanged.
 
 PURPOSE
-A small badge on the account icon, a "Notifications" tab in My Account, and
-an admin screen to control/send notifications. Built as a separate plugin
-so it can be deactivated independently; it listens to RaffleLB Draw
-Engine's `rafflelb_draw_completed` action hook (added in Draw Engine
-v0.33.64) instead of duplicating any draw logic.
+Owns customer notification delivery for RaffleLB: account notifications,
+unread badge, winner email delivery, draw-completed alerts for other entrants,
+and admin announcements. Draw Engine remains the owner of draw state/results and
+emits the permanent draw-completed event.
 
 REQUIRES
 - WooCommerce
-- RaffleLB Draw Engine v0.33.64+ (fires `rafflelb_draw_completed` when a
-  winner is permanently recorded - both Secure Random Draw and Record
-  Chosen Winner)
+- RaffleLB Draw Engine 0.34.18.29+ recommended.
+  The first five rafflelb_draw_completed hook arguments remain backward
+  compatible; Draw Engine 0.34.18.29 adds a sixth read-only context argument
+  (entry number, order id, selected timestamp, method) so Notifications does
+  not need to duplicate draw/result logic.
 
-WHAT IT DOES
-- Account icon badge: a small lime counter badge on the header account
-  icon showing the current user's unread notification count. Hidden when
-  there are none.
-- My Account -> Notifications: a new tab listing every notification for
-  that customer (winner alerts, draw-completed alerts, admin
-  announcements), newest first. Unread ones are visually highlighted;
-  visiting the tab marks everything shown as read.
-- Automatic notifications (WooCommerce -> Notifications in wp-admin, two
-  toggles, both on by default):
-  - Notify the winner when a draw is completed.
-  - Notify every other entrant in that raffle that the draw is complete.
-  Both are deduplicated per (raffle, type, user) so a retried request can
-  never double-notify someone for the same draw.
-- Manual notifications (same admin screen): title, message, optional link,
-  and a target of "All registered users" or "a specific user" (by email,
-  username, or user ID). For later use as an announcements tool.
-- Recent Notifications log (last 50) on the same admin screen, for
-  visibility into what has actually been sent and to whom.
+WHAT CHANGED IN 1.1.0
+- Winner delivery ownership moved into Notifications.
+- Automatic winner notification now creates the My Account notification and
+  sends the branded winner email from the same draw-completed event.
+- Winner message/email includes the prize, winning entry number, and draw date.
+- Duplicate protection is tied to the permanent draw result id, with legacy
+  product/type/user fallback for older notification rows.
+- Notification rows now record source_result_id, email_address, and
+  email_sent_at.
+- On successful email delivery, Notifications emits rafflelb_winner_email_sent.
+  Draw Engine listens to that event and updates its own winner_email_sent_at
+  audit field, preserving plugin ownership boundaries.
+- The existing Draw Engine Send/Resend Winner Email admin control delegates to
+  Notifications when it is active. If Notifications is disabled, Draw Engine's
+  legacy manual sender remains as a compatibility fallback.
+- Other entrants continue receiving the existing draw-completed account
+  notification. Void entries remain excluded because Draw Engine supplies only
+  eligible draw state and the entrant query still targets active entries.
+
+ADMIN SETTINGS
+WooCommerce -> Notifications
+- Notify the winner in My Account and by email when a draw is completed.
+- Notify every other active entrant that the draw is complete.
+- Send manual announcements to all registered users or one specific user.
+- Recent Notifications now shows winner email delivery status.
 
 DATA
-One new table, `{prefix}rafflelb_notifications`: id, user_id, type
-(winner / draw_completed / announcement), title, message, link_url,
-product_id, is_read, created_at, read_at. Nothing here writes to or reads
-from RaffleLB Draw Engine's own tables except via the public hook.
+Table: {prefix}rafflelb_notifications
+Fields include: id, user_id, type, title, message, link_url, product_id,
+source_result_id, email_address, email_sent_at, is_read, created_at, read_at.
+
+OWNERSHIP
+- Draw Engine: raffle result, winner, entry eligibility, capacity, audit state.
+- Notifications: customer-facing notification/email delivery and delivery log.
+- No draw, winner-selection, capacity, order, hold, or entry mutation logic is
+  duplicated here.

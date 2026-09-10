@@ -1,3 +1,26 @@
+v0.34.18.37 — Fulfillment status event bridge
+
+- Prize fulfillment storage remains owned exclusively by Draw Engine; existing pending/contacted/claimed/fulfilled states, notes, timestamps, order notes, and result-table columns are unchanged.
+- Added the read-only `rafflelb_fulfillment_status_changed` action after a successful actual status transition so Notifications/Account can react without duplicating fulfillment writes.
+- The event is not emitted for note-only saves or re-saving the same status, preventing duplicate customer notifications.
+- Internal Draw Engine schema compatibility VERSION remains 0.34.18 and protected table/meta contracts are unchanged.
+
+v0.34.18.29 — Winner notification ownership handoff
+
+- Keeps draw state/result ownership in Draw Engine while moving automatic customer delivery to RaffleLB Notifications.
+- rafflelb_draw_completed keeps its original first five arguments unchanged and now adds a backward-compatible sixth read-only context argument containing entry number, order id, selected timestamp, and method.
+- Removed Draw Engine's automatic winner-email call after both Secure Random Draw and Record Chosen Winner, preventing duplicate email delivery when Notifications is active.
+- Existing admin Send/Resend Winner Email remains available but delegates through rafflelb_winner_email_delivery when Notifications is active; the legacy Draw Engine sender remains only as a compatibility fallback if Notifications is disabled.
+- Added rafflelb_winner_email_sent listener so Draw Engine remains the sole writer of rafflelb_draw_results.winner_email_sent_at while Notifications owns delivery.
+- Internal Draw Engine schema compatibility VERSION remains 0.34.18; rafflelb_entries, rafflelb_draw_results, rafflelb_holds, rafflelb_draw_status, rafflelb_winner_entry_id, rafflelb_purchase_mode and _rafflelb_purchase_mode contracts are unchanged.
+
+v0.34.18.28 — Individual-entry void permanence / no replacement tickets
+
+- Keeps the existing per-entry admin void owned by Draw Engine: one active entry can be changed to Void without changing its WooCommerce order or sibling entries.
+- Fixed order-entry idempotency so a voided ticket remains permanently void even if the same paid order later re-enters Processing/Completed hooks. Historical Void rows now count as already-issued tickets for that order line, preventing a silent replacement entry.
+- Capacity still counts only active entries, winner pools still include only active entries, and new ticket numbers remain monotonically increasing from the highest number ever issued, so voided numbers are never reused or renumbered.
+- Internal Draw Engine schema compatibility VERSION remains 0.34.18; table/meta contracts are unchanged.
+
 v0.34.18.16 — Desktop sticky navigation breathing room
 
 - On desktop sticky headers only, raises the visible `.whb-row.whb-sticky-row` and its inner container from 65px to 82px, preserving centered controls and the bottom-attached lime divider.
@@ -570,3 +593,41 @@ v0.34.18.5 — Account duplicate cleanup
 - Removed duplicated account-premium.css, account-login.css, and account-login.js from Draw Engine; identical source-of-truth copies remain in RaffleLB Account.
 - Preserved ACCOUNT_BRIDGE_VERSION=1, account_stats(), WooCommerce My Account hook names/priorities, endpoint contracts, and all raffle transaction/data contracts.
 - Internal schema VERSION remains 0.34.18; no database migration is introduced.
+v0.34.18.30 — Winners page frontend refinement
+
+- Removed the Winners page's decorative hero text and its external Fraunces font request.
+- Applied the established RaffleLB Inter UI stack to Winners headings, card content, controls, filters, and buttons.
+- Rebuilt the Winners search/sort toolbar as a bounded grid: a larger fluid search field alongside a dedicated sort column on desktop/tablet, stacking into full-width controls on small screens.
+- Presentation only; raffle selection, results, entries, reservations, checkout, notifications, fulfillment, audit data, table/meta contracts, and internal schema compatibility VERSION (0.34.18) are unchanged.
+v0.34.18.31 — Winners page final visual correction
+
+- Set direct border-box sizing and full-width constraints on the Winners search input and sort select, with a fixed 16px desktop gap and dedicated 360–420px / 180–200px columns.
+- The toolbar now stacks before its available width is constrained, while all Winners typography meets the increased desktop and mobile readability minimums.
+- Presentation only; raffle selection, results, entries, reservations, checkout, notifications, fulfillment, audit data, table/meta contracts, and internal schema compatibility VERSION (0.34.18) are unchanged.
+v0.34.18.32 — Winners page product framing and header join
+
+- Updated Most Recent Win and winner-card product media to centered contain framing on a near-black surface, with no image hover zoom/cropping.
+- Removed the measured WoodMart content-wrapper top padding only on the Winners page so the hero joins the header border.
+- Set the native Winners sort select and its options to Chromium/Windows dark color-scheme styling.
+- Presentation only; raffle selection, results, entries, reservations, checkout, notifications, fulfillment, audit data, table/meta contracts, and internal schema compatibility VERSION (0.34.18) are unchanged.
+v0.34.18.33 — Winners phone layout refinement
+
+- On phones, Most Recent Win is a compact 190px horizontal card with a 125px media rail and a tightly balanced result column.
+- On phones, the Winners grid is one full-width card per row with 200px imagery and larger readable product, winner, metadata, and button text.
+- Presentation only; raffle selection, results, entries, reservations, checkout, notifications, fulfillment, audit data, table/meta contracts, search/sort behavior, and internal schema compatibility VERSION (0.34.18) are unchanged.
+v0.34.18.34 — Winners phone card compaction
+
+- Kept the existing mobile Most Recent Win layout untouched.
+- Reduced only regular phone winner-card media to 155px with a 145px contained product maximum, tightened the content stack, and placed draw metadata in two compact columns.
+- Presentation only; raffle selection, results, entries, reservations, checkout, notifications, fulfillment, audit data, table/meta contracts, search/sort behavior, and internal schema compatibility VERSION (0.34.18) are unchanged.
+v0.34.18.35 — Winners phone horizontal result cards
+
+- Redesigned only regular mobile Winners cards as 120px media-rail result cards with compact right-side details and a dedicated bottom result-link row.
+- The featured Most Recent Win section, desktop/tablet winner cards, data, filtering, searching, and sorting remain unchanged.
+- Presentation only; internal schema compatibility VERSION remains 0.34.18.
+
+
+v0.34.18.36 — Winners mobile product titles
+- Mobile All Winners cards now show the complete product name instead of truncating it with an ellipsis.
+- Long names wrap naturally; the compact horizontal card grows only as much as needed to preserve the full title.
+- No draw, entry, order, notification, schema, or winner-selection logic changed.

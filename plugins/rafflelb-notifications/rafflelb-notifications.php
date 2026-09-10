@@ -2,19 +2,20 @@
 /**
  * Plugin Name: RaffleLB Notifications
  * Description: A notification badge on the account icon, a "Notifications" tab in My Account, and an admin screen to create notifications and control the automatic winner / draw-completed ones. Listens to RaffleLB Draw Engine's rafflelb_draw_completed hook instead of duplicating any draw logic.
- * Version: 1.0.1
+ * Version: 1.2.0
  * Author: RaffleLB
  */
 
 if (!defined('ABSPATH')) exit;
 
 final class RaffleLB_Notifications {
-    const VERSION = '1.0.1';
+    const VERSION = '1.2.0';
     const TABLE = 'rafflelb_notifications';
     const ENDPOINT = 'rafflelb-notifications';
 
     const OPT_NOTIFY_WINNER        = 'rafflelb_notify_on_winner';
     const OPT_NOTIFY_DRAW_COMPLETE = 'rafflelb_notify_on_draw_complete';
+    const OPT_NOTIFY_FULFILLED     = 'rafflelb_notify_on_prize_fulfilled';
 
     public static function init() {
         register_activation_hook(__FILE__, [__CLASS__, 'activate']);
@@ -44,10 +45,14 @@ final class RaffleLB_Notifications {
             message TEXT NOT NULL,
             link_url VARCHAR(500) NULL,
             product_id BIGINT UNSIGNED NOT NULL DEFAULT 0,
+            source_result_id BIGINT UNSIGNED NULL,
+            email_address VARCHAR(190) NULL,
+            email_sent_at DATETIME NULL,
             is_read TINYINT(1) UNSIGNED NOT NULL DEFAULT 0,
             created_at DATETIME NOT NULL,
             read_at DATETIME NULL,
             PRIMARY KEY (id),
+            UNIQUE KEY source_event_user_type (source_result_id, type, user_id),
             KEY user_unread (user_id, is_read),
             KEY product_type_user (product_id, type, user_id),
             KEY created_at (created_at)
@@ -68,7 +73,9 @@ final class RaffleLB_Notifications {
         add_action('admin_post_rafflelb_notify_save_settings', [__CLASS__, 'handle_save_settings']);
         add_action('admin_post_rafflelb_notify_send', [__CLASS__, 'handle_send_notification']);
         add_action('admin_post_rafflelb_notify_delete_all', [__CLASS__, 'handle_delete_all_notifications']);
-        add_action('rafflelb_draw_completed', [__CLASS__, 'on_draw_completed'], 10, 5);
+        add_action('rafflelb_draw_completed', [__CLASS__, 'on_draw_completed'], 10, 6);
+        add_action('rafflelb_fulfillment_status_changed', [__CLASS__, 'on_fulfillment_status_changed'], 10, 6);
+        add_filter('rafflelb_winner_email_delivery', [__CLASS__, 'handle_winner_email_delivery'], 10, 3);
 
         if (!class_exists('WooCommerce')) return;
 
@@ -89,27 +96,81 @@ final class RaffleLB_Notifications {
      * Automatic notifications, triggered by RaffleLB Draw Engine
      * ------------------------------------------------------------- */
 
-    public static function on_draw_completed($product_id, $winner_user_id, $winner_entry_id, $result_id, $method) {
+    public static function on_draw_completed($product_id, $winner_user_id, $winner_entry_id, $result_id, $method, $context = []) {
         global $wpdb;
+
         $product_id = absint($product_id);
         $winner_user_id = absint($winner_user_id);
-        if (!$product_id) return;
+        $winner_entry_id = absint($winner_entry_id);
+        $result_id = absint($result_id);
+        if (!$product_id || !$result_id) return;
 
-        $title = get_the_title($product_id);
-        $link = function_exists('wc_get_account_endpoint_url')
-            ? wc_get_account_endpoint_url('rafflelb-entries')
-            : home_url('/my-account/rafflelb-entries/');
+        if (!is_array($context)) $context = [];
+        $context = array_merge([
+            'result_id'      => $result_id,
+            'product_id'     => $product_id,
+            'winner_user_id' => $winner_user_id,
+            'winner_entry_id'=> $winner_entry_id,
+            'entry_number'   => 0,
+            'order_id'       => 0,
+            'selected_at'    => current_time('mysql'),
+            'method'         => sanitize_key($method),
+        ], $context);
 
-        if ($winner_user_id && self::option_enabled(self::OPT_NOTIFY_WINNER)
-            && !self::already_notified($product_id, 'winner', $winner_user_id)) {
-            self::insert_notification(
-                $winner_user_id,
-                'winner',
-                'You won a raffle!',
-                sprintf('Your entry was selected as the winner for "%s". Congratulations!', $title),
-                $link,
-                $product_id
-            );
+        // The first five hook arguments remain unchanged for compatibility.
+        // Draw Engine 0.34.18.29+ adds the sixth context argument so this
+        // plugin can deliver notifications without re-implementing draw logic
+        // or querying Draw Engine's transactional tables.
+        $context['result_id'] = $result_id;
+        $context['product_id'] = $product_id;
+        $context['winner_user_id'] = $winner_user_id;
+        $context['winner_entry_id'] = $winner_entry_id;
+        $context['entry_number'] = absint($context['entry_number'] ?? 0);
+        $context['order_id'] = absint($context['order_id'] ?? 0);
+        $context['selected_at'] = sanitize_text_field((string)($context['selected_at'] ?? current_time('mysql')));
+        $context['method'] = sanitize_key((string)($context['method'] ?? $method));
+
+        $reward_title = get_the_title($product_id);
+        $entry_label = $context['entry_number']
+            ? '#' . str_pad((string)$context['entry_number'], 3, '0', STR_PAD_LEFT)
+            : 'your winning entry';
+        $draw_date = self::format_draw_date($context['selected_at']);
+        $link = self::winner_account_url();
+
+        if ($winner_user_id && self::option_enabled(self::OPT_NOTIFY_WINNER)) {
+            $winner_row = self::find_notification($product_id, 'winner', $winner_user_id, $result_id);
+
+            if (!$winner_row) {
+                self::insert_notification(
+                    $winner_user_id,
+                    'winner',
+                    'You won ' . $reward_title . '!',
+                    sprintf(
+                        'Winning entry %s. Draw completed %s. Your result is permanently recorded.',
+                        $entry_label,
+                        $draw_date
+                    ),
+                    $link,
+                    $product_id,
+                    $result_id
+                );
+                $winner_row = self::find_notification($product_id, 'winner', $winner_user_id, $result_id);
+            } elseif ($result_id && empty($winner_row->source_result_id)) {
+                // Backfill an older v1.0.x notification row so future retries
+                // dedupe against the permanent draw-result event id.
+                $wpdb->update(
+                    $wpdb->prefix . self::TABLE,
+                    ['source_result_id' => $result_id],
+                    ['id' => absint($winner_row->id)],
+                    ['%d'],
+                    ['%d']
+                );
+                $winner_row->source_result_id = $result_id;
+            }
+
+            if ($winner_row && empty($winner_row->email_sent_at)) {
+                self::send_winner_email($context, false, absint($winner_row->id));
+            }
         }
 
         if (self::option_enabled(self::OPT_NOTIFY_DRAW_COMPLETE)) {
@@ -121,48 +182,299 @@ final class RaffleLB_Notifications {
             foreach ($user_ids as $uid) {
                 $uid = absint($uid);
                 if (!$uid || $uid === $winner_user_id) continue;
-                if (self::already_notified($product_id, 'draw_completed', $uid)) continue;
+                if (self::already_notified($product_id, 'draw_completed', $uid, $result_id)) continue;
                 self::insert_notification(
                     $uid,
                     'draw_completed',
                     'Draw completed',
-                    sprintf('The draw for "%s" has been completed. See the results in your account.', $title),
+                    sprintf('The draw for "%s" has been completed. See the results in your account.', $reward_title),
                     $link,
-                    $product_id
+                    $product_id,
+                    $result_id
                 );
             }
         }
+    }
+
+    public static function on_fulfillment_status_changed($result_id, $product_id, $winner_user_id, $old_status, $new_status, $context = []) {
+        $result_id = absint($result_id);
+        $product_id = absint($product_id);
+        $winner_user_id = absint($winner_user_id);
+        $old_status = sanitize_key((string) $old_status);
+        $new_status = sanitize_key((string) $new_status);
+
+        // Keep customer messaging deliberately narrow: admin may use
+        // Contacted/Claimed as operational milestones, but the automatic
+        // customer notification is sent only when fulfillment is complete.
+        if (
+            !$result_id ||
+            !$product_id ||
+            !$winner_user_id ||
+            $new_status !== 'fulfilled' ||
+            $old_status === 'fulfilled' ||
+            !self::option_enabled(self::OPT_NOTIFY_FULFILLED)
+        ) {
+            return;
+        }
+
+        if (self::already_notified($product_id, 'prize_fulfilled', $winner_user_id, $result_id)) {
+            return;
+        }
+
+        if (!is_array($context)) $context = [];
+        $reward_title = get_the_title($product_id);
+        $fulfilled_at = sanitize_text_field((string) ($context['fulfilled_at'] ?? $context['changed_at'] ?? ''));
+        $date_text = $fulfilled_at
+            ? mysql2date(get_option('date_format'), $fulfilled_at)
+            : current_time(get_option('date_format'));
+
+        self::insert_notification(
+            $winner_user_id,
+            'prize_fulfilled',
+            'Your prize has been fulfilled!',
+            sprintf(
+                'Prize fulfillment for "%s" was completed on %s. View your winning raffle for details.',
+                $reward_title,
+                $date_text
+            ),
+            self::winner_account_url(),
+            $product_id,
+            $result_id
+        );
     }
 
     private static function option_enabled($key) {
         return get_option($key, 'yes') === 'yes';
     }
 
-    private static function already_notified($product_id, $type, $user_id) {
+    private static function winner_account_url() {
+        return function_exists('wc_get_account_endpoint_url')
+            ? wc_get_account_endpoint_url('rafflelb-entries')
+            : home_url('/my-account/rafflelb-entries/');
+    }
+
+    private static function format_draw_date($mysql_date) {
+        $mysql_date = sanitize_text_field((string)$mysql_date);
+        if (!$mysql_date) return current_time(get_option('date_format') . ' ' . get_option('time_format'));
+        return mysql2date(get_option('date_format') . ' ' . get_option('time_format'), $mysql_date);
+    }
+
+    private static function already_notified($product_id, $type, $user_id, $source_result_id = 0) {
+        return (bool) self::find_notification($product_id, $type, $user_id, $source_result_id);
+    }
+
+    private static function find_notification($product_id, $type, $user_id, $source_result_id = 0) {
         global $wpdb;
         $table = $wpdb->prefix . self::TABLE;
-        return (bool) $wpdb->get_var($wpdb->prepare(
-            "SELECT id FROM {$table} WHERE product_id=%d AND type=%s AND user_id=%d LIMIT 1",
+        $product_id = absint($product_id);
+        $user_id = absint($user_id);
+        $type = sanitize_key($type);
+        $source_result_id = absint($source_result_id);
+
+        if ($source_result_id) {
+            $row = $wpdb->get_row($wpdb->prepare(
+                "SELECT * FROM {$table} WHERE source_result_id=%d AND type=%s AND user_id=%d LIMIT 1",
+                $source_result_id, $type, $user_id
+            ));
+            if ($row) return $row;
+        }
+
+        return $wpdb->get_row($wpdb->prepare(
+            "SELECT * FROM {$table} WHERE product_id=%d AND type=%s AND user_id=%d AND source_result_id IS NULL ORDER BY id DESC LIMIT 1",
             $product_id, $type, $user_id
         ));
     }
 
-    private static function insert_notification($user_id, $type, $title, $message, $link_url = '', $product_id = 0) {
+    private static function insert_notification($user_id, $type, $title, $message, $link_url = '', $product_id = 0, $source_result_id = 0) {
         global $wpdb;
-        return $wpdb->insert(
-            $wpdb->prefix . self::TABLE,
-            [
-                'user_id'    => absint($user_id),
-                'type'       => sanitize_key($type),
-                'title'      => $title,
-                'message'    => $message,
-                'link_url'   => $link_url,
-                'product_id' => absint($product_id),
-                'is_read'    => 0,
-                'created_at' => current_time('mysql'),
-            ],
-            ['%d', '%s', '%s', '%s', '%s', '%d', '%d', '%s']
+
+        $data = [
+            'user_id'    => absint($user_id),
+            'type'       => sanitize_key($type),
+            'title'      => $title,
+            'message'    => $message,
+            'link_url'   => $link_url,
+            'product_id' => absint($product_id),
+            'is_read'    => 0,
+            'created_at' => current_time('mysql'),
+        ];
+        $formats = ['%d', '%s', '%s', '%s', '%s', '%d', '%d', '%s'];
+
+        if ($source_result_id) {
+            $data['source_result_id'] = absint($source_result_id);
+            $formats[] = '%d';
+        }
+
+        return $wpdb->insert($wpdb->prefix . self::TABLE, $data, $formats);
+    }
+
+    private static function winner_email_address($context) {
+        $order_id = absint($context['order_id'] ?? 0);
+        if ($order_id && function_exists('wc_get_order')) {
+            $order = wc_get_order($order_id);
+            if ($order && is_email($order->get_billing_email())) return $order->get_billing_email();
+        }
+
+        $user_id = absint($context['winner_user_id'] ?? 0);
+        if ($user_id) {
+            $user = get_user_by('id', $user_id);
+            if ($user && is_email($user->user_email)) return $user->user_email;
+        }
+
+        return '';
+    }
+
+    private static function winner_display_name($context) {
+        $order_id = absint($context['order_id'] ?? 0);
+        if ($order_id && function_exists('wc_get_order')) {
+            $order = wc_get_order($order_id);
+            if ($order) {
+                $name = trim($order->get_billing_first_name() . ' ' . $order->get_billing_last_name());
+                if ($name !== '') return $name;
+            }
+        }
+
+        $user_id = absint($context['winner_user_id'] ?? 0);
+        if ($user_id) {
+            $user = get_user_by('id', $user_id);
+            if ($user && trim((string)$user->display_name) !== '') return trim((string)$user->display_name);
+        }
+
+        return 'Winner';
+    }
+
+    private static function send_winner_email($context, $force = false, $notification_id = 0) {
+        global $wpdb;
+
+        $notification_id = absint($notification_id);
+        if ($notification_id && !$force) {
+            $sent_at = $wpdb->get_var($wpdb->prepare(
+                "SELECT email_sent_at FROM {$wpdb->prefix}" . self::TABLE . " WHERE id=%d LIMIT 1",
+                $notification_id
+            ));
+            if (!empty($sent_at)) return true;
+        }
+
+        $to = self::winner_email_address($context);
+        if (!$to) return false;
+
+        $product_id = absint($context['product_id'] ?? 0);
+        $reward = $product_id ? get_the_title($product_id) : 'your RaffleLB raffle';
+        $entry_number = absint($context['entry_number'] ?? 0);
+        $entry = $entry_number ? '#' . str_pad((string)$entry_number, 3, '0', STR_PAD_LEFT) : 'Winning entry';
+        $winner_name = self::winner_display_name($context);
+        $draw_date = self::format_draw_date($context['selected_at'] ?? '');
+        $account_url = self::winner_account_url();
+        $subject = 'You won ' . $reward . ' - RaffleLB';
+
+        $message = '
+        <div style="margin:0;padding:30px;background:#0b0d09;font-family:Arial,Helvetica,sans-serif;color:#ffffff">
+          <div style="max-width:620px;margin:0 auto;border:1px solid #2c3227;border-radius:18px;background:#12150f;overflow:hidden">
+            <div style="padding:28px 30px;border-bottom:1px solid #2c3227">
+              <div style="font-size:12px;font-weight:800;letter-spacing:2px;color:#caff16">RAFFLELB WINNER</div>
+              <h1 style="margin:10px 0 0;font-size:30px;line-height:1.1;color:#ffffff">Congratulations, '.esc_html($winner_name).'!</h1>
+            </div>
+            <div style="padding:28px 30px">
+              <p style="margin:0 0 18px;color:#c7cec0;font-size:15px;line-height:1.6">Your entry was selected as the winner for <strong style="color:#ffffff">'.esc_html($reward).'</strong>.</p>
+              <div style="display:block;padding:18px;border:1px solid #3c452e;border-radius:12px;background:#171b14;margin-bottom:12px">
+                <div style="font-size:11px;color:#8f9887;letter-spacing:1px">WINNING ENTRY</div>
+                <div style="margin-top:5px;font-size:28px;font-weight:800;color:#caff16">'.esc_html($entry).'</div>
+              </div>
+              <div style="display:block;padding:14px 18px;border:1px solid #2c3227;border-radius:12px;background:#10130e;margin-bottom:18px">
+                <div style="font-size:11px;color:#8f9887;letter-spacing:1px">DRAW COMPLETED</div>
+                <div style="margin-top:5px;font-size:14px;font-weight:700;color:#ffffff">'.esc_html($draw_date).'</div>
+              </div>
+              <p style="margin:0 0 22px;color:#c7cec0;font-size:14px;line-height:1.6">Your result has been permanently recorded in your RaffleLB account. Our team will contact you regarding prize fulfillment.</p>
+              <a href="'.esc_url($account_url).'" style="display:inline-block;padding:14px 20px;border-radius:10px;background:#caff16;color:#080908;text-decoration:none;font-weight:800;font-size:13px">VIEW MY WINNING ENTRY</a>
+            </div>
+          </div>
+        </div>';
+
+        $headers = [
+            'Content-Type: text/html; charset=UTF-8',
+            'From: RaffleLB <notifications@rafflelb.com>',
+        ];
+        $sent = wp_mail($to, $subject, $message, $headers);
+
+        if ($sent) {
+            $sent_at = current_time('mysql');
+            if ($notification_id) {
+                $wpdb->update(
+                    $wpdb->prefix . self::TABLE,
+                    ['email_address' => $to, 'email_sent_at' => $sent_at],
+                    ['id' => $notification_id],
+                    ['%s', '%s'],
+                    ['%d']
+                );
+            }
+
+            // Draw Engine owns the draw-result record. Tell it that delivery
+            // succeeded so its existing admin audit/status column stays in
+            // sync without Notifications writing Draw Engine tables directly.
+            do_action('rafflelb_winner_email_sent', absint($context['result_id'] ?? 0), $sent_at, $to);
+        }
+
+        return (bool)$sent;
+    }
+
+    /**
+     * Handles the existing Draw Engine admin "Send/Resend Winner Email"
+     * control when Notifications is active. Returning non-null tells Draw
+     * Engine that delivery was handled here; Draw Engine retains its legacy
+     * sender only as a fallback when this plugin is disabled.
+     */
+    public static function handle_winner_email_delivery($handled, $result, $force = false) {
+        if ($handled !== null) return $handled;
+        if (!$result) return false;
+
+        $r = is_array($result) ? (object)$result : $result;
+        $context = [
+            'result_id'       => absint($r->id ?? 0),
+            'product_id'      => absint($r->product_id ?? 0),
+            'winner_user_id'  => absint($r->user_id ?? 0),
+            'winner_entry_id' => absint($r->entry_id ?? 0),
+            'entry_number'    => absint($r->entry_number ?? 0),
+            'order_id'        => absint($r->order_id ?? 0),
+            'selected_at'     => sanitize_text_field((string)($r->selected_at ?? current_time('mysql'))),
+            'method'          => sanitize_key((string)($r->selection_method ?? 'manual')),
+        ];
+
+        if (!$context['result_id'] || !$context['product_id']) return false;
+
+        $row = self::find_notification(
+            $context['product_id'],
+            'winner',
+            $context['winner_user_id'],
+            $context['result_id']
         );
+
+        if (!$row) {
+            $reward_title = get_the_title($context['product_id']);
+            $entry_label = $context['entry_number']
+                ? '#' . str_pad((string)$context['entry_number'], 3, '0', STR_PAD_LEFT)
+                : 'your winning entry';
+            self::insert_notification(
+                $context['winner_user_id'],
+                'winner',
+                'You won ' . $reward_title . '!',
+                sprintf(
+                    'Winning entry %s. Draw completed %s. Your result is permanently recorded.',
+                    $entry_label,
+                    self::format_draw_date($context['selected_at'])
+                ),
+                self::winner_account_url(),
+                $context['product_id'],
+                $context['result_id']
+            );
+            $row = self::find_notification(
+                $context['product_id'],
+                'winner',
+                $context['winner_user_id'],
+                $context['result_id']
+            );
+        }
+
+        return self::send_winner_email($context, (bool)$force, $row ? absint($row->id) : 0);
     }
 
     private static function unread_count($user_id) {
@@ -174,12 +486,12 @@ final class RaffleLB_Notifications {
     }
 
     private static function type_label($type) {
-        $labels = ['winner' => 'Winner', 'draw_completed' => 'Draw Completed', 'announcement' => 'Announcement'];
+        $labels = ['winner' => 'Winner', 'draw_completed' => 'Draw Completed', 'prize_fulfilled' => 'Prize Fulfilled', 'announcement' => 'Announcement'];
         return $labels[$type] ?? ucfirst($type);
     }
 
     private static function type_icon($type) {
-        $icons = ['winner' => '🏆', 'draw_completed' => '🎲', 'announcement' => '📢'];
+        $icons = ['winner' => '🏆', 'draw_completed' => '🎲', 'prize_fulfilled' => '🎁', 'announcement' => '📢'];
         return $icons[$type] ?? '🔔';
     }
 
@@ -306,6 +618,7 @@ final class RaffleLB_Notifications {
 
         update_option(self::OPT_NOTIFY_WINNER, !empty($_POST['notify_winner']) ? 'yes' : 'no');
         update_option(self::OPT_NOTIFY_DRAW_COMPLETE, !empty($_POST['notify_draw_complete']) ? 'yes' : 'no');
+        update_option(self::OPT_NOTIFY_FULFILLED, !empty($_POST['notify_fulfilled']) ? 'yes' : 'no');
 
         wp_safe_redirect(add_query_arg('rlbn', 'settings_saved', admin_url('admin.php?page=rafflelb-notifications-admin')));
         exit;
@@ -391,6 +704,7 @@ final class RaffleLB_Notifications {
 
         $notify_winner = self::option_enabled(self::OPT_NOTIFY_WINNER);
         $notify_draw_complete = self::option_enabled(self::OPT_NOTIFY_DRAW_COMPLETE);
+        $notify_fulfilled = self::option_enabled(self::OPT_NOTIFY_FULFILLED);
 
         echo '<div class="wrap"><h1>RaffleLB Notifications</h1>';
         echo '<style>
@@ -405,12 +719,13 @@ final class RaffleLB_Notifications {
         self::render_admin_notices();
 
         echo '<div class="rlbn-card"><h2>Automatic Notifications</h2>';
-        echo '<p class="description">Fires whenever a draw is completed (Secure Random Draw or Record Chosen Winner), on the RaffleLB Draw Engine\'s existing draw-completed event.</p>';
+        echo '<p class="description">Draw Engine records permanent draw and fulfillment state. This plugin owns customer delivery: winner notifications/email, draw-completed alerts for other entrants, and the optional prize-fulfilled notification.</p>';
         echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '">';
         echo '<input type="hidden" name="action" value="rafflelb_notify_save_settings">';
         wp_nonce_field('rafflelb_notify_save_settings');
-        echo '<p><label><input type="checkbox" name="notify_winner" value="1" ' . checked($notify_winner, true, false) . '> Notify the winner when a draw is completed</label></p>';
+        echo '<p><label><input type="checkbox" name="notify_winner" value="1" ' . checked($notify_winner, true, false) . '> Notify the winner in My Account and by email when a draw is completed</label></p>';
         echo '<p><label><input type="checkbox" name="notify_draw_complete" value="1" ' . checked($notify_draw_complete, true, false) . '> Notify every other entrant that the draw is complete</label></p>';
+        echo '<p><label><input type="checkbox" name="notify_fulfilled" value="1" ' . checked($notify_fulfilled, true, false) . '> Notify the winner in My Account when prize fulfillment is marked complete</label></p>';
         submit_button('Save Settings');
         echo '</form></div>';
 
@@ -446,7 +761,7 @@ final class RaffleLB_Notifications {
         if (!$rows) {
             echo '<p>No notifications sent yet.</p>';
         } else {
-            echo '<table class="widefat striped"><thead><tr><th>Recipient</th><th>Type</th><th>Title</th><th>Sent</th><th>Read</th></tr></thead><tbody>';
+            echo '<table class="widefat striped"><thead><tr><th>Recipient</th><th>Type</th><th>Title</th><th>Created</th><th>Email</th><th>Read</th></tr></thead><tbody>';
             foreach ($rows as $row) {
                 $user = get_user_by('id', $row->user_id);
                 echo '<tr>';
@@ -454,6 +769,11 @@ final class RaffleLB_Notifications {
                 echo '<td>' . esc_html(self::type_label($row->type)) . '</td>';
                 echo '<td>' . esc_html($row->title) . '</td>';
                 echo '<td>' . esc_html($row->created_at) . '</td>';
+                if ($row->type === 'winner') {
+                    echo '<td>' . (!empty($row->email_sent_at) ? '<strong style="color:#4d7600">Sent</strong><br><small>' . esc_html($row->email_sent_at) . '</small>' : 'Not sent') . '</td>';
+                } else {
+                    echo '<td>&mdash;</td>';
+                }
                 echo '<td>' . (!empty($row->is_read) ? 'Yes' : 'No') . '</td>';
                 echo '</tr>';
             }

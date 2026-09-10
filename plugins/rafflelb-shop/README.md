@@ -208,3 +208,16 @@ Desktop-only refinement: toolbar grouping/dividers, contained raffle-entry prici
 - The final card is addressed as the stack's last child and its trailing margin is zeroed there, so the base 22px card margin cannot reintroduce the offset if stylesheet order is rewritten by an optimiser.
 - Scoped to @media (min-width:901px). Mobile geometry is byte-identical to 0.1.42, verified element by element at 390px, 767px and 900px.
 - The 0.1.42 first-paint/flicker fix is untouched: rafflelb-shop.php changes only the version string.
+
+
+## 0.1.47
+- Refined desktop geometry for completed/ready-to-draw raffle products.
+- When the live raffle entry card is absent, the product gallery column now caps at 500px and the result/title column gets the remaining width.
+- Mobile behavior remains unchanged and continues to use the natural full-width stack.
+- No raffle, checkout, order, capacity, winner, or Draw Engine logic changed.
+
+## 0.1.46
+- Fixes closed/completed raffle single-product pages falling back to WoodMart's full-width gallery after the live raffle-entry card is intentionally removed.
+- The product layout bootstrap now treats `.rl-raffle-option-card` as optional while still requiring the native gallery, WooCommerce summary and Product Details panel. Winner-selected and ready-to-draw states therefore keep the same desktop/mobile product composition as live raffles.
+- Adds a scoped gallery containment fallback so an unmounted closed/completed state cannot expand the native product image/placeholder across the full product area.
+- No Draw Engine, winner, order, reservation, capacity, checkout, schema or database logic is changed.

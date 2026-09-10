@@ -1,3 +1,11 @@
+# RaffleLB Account 0.1.5 — prize fulfillment visibility
+
+- My Raffles now reads the existing Draw Engine fulfillment fields for winning raffles.
+- Winners see Pending Fulfillment, Winner Contacted, Prize Claimed, or Prize Fulfilled beneath the existing You Won panel.
+- Relevant fulfillment milestone dates are shown when available.
+- The admin fulfillment note remains private and is not exposed to customers.
+- No new tables/options or fulfillment writes are added; Account remains display-only for this state.
+
 # RaffleLB Account — reversible extraction, version 0.1.0
 
 ## Install both packages in this order

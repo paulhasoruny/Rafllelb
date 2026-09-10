@@ -2,7 +2,7 @@
 /**
  * Plugin Name: RaffleLB Draw Engine
  * Description: Raffle entry engine with cart-level reservation locking, unique paid entries, live progress, and WooCommerce integration.
- * Version: 0.34.18.16
+ * Version: 0.34.18.37
  * Author: RaffleLB
  */
 
@@ -92,6 +92,82 @@ final class RaffleLB_Draw_Engine {
             .whb-row::before,
             .whb-row::after {
                 z-index: 1 !important;
+            }
+
+            /* WoodMart keeps the mini-cart in its own side panel. Preserve
+               that markup and behavior; only bring it into the RaffleLB
+               dark visual system. */
+            .cart-widget-side{
+                background:#10110f !important;
+                color:#f3f5f0 !important;
+            }
+            .cart-widget-side .widget-heading,
+            .cart-widget-side .widget,
+            .cart-widget-side .widget_shopping_cart_content,
+            .cart-widget-side .woocommerce-mini-cart{
+                background:#10110f !important;
+                color:#f3f5f0 !important;
+            }
+            .cart-widget-side .widget-heading{
+                border-bottom:1px solid #30352d !important;
+            }
+            .cart-widget-side .widget-title,
+            .cart-widget-side .wd-close-side,
+            .cart-widget-side .wd-close-side:before,
+            .cart-widget-side .wd-close-side:after{
+                color:#ffffff !important;
+            }
+            .cart-widget-side .woocommerce-mini-cart-item{
+                border-color:#30352d !important;
+                background:#10110f !important;
+            }
+            .cart-widget-side .woocommerce-mini-cart-item > a:not(.remove),
+            .cart-widget-side .woocommerce-mini-cart-item .wd-entities-title,
+            .cart-widget-side .woocommerce-mini-cart-item .quantity,
+            .cart-widget-side .woocommerce-mini-cart__total,
+            .cart-widget-side .woocommerce-mini-cart__total *{
+                color:#f3f5f0 !important;
+            }
+            .cart-widget-side .woocommerce-mini-cart-item .quantity .amount,
+            .cart-widget-side .woocommerce-mini-cart__total .amount{
+                color:#baff00 !important;
+            }
+            .cart-widget-side a.remove,
+            .cart-widget-side .remove_from_cart_button{
+                color:#ffffff !important;
+                border-color:#4a5146 !important;
+                background:#171a16 !important;
+            }
+            .cart-widget-side a.remove:hover,
+            .cart-widget-side a.remove:focus,
+            .cart-widget-side .remove_from_cart_button:hover,
+            .cart-widget-side .remove_from_cart_button:focus{
+                color:#090a08 !important;
+                border-color:#baff00 !important;
+                background:#baff00 !important;
+            }
+            .cart-widget-side .woocommerce-mini-cart__buttons .button,
+            .cart-widget-side .buttons .button{
+                background:#baff00 !important;
+                color:#090a08 !important;
+                border-color:#baff00 !important;
+            }
+            .cart-widget-side .woocommerce-mini-cart__buttons .button *,
+            .cart-widget-side .buttons .button *{
+                color:#090a08 !important;
+            }
+            .cart-widget-side .woocommerce-mini-cart__buttons .button:hover,
+            .cart-widget-side .woocommerce-mini-cart__buttons .button:focus,
+            .cart-widget-side .buttons .button:hover,
+            .cart-widget-side .buttons .button:focus{
+                background:#d0ff3f !important;
+                border-color:#d0ff3f !important;
+                color:#090a08 !important;
+            }
+            .cart-widget-side .woocommerce-mini-cart__empty-message,
+            .cart-widget-side .wd-empty-mini-cart,
+            .cart-widget-side .woocommerce-mini-cart--empty{
+                color:#d9ddd3 !important;
             }
         </style>';
     }
@@ -317,6 +393,8 @@ final class RaffleLB_Draw_Engine {
         add_filter('woocommerce_add_to_cart_validation', [__CLASS__, 'add_to_cart_validation'], 20, 5);
         add_filter('woocommerce_add_cart_item_data', [__CLASS__, 'purchase_mode_cart_item_data'], 20, 4);
         add_action('woocommerce_before_calculate_totals', [__CLASS__, 'apply_purchase_mode_prices'], 20);
+        add_filter('woocommerce_cart_item_price', [__CLASS__, 'display_purchase_mode_cart_item_price'], 20, 3);
+        add_filter('woocommerce_cart_item_class', [__CLASS__, 'purchase_mode_cart_item_class'], 20, 3);
         add_filter('woocommerce_get_item_data', [__CLASS__, 'display_purchase_mode_cart_data'], 20, 2);
         add_action('woocommerce_checkout_create_order_line_item', [__CLASS__, 'save_purchase_mode_order_item'], 20, 4);
         add_action('woocommerce_checkout_create_order', [__CLASS__, 'save_order_purchase_type'], 20, 2);
@@ -349,7 +427,9 @@ final class RaffleLB_Draw_Engine {
         add_action('admin_post_rafflelb_choose_winner', [__CLASS__, 'handle_choose_winner']);
         add_action('admin_post_rafflelb_update_fulfillment', [__CLASS__, 'handle_update_fulfillment']);
         add_action('admin_post_rafflelb_send_winner_email', [__CLASS__, 'handle_send_winner_email']);
+        add_action('rafflelb_winner_email_sent', [__CLASS__, 'record_winner_email_sent'], 10, 3);
         add_action('admin_post_rafflelb_admin_order_action', [__CLASS__, 'handle_admin_order_action']);
+        add_action('admin_post_rafflelb_void_entry', [__CLASS__, 'handle_admin_void_entry']);
         add_action('init', [__CLASS__, 'register_endpoint']);
         add_action('init', [__CLASS__, 'ensure_winners_page'], 20);
         add_shortcode('rafflelb_winners', [__CLASS__, 'winners_shortcode']);
@@ -997,6 +1077,33 @@ final class RaffleLB_Draw_Engine {
         }
     }
 
+    /**
+     * The product's normal WooCommerce price is the raffle entry price.  A
+     * direct-purchase line retains its own captured direct price, so format
+     * that cart-line value for every WooCommerce price presentation (including
+     * mini-cart fragments) without changing cart calculations.
+     */
+    public static function display_purchase_mode_cart_item_price($price_html, $cart_item, $cart_item_key) {
+        if (self::cart_item_purchase_mode($cart_item) !== 'buy_now') return $price_html;
+
+        $price = isset($cart_item['_rafflelb_direct_price'])
+            ? (float) $cart_item['_rafflelb_direct_price']
+            : 0.0;
+
+        if ($price <= 0 || empty($cart_item['data']) || !$cart_item['data'] instanceof WC_Product) {
+            return $price_html;
+        }
+
+        return wc_price(wc_get_price_to_display($cart_item['data'], ['price' => $price]));
+    }
+
+    public static function purchase_mode_cart_item_class($class, $cart_item, $cart_item_key) {
+        if (empty($cart_item['data']) || !$cart_item['data'] instanceof WC_Product) return $class;
+        if (!self::draw_id($cart_item['data'])) return $class;
+
+        return trim($class . ' rafflelb-cart-item--' . self::cart_item_purchase_mode($cart_item));
+    }
+
     public static function display_purchase_mode_cart_data($item_data, $cart_item) {
         if (empty($cart_item['data']) || !$cart_item['data'] instanceof WC_Product) return $item_data;
         if (!self::draw_id($cart_item['data'])) return $item_data;
@@ -1575,8 +1682,14 @@ final class RaffleLB_Draw_Engine {
 
     private static function count_item_entries($item_id) {
         global $wpdb;
+
+        // Idempotency must count every ticket ever issued for this immutable
+        // order line, including tickets later marked Void. Otherwise a paid
+        // order that is processed again after an individual administrative
+        // void would silently create a replacement ticket and reclaim the
+        // capacity the admin intentionally restored.
         return (int)$wpdb->get_var($wpdb->prepare(
-            "SELECT COUNT(*) FROM {$wpdb->prefix}".self::ENTRY_TABLE." WHERE order_item_id=%d AND status='active'",
+            "SELECT COUNT(*) FROM {$wpdb->prefix}".self::ENTRY_TABLE." WHERE order_item_id=%d",
             $item_id
         ));
     }
@@ -1586,40 +1699,23 @@ final class RaffleLB_Draw_Engine {
         $table=$wpdb->prefix.self::ENTRY_TABLE;
         $made=[];
 
-        for($n=1;$n<=$total && count($made)<$needed;$n++) {
-            $existing = $wpdb->get_row($wpdb->prepare(
-                "SELECT * FROM {$table} WHERE product_id=%d AND entry_number=%d LIMIT 1",
-                $pid, $n
-            ));
+        // Entry records are immutable audit objects. A voided number remains
+        // visible as Void forever and is never reassigned to another order.
+        // Capacity is governed by the active-entry count, so allocate new,
+        // monotonically increasing ticket numbers when a void makes room.
+        $next_number = (int) $wpdb->get_var($wpdb->prepare(
+            "SELECT COALESCE(MAX(entry_number), 0) + 1 FROM {$table} WHERE product_id=%d",
+            $pid
+        ));
 
-            if ($existing) {
-                if ($existing->status !== 'void') continue;
-
-                // Preserve the old ownership/status permanently before this slot is reused.
-                self::archive_entry_event(
-                    $existing,
-                    'reassigned',
-                    'Void slot reassigned to paid order #' . absint($order_id)
-                );
-
-                $updated = $wpdb->update(
-                    $table,
-                    [
-                        'order_id'      => absint($order_id),
-                        'order_item_id' => absint($item_id),
-                        'user_id'       => absint($uid),
-                        'status'        => 'active',
-                        'created_at'    => current_time('mysql'),
-                    ],
-                    ['id' => absint($existing->id)],
-                    ['%d','%d','%d','%s','%s'],
-                    ['%d']
-                );
-
-                if ($updated !== false) $made[]=$n;
-                continue;
-            }
-
+        // A concurrent allocation can claim the same next number between the
+        // MAX() read and INSERT IGNORE. Advance and retry a bounded number of
+        // times so a database failure can never spin a request indefinitely.
+        $attempts = 0;
+        $max_attempts = max(10, $needed * 4);
+        while (count($made) < $needed && $attempts < $max_attempts) {
+            $attempts++;
+            $n = $next_number++;
             $ok=$wpdb->query($wpdb->prepare(
                 "INSERT IGNORE INTO {$table}
                 (order_id,order_item_id,product_id,user_id,entry_number,status,created_at)
@@ -2087,6 +2183,27 @@ final class RaffleLB_Draw_Engine {
         return (bool) $sent;
     }
 
+    /**
+     * Notifications reports successful delivery back to Draw Engine so this
+     * plugin remains the sole owner/writer of rafflelb_draw_results.
+     */
+    public static function record_winner_email_sent($result_id, $sent_at = '', $email = '') {
+        $result_id = absint($result_id);
+        if (!$result_id) return;
+
+        $sent_at = sanitize_text_field((string)$sent_at);
+        if ($sent_at === '') $sent_at = current_time('mysql');
+
+        global $wpdb;
+        $wpdb->update(
+            $wpdb->prefix . self::RESULT_TABLE,
+            ['winner_email_sent_at' => $sent_at],
+            ['id' => $result_id],
+            ['%s'],
+            ['%d']
+        );
+    }
+
     // Lets a trusted admin screen (e.g. RaffleLB Raffle Manager) send admins
     // back to itself after an action instead of the built-in Entries page.
     // Restricted to admin.php on this install so it can never become an
@@ -2131,7 +2248,11 @@ final class RaffleLB_Draw_Engine {
             exit;
         }
 
-        $sent = self::send_winner_email($result);
+        // Notifications owns winner-email delivery when active. The null
+        // default keeps this backward compatible: if Notifications is disabled,
+        // Draw Engine's legacy sender remains available as an admin fallback.
+        $handled = apply_filters('rafflelb_winner_email_delivery', null, $result, true);
+        $sent = ($handled === null) ? self::send_winner_email($result) : (bool)$handled;
         wp_safe_redirect(add_query_arg('rafflelb_draw', $sent ? 'email_sent' : 'email_failed', $redirect));
         exit;
     }
@@ -2164,6 +2285,10 @@ final class RaffleLB_Draw_Engine {
             exit;
         }
 
+        $old_status = !empty($current->fulfillment_status)
+            ? sanitize_key((string) $current->fulfillment_status)
+            : 'pending';
+
         $data = [
             'fulfillment_status' => $status,
             'fulfillment_note'   => $note,
@@ -2184,13 +2309,44 @@ final class RaffleLB_Draw_Engine {
             $formats[] = '%s';
         }
 
-        $wpdb->update($table, $data, ['id' => $result_id], $formats, ['%d']);
+        $updated = $wpdb->update($table, $data, ['id' => $result_id], $formats, ['%d']);
 
         $order = wc_get_order(absint($current->order_id));
         if ($order) {
             $order->add_order_note(
                 'RaffleLB prize fulfillment updated to ' . self::fulfillment_label($status) .
                 ($note ? '. Note: ' . $note : '')
+            );
+        }
+
+        // Draw Engine remains the sole owner/writer of fulfillment state.
+        // Other plugins may react to an actual status transition through this
+        // read-only event without duplicating the result-table update logic.
+        if ($updated !== false && $old_status !== $status) {
+            $context = [
+                'result_id'        => absint($current->id),
+                'product_id'       => absint($current->product_id),
+                'winner_user_id'   => absint($current->user_id),
+                'winner_entry_id'  => absint($current->entry_id),
+                'entry_number'     => absint($current->entry_number),
+                'order_id'         => absint($current->order_id),
+                'selected_at'      => sanitize_text_field((string) $current->selected_at),
+                'old_status'       => $old_status,
+                'new_status'       => $status,
+                'changed_at'       => $now,
+                'contacted_at'     => !empty($data['contacted_at']) ? $data['contacted_at'] : (string) $current->contacted_at,
+                'claimed_at'       => !empty($data['claimed_at']) ? $data['claimed_at'] : (string) $current->claimed_at,
+                'fulfilled_at'     => !empty($data['fulfilled_at']) ? $data['fulfilled_at'] : (string) $current->fulfilled_at,
+            ];
+
+            do_action(
+                'rafflelb_fulfillment_status_changed',
+                absint($current->id),
+                absint($current->product_id),
+                absint($current->user_id),
+                $old_status,
+                $status,
+                $context
             );
         }
 
@@ -2382,8 +2538,24 @@ final class RaffleLB_Draw_Engine {
         $wpdb->query('COMMIT');
 
         // Lets listeners (e.g. RaffleLB Notifications) react to a completed
-        // draw without this plugin knowing anything about them.
-        do_action('rafflelb_draw_completed', $pid, absint($winner->user_id), absint($winner->id), absint($result_id), 'random');
+        // draw without this plugin knowing anything about delivery. The first
+        // five arguments are unchanged; the sixth is backward-compatible
+        // read-only context so listeners do not need to query Draw Engine
+        // transactional tables.
+        do_action(
+            'rafflelb_draw_completed',
+            $pid,
+            absint($winner->user_id),
+            absint($winner->id),
+            absint($result_id),
+            'random',
+            [
+                'entry_number' => absint($winner->entry_number),
+                'order_id'     => absint($winner->order_id),
+                'selected_at'  => $selected_at,
+                'method'       => 'random',
+            ]
+        );
 
         $order = wc_get_order(absint($winner->order_id));
         if ($order) {
@@ -2395,8 +2567,6 @@ final class RaffleLB_Draw_Engine {
             );
         }
 
-        $saved_result = self::get_draw_result($pid);
-        if ($saved_result) self::send_winner_email($saved_result);
 
         wp_safe_redirect(add_query_arg('rafflelb_draw', 'success', $redirect));
         exit;
@@ -2496,9 +2666,21 @@ final class RaffleLB_Draw_Engine {
         update_post_meta($pid, self::META_WINNER_SELECTED_AT, $selected_at);
         $wpdb->query('COMMIT');
 
-        // Lets listeners (e.g. RaffleLB Notifications) react to a completed
-        // draw without this plugin knowing anything about them.
-        do_action('rafflelb_draw_completed', $pid, absint($winner->user_id), absint($winner->id), absint($result_id), 'manual');
+        // Same backward-compatible event contract as Secure Random Draw.
+        do_action(
+            'rafflelb_draw_completed',
+            $pid,
+            absint($winner->user_id),
+            absint($winner->id),
+            absint($result_id),
+            'manual',
+            [
+                'entry_number' => absint($winner->entry_number),
+                'order_id'     => absint($winner->order_id),
+                'selected_at'  => $selected_at,
+                'method'       => 'manual',
+            ]
+        );
 
         $order = wc_get_order(absint($winner->order_id));
         if ($order) {
@@ -2510,13 +2692,75 @@ final class RaffleLB_Draw_Engine {
             );
         }
 
-        $saved_result = self::get_draw_result($pid);
-        if ($saved_result) self::send_winner_email($saved_result);
 
         wp_safe_redirect(add_query_arg('rafflelb_draw', 'manual_success', $redirect));
         exit;
     }
 
+
+    public static function handle_admin_void_entry() {
+        if (!current_user_can('manage_woocommerce')) {
+            wp_die('You are not allowed to void RaffleLB entries.');
+        }
+
+        $entry_id = isset($_POST['entry_id']) ? absint($_POST['entry_id']) : 0;
+        check_admin_referer('rafflelb_void_entry_' . $entry_id);
+        $redirect = self::redirect_target(admin_url('admin.php?page=rafflelb-entries'));
+
+        if (!$entry_id) {
+            wp_safe_redirect(add_query_arg('rafflelb_entry_void', 'invalid', $redirect));
+            exit;
+        }
+
+        global $wpdb;
+        $table = $wpdb->prefix . self::ENTRY_TABLE;
+        $entry = $wpdb->get_row($wpdb->prepare(
+            "SELECT * FROM {$table} WHERE id=%d LIMIT 1",
+            $entry_id
+        ));
+
+        if (!$entry || $entry->status !== 'active') {
+            wp_safe_redirect(add_query_arg('rafflelb_entry_void', 'not_active', $redirect));
+            exit;
+        }
+
+        $pid = absint($entry->product_id);
+        if (self::get_draw_result($pid)
+            || get_post_meta($pid, self::META_DRAW_STATUS, true) === 'winner_selected') {
+            wp_safe_redirect(add_query_arg('rafflelb_entry_void', 'winner_locked', $redirect));
+            exit;
+        }
+
+        // The history table records the original order/customer, event time,
+        // and a precise administrator audit note. The WooCommerce order is
+        // intentionally not edited by this per-entry administrative action.
+        $audit_reason = 'Per-entry administrative void. Admin user ID: ' . get_current_user_id();
+        $wpdb->query('START TRANSACTION');
+
+        $archived = self::archive_entry_event($entry, 'void', $audit_reason);
+        $updated = $wpdb->update(
+            $table,
+            ['status' => 'void'],
+            ['id' => $entry_id, 'status' => 'active'],
+            ['%s'],
+            ['%d', '%s']
+        );
+
+        if (!$archived || $updated !== 1) {
+            $wpdb->query('ROLLBACK');
+            wp_safe_redirect(add_query_arg('rafflelb_entry_void', 'save_error', $redirect));
+            exit;
+        }
+
+        $wpdb->query('COMMIT');
+
+        // A full raffle becomes reservable again after one active entry is
+        // voided, unless a deliberate early close or historical winner locks it.
+        self::maybe_reopen_draw($pid);
+
+        wp_safe_redirect(add_query_arg('rafflelb_entry_void', 'success', $redirect));
+        exit;
+    }
 
     public static function handle_admin_order_action() {
         if (!current_user_can('manage_woocommerce')) {
@@ -3103,7 +3347,7 @@ final class RaffleLB_Draw_Engine {
 
         if ($void_history) {
             echo '<h2 style="margin-top:28px">Voided Entry History</h2>';
-            echo '<p>Voided entries are permanently retained here for audit. Their slots may later be reassigned to a new paid entry.</p>';
+            echo '<p>Voided entries are permanently retained here for audit. Their entry numbers are never reassigned.</p>';
             echo '<table class="widefat striped" style="margin-bottom:24px"><thead><tr><th>Entry</th><th>Reward</th><th>Original Order</th><th>Customer</th><th>Reason</th><th>Voided At</th></tr></thead><tbody>';
             foreach ($void_history as $v) {
                 $vu = $v->user_id ? get_user_by('id', $v->user_id) : false;
@@ -3431,12 +3675,10 @@ final class RaffleLB_Draw_Engine {
     }
 
     public static function rafflelb_order_status_labels($statuses) {
-        // Keep WooCommerce's internal status slug as "processing" so payment
-        // gateways, entry generation and existing draw logic continue to work.
-        // Only change the human-facing label.
-        if (isset($statuses['wc-processing'])) {
-            $statuses['wc-processing'] = 'Paid';
-        }
+        // WooCommerce status labels are global. A processing order can be a
+        // tangible Buy Direct purchase, so this filter must preserve the native
+        // Processing label. Raffle-only customer wording is handled per order
+        // by the Account presentation layer.
         return $statuses;
     }
 
@@ -3982,18 +4224,12 @@ final class RaffleLB_Draw_Engine {
             </section>
         </main>
 
-        <link rel="preconnect" href="https://fonts.googleapis.com">
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-        <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,560;0,9..144,650;1,9..144,560&display=swap" rel="stylesheet">
-        <style id="rafflelb-winners-premium-v03392">
+        <style id="rafflelb-winners-premium-v0341835">
         body.rafflelb-winners-public-page .main-page-wrapper,body.rafflelb-winners-public-page .site-content,body.rafflelb-winners-public-page .wd-content-layout,body.rafflelb-winners-public-page .content-layout-wrapper{background:#070907!important}
         body.rafflelb-winners-public-page .main-page-wrapper,body.rafflelb-winners-public-page .site-content{padding-top:0!important;padding-bottom:0!important}
-        /* v0.33.92: a dedicated display face (used only for winner names and
-           the page's own headlines) so this reads as a record of real people,
-           not another dashboard panel set entirely in the UI grotesque. */
-        .rlwin,.rlwin *{box-sizing:border-box}.rlwin{--lime:#baff00;--bg:#070907;--panel:#0c100c;--line:#293128;--display:'Fraunces',Georgia,serif;position:relative;left:50%;width:100vw;max-width:none;margin-left:-50vw;overflow-x:hidden;background:var(--bg);color:#fff;font-family:Inter,"Segoe UI",Arial,sans-serif!important;-webkit-font-smoothing:antialiased}.rlwin a{text-decoration:none!important}
+        /* Uses the same Inter UI stack as the RaffleLB navigation, Shop and My Account. */
+        .rlwin,.rlwin *{box-sizing:border-box}.rlwin{--lime:#baff00;--bg:#070907;--panel:#0c100c;--line:#293128;--display:Inter,"Segoe UI",Arial,sans-serif;position:relative;left:50%;width:100vw;max-width:none;margin-left:-50vw;overflow-x:hidden;background:var(--bg);color:#fff;font-family:var(--display)!important;-webkit-font-smoothing:antialiased}.rlwin a{text-decoration:none!important}
         .rlwin-hero{position:relative;overflow:hidden;border-bottom:1px solid rgba(255,255,255,.07);background:radial-gradient(circle at 76% 0,rgba(186,255,0,.075),transparent 31%),linear-gradient(135deg,#050705,#090c09)}
-        .rlwin-hero:after{content:"GOOD THINGS HAPPEN HERE";position:absolute;right:3.5%;bottom:18px;color:rgba(186,255,0,.09);font-size:clamp(22px,3.2vw,54px);font-weight:900;font-style:italic;letter-spacing:-.04em;transform:rotate(-5deg);pointer-events:none}
         .rlwin-hero-inner{position:relative;z-index:2;display:grid;grid-template-columns:minmax(400px,.86fr) minmax(400px,.9fr);align-items:center;gap:52px;max-width:1560px;margin:0 auto;padding:56px 34px 60px}
         .rlwin-hero-inner.is-empty{grid-template-columns:1fr;max-width:760px;text-align:center}.rlwin-hero-inner.is-empty .rlwin-eyebrow{justify-content:center}
         .rlwin-eyebrow{display:flex;align-items:center;gap:8px;margin-bottom:16px;color:var(--lime)!important;font-size:11px!important;font-weight:850!important;letter-spacing:.13em!important}.rlwin-eyebrow:before{content:"";width:6px;height:6px;flex:0 0 6px;border-radius:50%;background:var(--lime);box-shadow:0 0 10px rgba(186,255,0,.5)}
@@ -4019,32 +4255,79 @@ final class RaffleLB_Draw_Engine {
         .rlwin-tally{display:flex;align-items:baseline;gap:9px;margin-top:26px;padding-top:22px;border-top:1px solid rgba(255,255,255,.09)}.rlwin-tally strong{color:var(--lime)!important;font-size:26px!important;font-weight:800!important;line-height:1!important}.rlwin-tally span{color:#929b90!important;font-size:13px!important}
         .rlwin-spotlight{position:relative;display:block;overflow:hidden;border:1px solid var(--line);border-radius:20px;background:var(--panel);box-shadow:0 24px 60px rgba(0,0,0,.35);transition:transform .2s ease,border-color .2s ease}.rlwin-spotlight:hover{transform:translateY(-3px);border-color:rgba(186,255,0,.4)}
         .rlwin-spotlight-tag{position:absolute;z-index:3;top:16px;left:16px;display:inline-flex;align-items:center;min-height:27px;padding:0 12px;border-radius:999px;background:var(--lime);color:#050705!important;font-size:10px!important;font-weight:850!important;letter-spacing:.08em!important}
-        .rlwin-spotlight-media{position:relative;display:flex;height:240px;align-items:center;justify-content:center;overflow:hidden;background:#070a07}.rlwin-spotlight-media img{display:block!important;width:100%!important;height:100%!important;object-fit:cover!important;object-position:center!important}.rlwin-spotlight-media .rlwin-placeholder{color:var(--lime)!important;font-family:var(--display)!important;font-size:64px!important;font-weight:650!important}
+        .rlwin-spotlight-media{position:relative;display:flex;height:240px;align-items:center;justify-content:center;overflow:hidden;background:#070a07}.rlwin-spotlight-media img{display:block!important;width:100%!important;height:100%!important;object-fit:contain!important;object-position:center!important}.rlwin-spotlight-media .rlwin-placeholder{color:var(--lime)!important;font-family:var(--display)!important;font-size:64px!important;font-weight:650!important}
         .rlwin-spotlight-body{padding:22px 26px 26px}.rlwin-spotlight-date{display:block;margin-bottom:8px;color:#8f978c!important;font-size:11px!important;font-weight:700!important;letter-spacing:.07em!important;text-transform:uppercase}
         .rlwin-spotlight-body h2{margin:0!important;color:#fff!important;font-family:var(--display)!important;font-size:32px!important;line-height:1.08!important;font-weight:650!important}
         .rlwin-spotlight-body>p{margin:6px 0 0!important;color:#b6bdb2!important;font-size:15px!important;line-height:1.4!important}
         .rlwin-spotlight-stub{position:relative;display:flex;align-items:center;justify-content:space-between;margin-top:20px;padding-top:18px;border-top:1px dashed rgba(255,255,255,.22)}
         .rlwin-spotlight-stub:before,.rlwin-spotlight-stub:after{content:"";position:absolute;top:-9px;width:18px;height:18px;border-radius:50%;background:var(--bg);border:1px solid var(--line)}.rlwin-spotlight-stub:before{left:-27px}.rlwin-spotlight-stub:after{right:-27px}
         .rlwin-spotlight-stub span{color:#8f978c!important;font-size:11px!important;font-weight:700!important;letter-spacing:.05em!important;text-transform:uppercase}.rlwin-spotlight-stub strong{color:var(--lime)!important;font-size:17px!important;font-weight:800!important;letter-spacing:.02em!important}
-        .rlwin-directory{padding:34px 28px 54px}.rlwin-directory-inner{max-width:1660px;margin:0 auto}.rlwin-directory-head{display:flex;align-items:flex-end;justify-content:space-between;gap:30px;margin-bottom:18px}.rlwin-directory-head>div:first-child>span{display:block;margin-bottom:6px;color:var(--lime)!important;font-size:10px!important;font-weight:850!important;letter-spacing:.12em!important}.rlwin-directory-head h2{margin:0!important;color:#fff!important;font-family:var(--display)!important;font-size:32px!important;line-height:1.15!important;font-weight:650!important}.rlwin-directory-head p{margin:6px 0 0!important;color:#929b90!important;font-size:13px!important;line-height:1.45!important}
+        .rlwin-directory{padding:34px 28px 54px}.rlwin-directory-inner{max-width:1660px;margin:0 auto}.rlwin-directory-head{display:flex;align-items:flex-end;justify-content:space-between;gap:30px;margin-bottom:18px}.rlwin-directory-head>div:first-child{min-width:0}.rlwin-directory-head>div:first-child>span{display:block;margin-bottom:6px;color:var(--lime)!important;font-size:10px!important;font-weight:850!important;letter-spacing:.12em!important}.rlwin-directory-head h2{margin:0!important;color:#fff!important;font-family:var(--display)!important;font-size:32px!important;line-height:1.15!important;font-weight:650!important}.rlwin-directory-head p{margin:6px 0 0!important;color:#929b90!important;font-size:13px!important;line-height:1.45!important}
         /* v0.33.93: with zero winners recorded, the search/sort toolbar this
            row normally balances against (justify-content:space-between)
            doesn't render, so the lone heading gets pinned to the left edge
            instead of appearing centered - same treatment as the hero above. */
         .rlwin-directory-head.is-empty{justify-content:center;max-width:640px;margin-left:auto;margin-right:auto;text-align:center}
         .rlwin-directory-head.is-empty>div:first-child>span{text-align:center}
-        .rlwin-tools{display:flex;align-items:center;gap:10px}.rlwin-search{position:relative;display:block;width:300px}.rlwin-search>span{position:absolute;z-index:2;left:15px;top:50%;width:14px;height:14px;border:1.7px solid #aab2a8;border-radius:50%;transform:translateY(-55%)}.rlwin-search>span:after{content:"";position:absolute;width:6px;height:1.7px;right:-5px;bottom:-2px;background:#aab2a8;transform:rotate(45deg)}.rlwin-search input,.rlwin-sort select{height:43px!important;margin:0!important;border:1px solid #303830!important;border-radius:10px!important;background:#0d110d!important;color:#fff!important;-webkit-text-fill-color:#fff!important;font-family:Inter,"Segoe UI",Arial,sans-serif!important;font-size:12px!important;box-shadow:none!important}.rlwin-search input{width:100%!important;padding:0 15px 0 43px!important}.rlwin-search input::placeholder{color:#7f887d!important;opacity:1}.rlwin-sort select{min-width:152px!important;padding:0 36px 0 14px!important;cursor:pointer}
+        .rlwin-tools{display:grid;grid-template-columns:minmax(220px,1fr) minmax(168px,190px);gap:12px;width:min(100%,590px);flex:0 1 590px;min-width:0;align-items:center}.rlwin-search{position:relative;display:block;min-width:0}.rlwin-search>span{position:absolute;z-index:2;left:15px;top:50%;width:14px;height:14px;border:1.7px solid #aab2a8;border-radius:50%;transform:translateY(-55%)}.rlwin-search>span:after{content:"";position:absolute;width:6px;height:1.7px;right:-5px;bottom:-2px;background:#aab2a8;transform:rotate(45deg)}.rlwin-search input,.rlwin-sort select{height:43px!important;margin:0!important;border:1px solid #303830!important;border-radius:10px!important;background:#0d110d!important;color:#fff!important;-webkit-text-fill-color:#fff!important;font-family:var(--display)!important;font-size:12px!important;box-shadow:none!important}.rlwin-search input{width:100%!important;min-width:0!important;padding:0 15px 0 43px!important}.rlwin-search input::placeholder{color:#7f887d!important;opacity:1}.rlwin-sort{display:block;min-width:0}.rlwin-sort select{width:100%!important;min-width:168px!important;padding:0 36px 0 14px!important;cursor:pointer}.rlwin-search input:focus,.rlwin-sort select:focus{outline:2px solid rgba(186,255,0,.7)!important;outline-offset:2px;border-color:var(--lime)!important}
         .rlwin-filters{display:flex;gap:0;margin:0 0 15px;overflow-x:auto;border-bottom:1px solid #252c25;scrollbar-width:none}.rlwin-filters::-webkit-scrollbar{display:none}.rlwin-filters button{position:relative;flex:0 0 auto;min-height:43px;padding:0 18px;border:0!important;background:transparent!important;color:#b9c0b7!important;font-family:Inter,"Segoe UI",Arial,sans-serif!important;font-size:12px!important;font-weight:650!important;white-space:nowrap;cursor:pointer}.rlwin-filters button span{margin-left:4px;color:inherit!important}.rlwin-filters button.is-active{color:var(--lime)!important}.rlwin-filters button.is-active:after{content:"";position:absolute;left:8px;right:8px;bottom:0;height:3px;border-radius:3px 3px 0 0;background:var(--lime)}
         .rlwin-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px}.rlwin-card{min-width:0;overflow:hidden;border:1px solid var(--line);border-radius:12px;background:linear-gradient(180deg,#101410,#0b0e0b);box-shadow:0 12px 30px rgba(0,0,0,.2);transition:transform .2s,border-color .2s,box-shadow .2s}.rlwin-card:hover{transform:translateY(-3px);border-color:rgba(186,255,0,.46);box-shadow:0 18px 38px rgba(0,0,0,.31)}.rlwin-card[hidden]{display:none!important}
-        .rlwin-media{position:relative;display:flex!important;height:185px;align-items:center;justify-content:center;overflow:hidden;border-bottom:1px solid #242b24;background:#070a07}.rlwin-media:after{content:"";position:absolute;inset:55% 0 0;background:linear-gradient(transparent,rgba(0,0,0,.42));pointer-events:none}.rlwin-media img{display:block!important;width:100%!important;height:100%!important;object-fit:cover!important;object-position:center!important;transition:transform .25s}.rlwin-card:hover .rlwin-media img{transform:scale(1.025)}.rlwin-placeholder{color:var(--lime)!important;font-size:56px!important;font-weight:900!important}.rlwin-verified{position:absolute;z-index:3;top:10px;right:10px;display:inline-flex;min-height:27px;align-items:center;gap:5px;padding:0 9px;border:1px solid rgba(186,255,0,.45);border-radius:999px;background:rgba(7,10,7,.92);color:var(--lime)!important;font-size:10px!important;font-weight:750!important}.rlwin-verified b{display:inline-flex;width:15px;height:15px;align-items:center;justify-content:center;border-radius:50%;background:var(--lime);color:#050705!important;font-size:9px!important}
+        .rlwin-media{position:relative;display:flex!important;height:185px;align-items:center;justify-content:center;overflow:hidden;border-bottom:1px solid #242b24;background:#070a07}.rlwin-media:after{content:"";position:absolute;inset:55% 0 0;background:linear-gradient(transparent,rgba(0,0,0,.42));pointer-events:none}.rlwin-media img{display:block!important;width:100%!important;height:100%!important;object-fit:contain!important;object-position:center!important;transition:transform .25s}.rlwin-card:hover .rlwin-media img{transform:none}.rlwin-placeholder{color:var(--lime)!important;font-size:56px!important;font-weight:900!important}.rlwin-verified{position:absolute;z-index:3;top:10px;right:10px;display:inline-flex;min-height:27px;align-items:center;gap:5px;padding:0 9px;border:1px solid rgba(186,255,0,.45);border-radius:999px;background:rgba(7,10,7,.92);color:var(--lime)!important;font-size:10px!important;font-weight:750!important}.rlwin-verified b{display:inline-flex;width:15px;height:15px;align-items:center;justify-content:center;border-radius:50%;background:var(--lime);color:#050705!important;font-size:9px!important}
         .rlwin-card-body{padding:12px}.rlwin-card h3{min-height:39px;margin:0 0 10px!important;color:#fff!important;font-size:15px!important;line-height:1.3!important;font-weight:750!important;letter-spacing:-.01em!important}.rlwin-card h3 a{color:#fff!important}.rlwin-person{display:flex;align-items:center;gap:9px;margin-bottom:9px}.rlwin-avatar{display:flex;width:37px;height:37px;flex:0 0 37px;align-items:center;justify-content:center;border:1px solid #414841;border-radius:50%;background:linear-gradient(145deg,#444a44,#252a25);color:#fff!important;font-size:11px!important;font-weight:750!important}.rlwin-person>div{min-width:0}.rlwin-person strong{display:block;overflow:hidden;color:#fff!important;font-size:12px!important;line-height:1.2!important;font-weight:700!important;text-overflow:ellipsis;white-space:nowrap}.rlwin-person small{display:block;margin-top:4px;overflow:hidden;color:#9da69b!important;font-size:10px!important;line-height:1.2!important;text-overflow:ellipsis;white-space:nowrap}.rlwin-person small i{color:var(--lime)!important;font-style:normal}
         .rlwin-result-meta{display:grid;grid-template-columns:1fr;gap:4px;margin:0 0 10px;padding-top:9px;border-top:1px solid rgba(255,255,255,.075)}.rlwin-result-meta span{display:flex;justify-content:space-between;gap:8px;color:#929a90!important;font-size:10px!important;line-height:1.3!important}.rlwin-result-meta strong{color:#e9ede7!important;font-weight:650!important}.rlwin-details{display:flex!important;width:100%;min-height:36px;align-items:center;justify-content:center;gap:12px;border:1px solid var(--lime);border-radius:7px;background:transparent;color:var(--lime)!important;font-size:11px!important;font-weight:750!important}.rlwin-details:hover{background:var(--lime);color:#050705!important}
         .rlwin-empty{display:grid;grid-template-columns:150px minmax(0,1fr);align-items:center;gap:28px;min-height:230px;padding:32px 40px;border:1px solid #293229;border-radius:16px;background:radial-gradient(circle at 12% 50%,rgba(186,255,0,.075),transparent 24%),#0c100c}.rlwin-empty-mark{display:flex;width:125px;height:125px;align-items:center;justify-content:center;border:1px solid rgba(186,255,0,.35);border-radius:50%;box-shadow:0 0 45px rgba(186,255,0,.06)}.rlwin-empty-mark span{display:flex;width:58px;height:58px;align-items:center;justify-content:center;border-radius:50%;background:var(--lime);color:#050705!important;font-size:25px!important;font-weight:900!important}.rlwin-empty>div:last-child>span{display:block;margin-bottom:7px;color:var(--lime)!important;font-size:10px!important;font-weight:850!important;letter-spacing:.12em!important}.rlwin-empty h3{margin:0!important;color:#fff!important;font-family:var(--display)!important;font-size:29px!important;font-weight:650!important}.rlwin-empty p{max-width:680px;margin:9px 0 17px!important;color:#9da69b!important;font-size:13px!important;line-height:1.6!important}.rlwin-empty a{display:inline-flex!important;min-height:40px;align-items:center;gap:24px;padding:0 15px;border:1px solid var(--lime);border-radius:7px;color:var(--lime)!important;font-size:11px!important;font-weight:800!important}.rlwin-empty a:hover{background:var(--lime);color:#050705!important}.rlwin-no-results{padding:32px;border:1px solid var(--line);border-radius:12px;background:#0c100c;text-align:center}.rlwin-no-results strong,.rlwin-no-results span{display:block}.rlwin-no-results strong{color:#fff!important;font-size:18px!important}.rlwin-no-results span{margin-top:5px;color:#919a8e!important;font-size:12px!important}
         @media(max-width:1370px){.rlwin-hero-inner{gap:36px;padding-left:28px;padding-right:28px}.rlwin-grid{grid-template-columns:repeat(4,minmax(0,1fr))}.rlwin-media{height:180px}}
         @media(max-width:1080px){.rlwin-hero-inner{grid-template-columns:1fr;max-width:640px;padding:42px 28px}.rlwin-spotlight{max-width:460px}.rlwin-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
-        @media(max-width:820px){.rlwin-directory-head{align-items:stretch;flex-direction:column}.rlwin-tools{width:100%}.rlwin-search{flex:1;width:auto}.rlwin-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.rlwin-media{height:200px}}
-        @media(max-width:600px){.rlwin-hero-inner{padding:36px 16px 31px}.rlwin-intro h1{font-size:42px!important}.rlwin-lede{font-size:13px!important}.rlwin-spotlight-body{padding:18px 18px 20px}.rlwin-spotlight-body h2{font-size:26px!important}.rlwin-spotlight-stub:before,.rlwin-spotlight-stub:after{width:16px;height:16px}.rlwin-spotlight-stub:before{left:-25px}.rlwin-spotlight-stub:after{right:-25px}.rlwin-directory{padding:28px 12px 42px}.rlwin-directory-head h2{font-size:25px!important}.rlwin-tools{display:grid;grid-template-columns:minmax(0,1fr) 132px;gap:7px}.rlwin-search input,.rlwin-sort select{font-size:11px!important}.rlwin-sort select{min-width:0!important;width:100%!important}.rlwin-filters button{padding:0 13px;font-size:11px!important}.rlwin-grid{gap:9px}.rlwin-media{height:142px}.rlwin-card-body{padding:10px}.rlwin-card h3{min-height:35px;font-size:13px!important}.rlwin-verified{top:7px;right:7px;min-height:23px;padding:0 7px;font-size:8px!important}.rlwin-person{gap:7px}.rlwin-avatar{width:32px;height:32px;flex-basis:32px;font-size:9px!important}.rlwin-person strong{font-size:10px!important}.rlwin-person small,.rlwin-result-meta span{font-size:8.5px!important}.rlwin-details{min-height:34px;font-size:9px!important}.rlwin-empty{grid-template-columns:1fr;gap:18px;padding:27px 20px;text-align:center}.rlwin-empty-mark{width:95px;height:95px;margin:auto}.rlwin-empty h3{font-size:22px!important}.rlwin-empty p{font-size:12px!important}.rlwin-empty a{justify-content:center}}
-        @media(max-width:390px){.rlwin-grid{grid-template-columns:1fr}.rlwin-media{height:205px}.rlwin-card h3{min-height:0;font-size:15px!important}.rlwin-person strong{font-size:12px!important}.rlwin-person small,.rlwin-result-meta span{font-size:10px!important}.rlwin-details{font-size:11px!important}}
+        @media(max-width:820px){.rlwin-directory-head{align-items:stretch;flex-direction:column}.rlwin-tools{width:100%;max-width:590px;flex-basis:auto}.rlwin-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.rlwin-media{height:200px}}
+        @media(max-width:600px){.rlwin-hero-inner{padding:36px 16px 31px}.rlwin-intro h1{font-size:42px!important}.rlwin-lede{font-size:13px!important}.rlwin-spotlight-body{padding:18px 18px 20px}.rlwin-spotlight-body h2{font-size:26px!important}.rlwin-spotlight-stub:before,.rlwin-spotlight-stub:after{width:16px;height:16px}.rlwin-spotlight-stub:before{left:-25px}.rlwin-spotlight-stub:after{right:-25px}.rlwin-directory{padding:28px 12px 42px}.rlwin-directory-head h2{font-size:25px!important}.rlwin-tools{grid-template-columns:minmax(0,1fr);gap:10px;max-width:none}.rlwin-sort select{min-width:0!important}.rlwin-search input,.rlwin-sort select{font-size:12px!important}.rlwin-filters button{padding:0 13px;font-size:11px!important}.rlwin-grid{gap:9px}.rlwin-media{height:142px}.rlwin-card-body{padding:10px}.rlwin-card h3{min-height:35px;font-size:13px!important}.rlwin-verified{top:7px;right:7px;min-height:23px;padding:0 7px;font-size:8px!important}.rlwin-person{gap:7px}.rlwin-avatar{width:32px;height:32px;flex-basis:32px;font-size:9px!important}.rlwin-person strong{font-size:10px!important}.rlwin-person small,.rlwin-result-meta span{font-size:8.5px!important}.rlwin-details{min-height:34px;font-size:9px!important}.rlwin-empty{grid-template-columns:1fr;gap:18px;padding:27px 20px;text-align:center}.rlwin-empty-mark{width:95px;height:95px;margin:auto}.rlwin-empty h3{font-size:22px!important}.rlwin-empty p{font-size:12px!important}.rlwin-empty a{justify-content:center}}
+        /* v0.34.18.31: native WoodMart control padding was expanding the fields beyond
+           their columns. Size the controls themselves, then stack before space is tight. */
+        .rlwin-tools{grid-template-columns:minmax(360px,420px) minmax(180px,200px);gap:16px;width:min(100%,636px);flex:0 0 auto}
+        .rlwin-search,.rlwin-sort{display:block;min-width:0;max-width:100%}
+        .rlwin-search input{box-sizing:border-box!important;width:100%!important;max-width:100%!important;min-width:0!important;font-size:14px!important}
+        .rlwin-sort select{box-sizing:border-box!important;width:100%!important;max-width:100%!important;min-width:0!important;font-size:14px!important}
+        .rlwin-lede{max-width:440px;font-size:16px!important}.rlwin-directory-head p{font-size:15px!important}.rlwin-play{font-size:13px!important}.rlwin-tally span{font-size:14px!important}.rlwin-spotlight-tag{font-size:11px!important}.rlwin-spotlight-date{font-size:12px!important}.rlwin-spotlight-body>p{font-size:16px!important}
+        .rlwin-filters button{min-height:44px;font-size:13px!important}.rlwin-verified{min-height:28px;font-size:11px!important}.rlwin-verified b{font-size:10px!important}.rlwin-card-body{padding:14px}.rlwin-card h3{min-height:42px;font-size:16px!important}.rlwin-person{margin-bottom:10px}.rlwin-avatar{width:38px;height:38px;flex-basis:38px;font-size:12px!important}.rlwin-person strong{font-size:14px!important;line-height:1.25!important}.rlwin-person small{font-size:12px!important;line-height:1.25!important}.rlwin-result-meta{gap:5px;margin-bottom:12px;padding-top:10px}.rlwin-result-meta span{font-size:12px!important;line-height:1.35!important}.rlwin-details{min-height:40px;font-size:13px!important}
+        @media(max-width:1180px){.rlwin-directory-head{align-items:stretch;flex-direction:column}.rlwin-tools{width:100%;max-width:636px;flex-basis:auto}.rlwin-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
+        @media(max-width:680px){.rlwin-tools{grid-template-columns:minmax(0,1fr);gap:12px;max-width:none}.rlwin-lede{font-size:14px!important}.rlwin-spotlight-body>p{font-size:14px!important}.rlwin-search input,.rlwin-sort select{font-size:14px!important}.rlwin-filters button{font-size:12px!important}.rlwin-card-body{padding:12px}.rlwin-card h3{min-height:39px;font-size:15px!important}.rlwin-verified{min-height:26px;font-size:10px!important}.rlwin-verified b{font-size:9px!important}.rlwin-avatar{width:34px;height:34px;flex-basis:34px;font-size:11px!important}.rlwin-person strong{font-size:13px!important}.rlwin-person small,.rlwin-result-meta span{font-size:11px!important}.rlwin-details{min-height:38px;font-size:12px!important}.rlwin-empty a{font-size:12px!important}}
+        @media(max-width:390px){.rlwin-grid{grid-template-columns:1fr}.rlwin-media{height:205px}.rlwin-card h3{min-height:0;font-size:15px!important}.rlwin-person strong{font-size:13px!important}.rlwin-person small,.rlwin-result-meta span{font-size:11px!important}.rlwin-details{font-size:12px!important}}
+        /* v0.34.18.32: product photography is product-led, not cropped artwork. */
+        .rlwin-spotlight-media,.rlwin-media{background:#050705!important}
+        .rlwin-spotlight-media img{width:100%!important;height:100%!important;padding:16px!important;object-fit:contain!important;object-position:center center!important;transform:none!important}
+        .rlwin-media img{width:100%!important;height:100%!important;padding:12px!important;object-fit:contain!important;object-position:center center!important;transform:none!important}
+        .rlwin-card:hover .rlwin-media img{transform:none!important}
+        /* Native Chromium/Windows picker: keep its menu and options in the same dark system scheme. */
+        .rlwin-sort select{color-scheme:dark!important;background:#0d110d!important;color:#fff!important}
+        .rlwin-sort select option{background:#0d110d!important;color:#fff!important}
+        .rlwin-sort select option:checked,.rlwin-sort select option:focus{background:#1b2418!important;color:#fff!important}
+        /* Measured live: WoodMart adds 40px padding to this wrapper after the header. */
+        body.rafflelb-winners-public-page .wd-content-layout.content-layout-wrapper{margin-top:0!important;padding-top:0!important}
+        /* v0.34.18.33: phone-first featured and result-card density. */
+        @media(max-width:680px){
+            .rlwin-spotlight{display:grid;grid-template-columns:125px minmax(0,1fr);grid-template-rows:1fr;width:100%;max-width:none;height:190px;min-height:0;margin:0;border-radius:14px}
+            .rlwin-spotlight-media{grid-column:1;grid-row:1;height:auto!important;min-height:0;padding:8px!important;background:#050705!important}
+            .rlwin-spotlight-media img{width:auto!important;height:auto!important;max-width:115px!important;max-height:115px!important;padding:0!important;object-fit:contain!important;object-position:center center!important}
+            .rlwin-spotlight-body{grid-column:2;grid-row:1;min-width:0;padding:49px 14px 12px!important;align-self:stretch}
+            .rlwin-spotlight-tag{top:13px;left:139px;min-height:23px;padding:0 9px;font-size:9px!important}
+            .rlwin-spotlight-date{margin-bottom:4px;font-size:11px!important}.rlwin-spotlight-body h2{font-size:20px!important;line-height:1.12!important}.rlwin-spotlight-body>p{margin-top:4px!important;font-size:12px!important;line-height:1.3!important;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+            .rlwin-spotlight-stub{margin-top:10px;padding-top:10px}.rlwin-spotlight-stub:before,.rlwin-spotlight-stub:after{display:none}.rlwin-spotlight-stub span{font-size:10px!important}.rlwin-spotlight-stub strong{font-size:15px!important}
+            .rlwin-grid{grid-template-columns:1fr;gap:14px}.rlwin-media{height:200px!important}.rlwin-card-body{padding:15px!important}.rlwin-card h3{min-height:0;font-size:18px!important;line-height:1.3!important}.rlwin-person strong{font-size:15px!important}.rlwin-person small,.rlwin-result-meta span{font-size:13px!important}.rlwin-result-meta{gap:6px;margin-bottom:14px}.rlwin-details{min-height:44px;font-size:14px!important}
+        }
+        /* v0.34.18.34: compact only the regular Winners grid on phones. */
+        @media(max-width:680px){
+            .rlwin-grid{grid-template-columns:1fr;gap:12px}.rlwin-card-body{padding:12px!important}.rlwin-media{height:155px!important;padding:8px!important}.rlwin-media img{width:auto!important;height:auto!important;max-width:145px!important;max-height:145px!important;padding:0!important;object-fit:contain!important;object-position:center center!important}
+            .rlwin-card h3{margin-bottom:8px!important;font-size:16px!important}.rlwin-person{margin-bottom:8px!important;gap:8px}.rlwin-avatar{width:34px;height:34px;flex-basis:34px;font-size:11px!important}.rlwin-person strong{font-size:14px!important}.rlwin-person small{margin-top:2px;font-size:12px!important}
+            .rlwin-result-meta{grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;margin-bottom:10px;padding-top:8px}.rlwin-result-meta span{display:block;font-size:12px!important;line-height:1.35!important}.rlwin-result-meta strong{display:block;margin-top:1px;white-space:nowrap}.rlwin-details{min-height:46px;font-size:14px!important}
+        }
+        /* v0.34.18.36: show the complete mobile product title; long names wrap instead of ellipsizing, and the compact card grows only when needed. */
+        /* v0.34.18.35: phone winner results use a compact horizontal card, not product-page media. */
+        @media(max-width:767px){
+            .rlwin-grid{grid-template-columns:1fr;gap:14px}.rlwin-card{position:relative;display:grid;grid-template-columns:120px minmax(0,1fr);grid-template-rows:minmax(135px,auto) 46px;width:calc(100% - 32px);max-width:360px;min-height:195px;margin-left:auto;margin-right:auto;padding-bottom:0;overflow:hidden}
+            .rlwin-media{position:static!important;grid-column:1;grid-row:1;height:135px!important;min-height:0;padding:8px!important;border-bottom:0!important;background:#050705!important}.rlwin-media:after{display:none}.rlwin-media img{width:auto!important;height:auto!important;max-width:112px!important;max-height:118px!important;padding:0!important;object-fit:contain!important;object-position:center center!important}
+            .rlwin-verified{top:8px;right:8px;min-height:24px;padding:0 7px;font-size:10px!important}.rlwin-verified b{width:13px;height:13px;font-size:8px!important}
+            .rlwin-card-body{grid-column:2;grid-row:1;padding:34px 12px 8px!important;min-width:0}.rlwin-card h3{margin:0 0 6px!important;font-size:16px!important;line-height:1.2!important;max-width:none!important;overflow:visible!important;text-overflow:clip!important;white-space:normal!important;overflow-wrap:anywhere;word-break:normal}.rlwin-person{gap:7px;margin-bottom:6px!important}.rlwin-avatar{width:28px;height:28px;flex-basis:28px;font-size:10px!important}.rlwin-person strong{font-size:14px!important}.rlwin-person small{margin-top:1px;font-size:11px!important}
+            .rlwin-result-meta{display:flex;flex-direction:column;gap:2px;margin:0;padding-top:6px}.rlwin-result-meta span{display:flex;font-size:11px!important;line-height:1.25!important}.rlwin-result-meta strong{display:inline;margin:0;white-space:nowrap}.rlwin-details{position:absolute;right:10px;bottom:0;left:10px;width:auto!important;min-height:42px;font-size:13px!important;white-space:nowrap}
+        }
         </style>
 
         <?php if ($count): ?>
@@ -5783,6 +6066,26 @@ final class RaffleLB_Draw_Engine {
                 if (e.persisted) api.hide();
             });
 
+            /* WooCommerce/WoodMart remove links stay on the current page.
+               The capture-phase navigation handler below intentionally shows
+               the overlay for links, but an AJAX cart refresh never emits a
+               window load event. Release it from WooCommerce's actual
+               completion events instead of a timer or page reload. */
+            if (window.jQuery) {
+                var $body = window.jQuery(document.body);
+                var releaseCartOverlay = function(){
+                    try { window.sessionStorage.removeItem('rafflelb_nav_loading_v1'); } catch (e) {}
+                    api.hide();
+                };
+                $body.on('removed_from_cart updated_wc_div wc_fragments_refreshed updated_cart_totals', releaseCartOverlay);
+                window.jQuery(document).ajaxError(function(event, xhr, settings){
+                    var url = settings && settings.url ? String(settings.url) : '';
+                    if (url.indexOf('wc-ajax=') !== -1 || url.indexOf('wc_ajax_') !== -1) {
+                        releaseCartOverlay();
+                    }
+                });
+            }
+
             document.addEventListener('click', function(e){
                 if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
                 var a = e.target && e.target.closest ? e.target.closest('a[href]') : null;
@@ -6022,6 +6325,9 @@ final class RaffleLB_Draw_Engine {
         .rafflelb-cart-page .product-quantity:before{content:"ENTRIES";}
         .rafflelb-cart-page .product-subtotal:before{content:"TOTAL";}
 
+        .rafflelb-cart-page tr.rafflelb-cart-item--buy_now .product-price:before{content:"UNIT PRICE";}
+        .rafflelb-cart-page tr.rafflelb-cart-item--buy_now .product-quantity:before{content:"QUANTITY";}
+
         .rafflelb-cart-page .product-price:before,
         .rafflelb-cart-page .product-quantity:before,
         .rafflelb-cart-page .product-subtotal:before{
@@ -6256,7 +6562,7 @@ final class RaffleLB_Draw_Engine {
             }
         }
 
-        @media(max-width:900px){
+        @media(min-width:768px) and (max-width:900px){
             .rafflelb-cart-page .cart-content-wrapper{
                 display:block !important;
             }
@@ -6365,7 +6671,7 @@ final class RaffleLB_Draw_Engine {
             align-items:center !important;
         }
 
-        @media(max-width:700px){
+        @media not all{
             .rafflelb-cart-page .woocommerce-cart-form .coupon{
                 display:grid !important;
                 grid-template-columns:1fr !important;
@@ -6416,7 +6722,7 @@ final class RaffleLB_Draw_Engine {
             margin:0 !important;
         }
 
-        @media(max-width:700px){
+        @media not all{
             .rafflelb-cart-page .woocommerce-cart-form .actions{
                 display:block !important;
             }
@@ -6452,12 +6758,30 @@ final class RaffleLB_Draw_Engine {
         }
         .rafflelb-cart-page .woocommerce .return-to-shop .button{
             color:#090a08 !important;
+            -webkit-text-fill-color:#090a08 !important;
             background:#caff16 !important;
             opacity:1 !important;
         }
+        .rafflelb-cart-page .woocommerce .return-to-shop .button *,
+        .rafflelb-cart-page .woocommerce .return-to-shop .button:hover,
+        .rafflelb-cart-page .woocommerce .return-to-shop .button:focus,
+        .rafflelb-cart-page .woocommerce .return-to-shop .button:hover *,
+        .rafflelb-cart-page .woocommerce .return-to-shop .button:focus *{
+            color:#090a08 !important;
+            -webkit-text-fill-color:#090a08 !important;
+            text-shadow:none !important;
+        }
+        .rafflelb-cart-page .woocommerce .return-to-shop .button:hover,
+        .rafflelb-cart-page .woocommerce .return-to-shop .button:focus{
+            background:#d0ff3f !important;
+            outline:2px solid #ffffff !important;
+            outline-offset:3px !important;
+        }
 
-        /* v0.10.7: clean phone cart layout */
-        @media(max-width:700px){
+        /* v0.34.18.22: mobile cart cards. Keep the desktop table-grid
+           unchanged; below 700px each native WooCommerce row becomes a
+           deliberately ordered, single-column RaffleLB card. */
+        @media not all{
             .rafflelb-cart-page .site-content{
                 padding-top:24px !important;
                 padding-bottom:36px !important;
@@ -6467,60 +6791,151 @@ final class RaffleLB_Draw_Engine {
                 width:calc(100% - 28px) !important;
             }
             .rafflelb-cart-page .cart-content-wrapper > .woocommerce-cart-form{
-                padding:20px 16px !important;
+                padding:16px !important;
             }
             .rafflelb-cart-page .woocommerce-cart-form table.shop_table tr.cart_item{
-                grid-template-columns:82px minmax(0,1fr) 34px !important;
-                gap:14px 12px !important;
+                grid-template-columns:minmax(0,1fr) 40px !important;
+                gap:14px !important;
                 align-items:start !important;
+                box-sizing:border-box !important;
+                margin:0 0 16px !important;
+                padding:18px !important;
+                border:1px solid #30352d !important;
+                border-radius:16px !important;
+                background:#151713 !important;
+                overflow:hidden !important;
             }
             .rafflelb-cart-page .product-thumbnail{
                 grid-column:1 !important;
                 grid-row:1 !important;
             }
             .rafflelb-cart-page .product-thumbnail img{
-                width:82px !important;
-                height:82px !important;
+                width:clamp(64px,22vw,82px) !important;
+                height:clamp(64px,22vw,82px) !important;
             }
             .rafflelb-cart-page .product-name{
-                grid-column:2 !important;
-                grid-row:1 !important;
+                grid-column:1 / -1 !important;
+                grid-row:2 !important;
+                min-width:0 !important;
+                margin:0 !important;
                 overflow-wrap:anywhere !important;
             }
             .rafflelb-cart-page .product-name a{
-                font-size:15px !important;
-                line-height:1.25 !important;
+                margin:0 0 8px !important;
+                color:#ffffff !important;
+                font-size:17px !important;
+                font-weight:800 !important;
+                line-height:1.3 !important;
+                overflow-wrap:anywhere !important;
+                word-break:normal !important;
+            }
+            .rafflelb-cart-page .product-name dl.variation,
+            .rafflelb-cart-page .product-name .wc-item-meta{
+                display:flex !important;
+                flex-wrap:wrap !important;
+                gap:4px 7px !important;
+                margin:0 !important;
+                color:#aeb5a6 !important;
+                font-size:11px !important;
+                line-height:1.45 !important;
+            }
+            .rafflelb-cart-page .product-name dl.variation dt,
+            .rafflelb-cart-page .product-name .wc-item-meta-label{
+                color:#aeb5a6 !important;
+                font-weight:700 !important;
+            }
+            .rafflelb-cart-page .product-name dl.variation dd,
+            .rafflelb-cart-page .product-name .wc-item-meta p{
+                margin:0 !important;
+                color:#dfe4db !important;
             }
             .rafflelb-cart-page .product-remove{
-                grid-column:3 !important;
+                grid-column:2 !important;
                 grid-row:1 !important;
                 align-self:start !important;
+                justify-self:end !important;
+            }
+            .rafflelb-cart-page .product-remove a,
+            .rafflelb-cart-page a.remove{
+                width:40px !important;
+                height:40px !important;
+                min-width:40px !important;
+                min-height:40px !important;
             }
             .rafflelb-cart-page .product-price,
             .rafflelb-cart-page .product-quantity,
             .rafflelb-cart-page .product-subtotal{
                 grid-column:1 / -1 !important;
                 display:grid !important;
-                grid-template-columns:minmax(110px,1fr) minmax(0,1fr) !important;
+                grid-template-columns:minmax(0,1fr) auto !important;
                 align-items:center !important;
                 gap:14px !important;
                 width:100% !important;
                 margin:0 !important;
-                padding-top:14px !important;
+                padding:14px 0 0 !important;
                 border-top:1px solid #292d27 !important;
                 text-align:left !important;
             }
+            .rafflelb-cart-page .product-price{ grid-row:3 !important; }
+            .rafflelb-cart-page .product-quantity{ grid-row:4 !important; }
+            .rafflelb-cart-page .product-subtotal{ grid-row:5 !important; }
             .rafflelb-cart-page .product-price:before,
             .rafflelb-cart-page .product-quantity:before,
             .rafflelb-cart-page .product-subtotal:before{
                 margin:0 !important;
+                color:#aeb5a6 !important;
+                font-size:10px !important;
+            }
+            .rafflelb-cart-page .product-price .amount,
+            .rafflelb-cart-page .product-subtotal .amount{
+                font-size:19px !important;
+                line-height:1.2 !important;
+                white-space:nowrap !important;
             }
             .rafflelb-cart-page .product-quantity .quantity{
                 margin:0 !important;
+                justify-self:end !important;
+            }
+            .rafflelb-cart-page .woocommerce-cart-form .actions{
+                display:grid !important;
+                grid-template-columns:1fr !important;
+                gap:12px !important;
+                margin:20px 0 0 !important;
+                padding:0 !important;
+            }
+            .rafflelb-cart-page .woocommerce-cart-form .coupon{
+                display:grid !important;
+                grid-template-columns:1fr !important;
+                gap:10px !important;
+                width:100% !important;
+                margin:0 !important;
+            }
+            .rafflelb-cart-page .woocommerce-cart-form .coupon input.input-text,
+            .rafflelb-cart-page .woocommerce-cart-form .coupon button,
+            .rafflelb-cart-page button[name="update_cart"]{
+                grid-column:auto !important;
+                width:100% !important;
+                max-width:none !important;
+                min-height:50px !important;
+                margin:0 !important;
+            }
+            .rafflelb-cart-page button[name="update_cart"]{
+                justify-self:stretch !important;
+                background:#baff00 !important;
+                color:#090a08 !important;
+            }
+            .rafflelb-cart-page button[name="update_cart"]:hover,
+            .rafflelb-cart-page button[name="update_cart"]:focus{
+                background:#d0ff3f !important;
+                color:#090a08 !important;
+                outline:2px solid #ffffff !important;
+                outline-offset:3px !important;
             }
             .rafflelb-cart-page .cart-content-wrapper .cart-totals-inner,
             .rafflelb-cart-page .cart-content-wrapper .cart_totals{
+                width:100% !important;
                 padding:22px 18px !important;
+                overflow:hidden !important;
             }
             .rafflelb-cart-page .cart_totals h2,
             .rafflelb-cart-page .cart_totals th,
@@ -6529,6 +6944,476 @@ final class RaffleLB_Draw_Engine {
             .rafflelb-cart-page .cart_totals .cart-subtotal td{
                 color:#eef1eb !important;
                 opacity:1 !important;
+            }
+        }
+
+        /* v0.34.18.23: WoodMart's cart can retain table-cell/float layout
+           rules on real mobile devices. Use named areas and reset those
+           layout properties so every item has one deterministic card flow. */
+        @media not all{
+            .rafflelb-cart-page .woocommerce-cart-form table.shop_table,
+            .rafflelb-cart-page .woocommerce-cart-form table.shop_table tbody{
+                display:block !important;
+                width:100% !important;
+                min-width:0 !important;
+                max-width:100% !important;
+            }
+            .rafflelb-cart-page .woocommerce-cart-form table.shop_table tr.cart_item{
+                display:grid !important;
+                grid-template-areas:
+                    "thumbnail title remove"
+                    "purchase purchase purchase"
+                    "price price price"
+                    "quantity quantity quantity"
+                    "subtotal subtotal subtotal" !important;
+                grid-template-columns:clamp(54px,18vw,72px) minmax(0,1fr) 40px !important;
+                grid-template-rows:auto !important;
+                width:100% !important;
+                min-width:0 !important;
+                max-width:100% !important;
+                gap:16px !important;
+                padding:18px !important;
+                box-sizing:border-box !important;
+                overflow:visible !important;
+            }
+            .rafflelb-cart-page .woocommerce-cart-form table.shop_table tr.cart_item > td{
+                position:static !important;
+                inset:auto !important;
+                float:none !important;
+                clear:none !important;
+                transform:none !important;
+                width:auto !important;
+                min-width:0 !important;
+                max-width:100% !important;
+                margin:0 !important;
+            }
+            .rafflelb-cart-page .woocommerce-cart-form table.shop_table tr.cart_item > .product-thumbnail{
+                grid-area:thumbnail !important;
+                display:flex !important;
+                align-items:flex-start !important;
+                justify-content:flex-start !important;
+            }
+            .rafflelb-cart-page .woocommerce-cart-form table.shop_table tr.cart_item > .product-thumbnail img{
+                display:block !important;
+                width:clamp(54px,18vw,72px) !important;
+                height:clamp(54px,18vw,72px) !important;
+                max-width:100% !important;
+                float:none !important;
+                object-fit:contain !important;
+            }
+            .rafflelb-cart-page .woocommerce-cart-form table.shop_table tr.cart_item > .product-remove{
+                grid-area:remove !important;
+                display:flex !important;
+                align-items:flex-start !important;
+                justify-content:flex-end !important;
+                justify-self:end !important;
+            }
+            .rafflelb-cart-page .woocommerce-cart-form table.shop_table tr.cart_item > .product-name{
+                /* Expose the existing title and WooCommerce variation data as
+                   independent card-grid children: title beside the image,
+                   purchase type across the row beneath the full header. */
+                display:contents !important;
+            }
+            .rafflelb-cart-page .woocommerce-cart-form table.shop_table tr.cart_item > .product-name > a{
+                grid-area:title !important;
+                display:block !important;
+                width:100% !important;
+                max-width:100% !important;
+                white-space:normal !important;
+                overflow:visible !important;
+                overflow-wrap:anywhere !important;
+                word-break:normal !important;
+            }
+            .rafflelb-cart-page .woocommerce-cart-form table.shop_table tr.cart_item > .product-name dl.variation{
+                grid-area:purchase !important;
+                display:grid !important;
+                grid-template-columns:max-content minmax(0,1fr) !important;
+                column-gap:7px !important;
+                row-gap:4px !important;
+                width:100% !important;
+                min-width:0 !important;
+                max-width:100% !important;
+            }
+            .rafflelb-cart-page .woocommerce-cart-form table.shop_table tr.cart_item > .product-name .wc-item-meta{
+                grid-area:purchase !important;
+                display:grid !important;
+                grid-template-columns:max-content minmax(0,1fr) !important;
+                column-gap:7px !important;
+                row-gap:4px !important;
+                width:100% !important;
+                min-width:0 !important;
+                max-width:100% !important;
+            }
+            .rafflelb-cart-page .woocommerce-cart-form table.shop_table tr.cart_item > .product-name dl.variation dt{
+                grid-column:1 !important;
+                min-width:0 !important;
+            }
+            .rafflelb-cart-page .woocommerce-cart-form table.shop_table tr.cart_item > .product-name dl.variation dd{
+                grid-column:2 !important;
+                min-width:0 !important;
+                overflow-wrap:anywhere !important;
+            }
+            .rafflelb-cart-page .woocommerce-cart-form table.shop_table tr.cart_item > .product-price{
+                grid-area:price !important;
+            }
+            .rafflelb-cart-page .woocommerce-cart-form table.shop_table tr.cart_item > .product-quantity{
+                grid-area:quantity !important;
+            }
+            .rafflelb-cart-page .woocommerce-cart-form table.shop_table tr.cart_item > .product-subtotal{
+                grid-area:subtotal !important;
+            }
+            .rafflelb-cart-page .woocommerce-cart-form table.shop_table tr.cart_item > .product-price,
+            .rafflelb-cart-page .woocommerce-cart-form table.shop_table tr.cart_item > .product-quantity,
+            .rafflelb-cart-page .woocommerce-cart-form table.shop_table tr.cart_item > .product-subtotal{
+                display:grid !important;
+                grid-template-columns:minmax(0,1fr) auto !important;
+                align-items:center !important;
+                width:100% !important;
+                min-width:0 !important;
+                max-width:100% !important;
+                box-sizing:border-box !important;
+                text-align:left !important;
+            }
+            .rafflelb-cart-page .woocommerce-cart-form .actions{
+                display:flex !important;
+                flex-direction:column !important;
+                align-items:stretch !important;
+                width:100% !important;
+                min-width:0 !important;
+            }
+            .rafflelb-cart-page .woocommerce-cart-form button[name="update_cart"]{
+                order:1 !important;
+                width:100% !important;
+                max-width:100% !important;
+            }
+            .rafflelb-cart-page .woocommerce-cart-form .coupon{
+                order:2 !important;
+                display:grid !important;
+                grid-template-columns:1fr !important;
+                width:100% !important;
+                min-width:0 !important;
+                max-width:100% !important;
+            }
+            .rafflelb-cart-page .woocommerce-cart-form .coupon input.input-text,
+            .rafflelb-cart-page .woocommerce-cart-form .coupon button{
+                width:100% !important;
+                min-width:0 !important;
+                max-width:100% !important;
+                box-sizing:border-box !important;
+            }
+            .rafflelb-cart-page .woocommerce-cart-form button[name="update_cart"]:disabled{
+                background:#252821 !important;
+                color:#9fa69a !important;
+                cursor:not-allowed !important;
+            }
+            .rafflelb-cart-page .woocommerce-cart-form button[name="update_cart"]:not(:disabled),
+            .rafflelb-cart-page .woocommerce-cart-form button[name="update_cart"]:not(:disabled) *,
+            .rafflelb-cart-page .woocommerce-cart-form button[name="update_cart"]:not(:disabled):hover,
+            .rafflelb-cart-page .woocommerce-cart-form button[name="update_cart"]:not(:disabled):hover *,
+            .rafflelb-cart-page .woocommerce-cart-form button[name="update_cart"]:not(:disabled):focus,
+            .rafflelb-cart-page .woocommerce-cart-form button[name="update_cart"]:not(:disabled):focus *{
+                color:#090a08 !important;
+                -webkit-text-fill-color:#090a08 !important;
+                text-shadow:none !important;
+            }
+            .rafflelb-cart-page .cart-content-wrapper > .cart-totals-section,
+            .rafflelb-cart-page .cart-content-wrapper > .cart_totals,
+            .rafflelb-cart-page .cart-content-wrapper .cart-totals-inner,
+            .rafflelb-cart-page .cart-content-wrapper .cart_totals{
+                width:100% !important;
+                min-width:0 !important;
+                max-width:100% !important;
+                box-sizing:border-box !important;
+                overflow:visible !important;
+            }
+            .rafflelb-cart-page .cart_totals table{
+                width:100% !important;
+                table-layout:fixed !important;
+            }
+            .rafflelb-cart-page .cart_totals th,
+            .rafflelb-cart-page .cart_totals td{
+                overflow-wrap:anywhere !important;
+            }
+            .rafflelb-cart-page .cart_totals .wc-proceed-to-checkout,
+            .rafflelb-cart-page .cart_totals .checkout-button{
+                width:100% !important;
+                max-width:100% !important;
+                box-sizing:border-box !important;
+                text-align:center !important;
+            }
+        }
+
+        @media not all{
+            .rafflelb-cart-page .woocommerce-cart-form table.shop_table tr.cart_item{
+                gap:10px !important;
+                padding:14px !important;
+            }
+        }
+
+        /* Authoritative mobile cart layout. The legacy phone rules above are
+           intentionally disabled; this is the only active cart-card layout
+           below the tablet breakpoint. */
+        @media(max-width:767px){
+            .rafflelb-cart-page .site-content{
+                padding:20px 0 36px !important;
+            }
+            .rafflelb-cart-page .site-content > .container,
+            .rafflelb-cart-page .main-page-wrapper .container{
+                width:calc(100% - 24px) !important;
+                max-width:none !important;
+            }
+            .rafflelb-cart-page .cart-content-wrapper{
+                display:block !important;
+                width:100% !important;
+                min-width:0 !important;
+            }
+            .rafflelb-cart-page .cart-content-wrapper > .woocommerce-cart-form,
+            .rafflelb-cart-page .cart-content-wrapper > .cart-totals-section,
+            .rafflelb-cart-page .cart-content-wrapper > .cart_totals{
+                width:100% !important;
+                min-width:0 !important;
+                max-width:100% !important;
+                margin:0 0 18px !important;
+                box-sizing:border-box !important;
+            }
+            .rafflelb-cart-page .cart-content-wrapper > .woocommerce-cart-form{
+                padding:10px !important;
+            }
+            .rafflelb-cart-page .woocommerce-cart-form table.shop_table,
+            .rafflelb-cart-page .woocommerce-cart-form table.shop_table tbody{
+                display:block !important;
+                width:100% !important;
+                min-width:0 !important;
+                max-width:100% !important;
+                margin:0 !important;
+            }
+            .rafflelb-cart-page .woocommerce-cart-form table.shop_table tr.cart_item{
+                display:grid !important;
+                grid-template-areas:
+                    "thumbnail title remove"
+                    "purchase purchase purchase"
+                    "price price price"
+                    "quantity quantity quantity"
+                    "subtotal subtotal subtotal" !important;
+                grid-template-columns:clamp(88px,26vw,100px) minmax(0,1fr) 40px !important;
+                grid-template-rows:auto !important;
+                column-gap:10px !important;
+                row-gap:16px !important;
+                width:100% !important;
+                min-width:0 !important;
+                max-width:100% !important;
+                margin:0 0 16px !important;
+                padding:14px !important;
+                box-sizing:border-box !important;
+                border:1px solid #30352d !important;
+                border-radius:16px !important;
+                background:#151713 !important;
+                overflow:visible !important;
+            }
+            .rafflelb-cart-page .woocommerce-cart-form table.shop_table tr.cart_item > td{
+                position:static !important;
+                inset:auto !important;
+                float:none !important;
+                clear:none !important;
+                transform:none !important;
+                width:auto !important;
+                min-width:0 !important;
+                max-width:100% !important;
+                margin:0 !important;
+                padding:0 !important;
+                background:transparent !important;
+            }
+            .rafflelb-cart-page .woocommerce-cart-form table.shop_table tr.cart_item > .product-thumbnail{
+                grid-area:thumbnail !important;
+                display:flex !important;
+                align-items:flex-start !important;
+                justify-content:flex-start !important;
+            }
+            .rafflelb-cart-page .woocommerce-cart-form table.shop_table tr.cart_item > .product-thumbnail img{
+                display:block !important;
+                width:clamp(88px,26vw,100px) !important;
+                height:clamp(88px,26vw,100px) !important;
+                max-width:100% !important;
+                margin:0 !important;
+                float:none !important;
+                object-fit:contain !important;
+                border-radius:12px !important;
+            }
+            .rafflelb-cart-page .woocommerce-cart-form table.shop_table tr.cart_item > .product-remove{
+                grid-area:remove !important;
+                display:flex !important;
+                align-items:flex-start !important;
+                justify-content:flex-end !important;
+                justify-self:end !important;
+            }
+            .rafflelb-cart-page .woocommerce-cart-form table.shop_table tr.cart_item > .product-remove a,
+            .rafflelb-cart-page .woocommerce-cart-form table.shop_table tr.cart_item > a.remove{
+                width:40px !important;
+                height:40px !important;
+                min-width:40px !important;
+                min-height:40px !important;
+                margin:0 !important;
+            }
+            /* The native product-name cell becomes transparent to the grid;
+               title and existing WooCommerce variation markup become the two
+               independent header rows. */
+            .rafflelb-cart-page .woocommerce-cart-form table.shop_table tr.cart_item > .product-name{
+                display:contents !important;
+            }
+            .rafflelb-cart-page .woocommerce-cart-form table.shop_table tr.cart_item > .product-name > a{
+                grid-area:title !important;
+                display:block !important;
+                align-self:start !important;
+                width:100% !important;
+                min-width:0 !important;
+                max-width:100% !important;
+                margin:0 !important;
+                color:#ffffff !important;
+                font-size:clamp(14px,4vw,16px) !important;
+                font-weight:750 !important;
+                line-height:1.28 !important;
+                white-space:normal !important;
+                overflow:visible !important;
+                overflow-wrap:anywhere !important;
+                word-break:normal !important;
+            }
+            .rafflelb-cart-page .woocommerce-cart-form table.shop_table tr.cart_item > .product-name dl.variation,
+            .rafflelb-cart-page .woocommerce-cart-form table.shop_table tr.cart_item > .product-name .wc-item-meta{
+                grid-area:purchase !important;
+                display:grid !important;
+                grid-template-columns:max-content minmax(0,1fr) !important;
+                column-gap:8px !important;
+                row-gap:4px !important;
+                width:100% !important;
+                min-width:0 !important;
+                max-width:100% !important;
+                margin:0 !important;
+                padding:0 !important;
+                color:#dfe4db !important;
+                font-size:12px !important;
+                line-height:1.45 !important;
+                overflow-wrap:anywhere !important;
+            }
+            .rafflelb-cart-page .woocommerce-cart-form table.shop_table tr.cart_item > .product-name dl.variation dt,
+            .rafflelb-cart-page .woocommerce-cart-form table.shop_table tr.cart_item > .product-name .wc-item-meta-label{
+                grid-column:1 !important;
+                color:#aeb5a6 !important;
+                font-weight:700 !important;
+                white-space:nowrap !important;
+            }
+            .rafflelb-cart-page .woocommerce-cart-form table.shop_table tr.cart_item > .product-name dl.variation dd,
+            .rafflelb-cart-page .woocommerce-cart-form table.shop_table tr.cart_item > .product-name .wc-item-meta p{
+                grid-column:2 !important;
+                min-width:0 !important;
+                margin:0 !important;
+                color:#dfe4db !important;
+                overflow-wrap:anywhere !important;
+            }
+            .rafflelb-cart-page .woocommerce-cart-form table.shop_table tr.cart_item > .product-price{
+                grid-area:price !important;
+            }
+            .rafflelb-cart-page .woocommerce-cart-form table.shop_table tr.cart_item > .product-quantity{
+                grid-area:quantity !important;
+            }
+            .rafflelb-cart-page .woocommerce-cart-form table.shop_table tr.cart_item > .product-subtotal{
+                grid-area:subtotal !important;
+            }
+            .rafflelb-cart-page .woocommerce-cart-form table.shop_table tr.cart_item > .product-price,
+            .rafflelb-cart-page .woocommerce-cart-form table.shop_table tr.cart_item > .product-quantity,
+            .rafflelb-cart-page .woocommerce-cart-form table.shop_table tr.cart_item > .product-subtotal{
+                display:grid !important;
+                grid-template-columns:minmax(0,1fr) auto !important;
+                align-items:center !important;
+                column-gap:14px !important;
+                width:100% !important;
+                min-width:0 !important;
+                max-width:100% !important;
+                margin:0 !important;
+                padding-top:14px !important;
+                box-sizing:border-box !important;
+                border-top:1px solid #292d27 !important;
+                text-align:left !important;
+            }
+            .rafflelb-cart-page .woocommerce-cart-form table.shop_table tr.cart_item > .product-price:before,
+            .rafflelb-cart-page .woocommerce-cart-form table.shop_table tr.cart_item > .product-quantity:before,
+            .rafflelb-cart-page .woocommerce-cart-form table.shop_table tr.cart_item > .product-subtotal:before{
+                margin:0 !important;
+                color:#aeb5a6 !important;
+                font-size:10px !important;
+            }
+            .rafflelb-cart-page .woocommerce-cart-form table.shop_table tr.cart_item > .product-price .amount,
+            .rafflelb-cart-page .woocommerce-cart-form table.shop_table tr.cart_item > .product-subtotal .amount{
+                font-size:18px !important;
+                line-height:1.2 !important;
+                white-space:nowrap !important;
+            }
+            .rafflelb-cart-page .woocommerce-cart-form table.shop_table tr.cart_item > .product-quantity .quantity{
+                margin:0 !important;
+                justify-self:end !important;
+            }
+            .rafflelb-cart-page .woocommerce-cart-form .actions{
+                display:flex !important;
+                flex-direction:column !important;
+                align-items:stretch !important;
+                gap:12px !important;
+                width:100% !important;
+                min-width:0 !important;
+                margin:20px 0 0 !important;
+                padding:0 !important;
+            }
+            .rafflelb-cart-page .woocommerce-cart-form button[name="update_cart"]{
+                order:1 !important;
+                width:100% !important;
+                max-width:100% !important;
+                min-height:50px !important;
+                margin:0 !important;
+                box-sizing:border-box !important;
+            }
+            .rafflelb-cart-page .woocommerce-cart-form .coupon{
+                order:2 !important;
+                display:grid !important;
+                grid-template-columns:1fr !important;
+                gap:10px !important;
+                width:100% !important;
+                min-width:0 !important;
+                max-width:100% !important;
+                margin:0 !important;
+            }
+            .rafflelb-cart-page .woocommerce-cart-form .coupon input.input-text,
+            .rafflelb-cart-page .woocommerce-cart-form .coupon button{
+                width:100% !important;
+                min-width:0 !important;
+                max-width:100% !important;
+                min-height:50px !important;
+                margin:0 !important;
+                box-sizing:border-box !important;
+            }
+            .rafflelb-cart-page .cart-content-wrapper > .cart-totals-section,
+            .rafflelb-cart-page .cart-content-wrapper > .cart_totals,
+            .rafflelb-cart-page .cart-content-wrapper .cart-totals-inner,
+            .rafflelb-cart-page .cart-content-wrapper .cart_totals{
+                width:100% !important;
+                min-width:0 !important;
+                max-width:100% !important;
+                margin:0 !important;
+                padding:20px 16px !important;
+                box-sizing:border-box !important;
+                overflow:visible !important;
+            }
+            .rafflelb-cart-page .cart_totals table{
+                width:100% !important;
+                table-layout:fixed !important;
+            }
+            .rafflelb-cart-page .cart_totals th,
+            .rafflelb-cart-page .cart_totals td{
+                overflow-wrap:anywhere !important;
+            }
+            .rafflelb-cart-page .cart_totals .wc-proceed-to-checkout,
+            .rafflelb-cart-page .cart_totals .checkout-button{
+                width:100% !important;
+                max-width:100% !important;
+                box-sizing:border-box !important;
+                text-align:center !important;
             }
         }
 
@@ -6563,7 +7448,9 @@ final class RaffleLB_Draw_Engine {
         if(!$product instanceof WC_Product)return;
         $pid=self::draw_id($product);
         if(!$pid)return;
-        $s=self::stats($pid,true);
+        // Customer-visible availability includes every active hold, including
+        // this session's. Excluding it is only valid during reservation checks.
+        $s=self::stats($pid,false);
         if($s)echo self::render_progress($s);
     }
 
@@ -6572,7 +7459,7 @@ final class RaffleLB_Draw_Engine {
         $pid=absint($a['product_id']);
         if(!$pid){global $product;if($product instanceof WC_Product)$pid=self::draw_id($product);}
         if(!$pid)return '';
-        $s=self::stats($pid,true);
+        $s=self::stats($pid,false);
         return $s?self::render_progress($s):'';
     }
 
@@ -6720,7 +7607,7 @@ final class RaffleLB_Draw_Engine {
           <div class="rlp-counts"><div><strong><?php echo esc_html($s['claimed']); ?></strong><span>ENTRIES CLAIMED</span></div><div class="rlp-right"><strong><?php echo esc_html($s['available']); ?></strong><span>AVAILABLE NOW</span></div></div>
           <div class="rlp-bar"><span></span></div>
           <div class="rlp-foot"><span><?php echo esc_html($s['left']); ?> left total</span><strong><?php echo esc_html($s['total']); ?> TOTAL ENTRIES</strong></div>
-          <?php if($s['held']>0): ?><div class="rlp-held"><?php echo esc_html($s['held']); ?> temporarily reserved in other carts</div><?php endif; ?>
+          <?php if($s['held']>0): ?><div class="rlp-held"><?php echo esc_html($s['held']); ?> temporarily reserved in carts</div><?php endif; ?>
         </div>
         <style>
         .rafflelb-live-panel{margin:18px 0 24px;padding:18px 20px;border:1px solid #2b2e29;border-radius:16px;background:linear-gradient(145deg,#1b1d1a,#101110);color:#fff}
@@ -7886,7 +8773,13 @@ body .whb-header.whb-header_231291 .rafflelb-header-points-count{font-family:Ari
 
 /* Mobile header only: replace the 115px logged-in logo cap. */
 @media (max-width:1024px) {
+  /* WoodMart keeps the desktop and mobile columns in the same row.  The
+     desktop group must not participate in mobile layout. */
+  body .whb-header.whb-header_231291 .whb-column.whb-visible-lg {
+    display:none !important;
+  }
   body .whb-header.whb-header_231291 .whb-mobile-center {
+    flex:1 1 auto !important;
     min-width:0 !important;
   }
   body .whb-header.whb-header_231291 .whb-mobile-center .wd-logo {
@@ -7908,6 +8801,15 @@ body .whb-header.whb-header_231291 .rafflelb-header-points-count{font-family:Ari
   }
   body:not(.logged-in) .whb-header.whb-header_231291 .whb-mobile-center .wd-logo img {
     max-height:68px !important;
+  }
+  body .whb-header.whb-header_231291 .whb-mobile-right {
+    display:flex !important;
+    flex:0 0 auto !important;
+    align-items:center !important;
+    gap:2px !important;
+  }
+  body .whb-header.whb-header_231291 .whb-mobile-right .rafflelb-header-points {
+    flex:0 0 auto !important;
   }
 }
 
@@ -7958,6 +8860,39 @@ body .whb-header.whb-header_231291 .wd-logo.rl-header-logo-ready img{opacity:1!i
     });
   }
 
+  /* Referral & Points owns this link and renders it in WoodMart's desktop
+     column. Move that same node into the mobile control group at the mobile
+     breakpoint; never create a second Points control. */
+  function syncMobilePoints(root){
+    var headers=[];
+    if(root && root.matches && root.matches('.whb-header_231291')) headers.push(root);
+    else headers=Array.prototype.slice.call((root || document).querySelectorAll('.whb-header_231291'));
+
+    headers.forEach(function(header){
+      var desktopRight=header.querySelector('.whb-col-right.whb-visible-lg');
+      var mobileRight=header.querySelector('.whb-mobile-right');
+      if(!desktopRight || !mobileRight) return;
+
+      var point=mobileRight.querySelector('.rafflelb-header-points') || desktopRight.querySelector('.rafflelb-header-points');
+      if(!point) return;
+
+      if(window.matchMedia('(max-width:1024px)').matches){
+        if(point.parentNode !== mobileRight){
+          point._rlHeaderPointsOrigin={parent:point.parentNode,nextSibling:point.nextSibling};
+          mobileRight.insertBefore(point,mobileRight.firstChild);
+        }
+      } else if(point._rlHeaderPointsOrigin){
+        var origin=point._rlHeaderPointsOrigin;
+        if(origin.nextSibling && origin.nextSibling.parentNode === origin.parent){
+          origin.parent.insertBefore(point,origin.nextSibling);
+        } else {
+          origin.parent.appendChild(point);
+        }
+        delete point._rlHeaderPointsOrigin;
+      }
+    });
+  }
+
   function fixMenu(root){
     (root || document).querySelectorAll('.whb-header_231291 .whb-col-left .wd-nav-header').forEach(function(menu){
       var extra=[];
@@ -7983,7 +8918,7 @@ body .whb-header.whb-header_231291 .wd-logo.rl-header-logo-ready img{opacity:1!i
     });
   }
 
-  function enhance(root){ fixLogo(root); fixIcons(root); fixMenu(root); }
+  function enhance(root){ fixLogo(root); fixIcons(root); fixMenu(root); syncMobilePoints(root); }
 
   /* Install before body/header markup is parsed. MutationObserver runs as the
      WoodMart header enters the DOM, preventing the old header from painting. */
@@ -8000,6 +8935,9 @@ body .whb-header.whb-header_231291 .wd-logo.rl-header-logo-ready img{opacity:1!i
   if(document.readyState==='loading'){
     document.addEventListener('DOMContentLoaded',function(){enhance(document); setTimeout(function(){observer.disconnect();},0);},{once:true});
   } else { enhance(document); observer.disconnect(); }
+  var mobileHeaderMedia=window.matchMedia('(max-width:1024px)');
+  if(typeof mobileHeaderMedia.addEventListener==='function') mobileHeaderMedia.addEventListener('change',function(){syncMobilePoints(document);});
+  else if(typeof mobileHeaderMedia.addListener==='function') mobileHeaderMedia.addListener(function(){syncMobilePoints(document);});
 })();
 </script>
 <?php }, 1);

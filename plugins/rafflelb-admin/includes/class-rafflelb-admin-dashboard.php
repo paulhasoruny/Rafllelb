@@ -185,18 +185,20 @@ final class RaffleLB_Admin_Dashboard {
                 $total = absint(get_post_meta($id, '_rafflelb_total_entries', true));
                 $sold = (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$entries} WHERE product_id=%d AND status='active'", $id));
                 $reserved = (int) $wpdb->get_var($wpdb->prepare("SELECT COALESCE(SUM(quantity), 0) FROM {$holds} WHERE product_id=%d AND expires_at >= %s", $id, current_time('mysql')));
-                $status = (string) get_post_meta($id, '_rafflelb_draw_status', true);
-                $status = $status === 'ready_to_draw' ? 'Ready to draw' : 'Live';
-                $data['raffles'][] = array('id' => $id, 'title' => get_the_title($id), 'image' => get_the_post_thumbnail_url($id, 'thumbnail'), 'sold' => $sold, 'total' => $total, 'reserved' => $reserved, 'status' => $status);
+                $status_key = (string) get_post_meta($id, '_rafflelb_draw_status', true);
+                $status = $status_key === 'ready_to_draw' ? 'Ready to draw' : 'Live';
+                $data['raffles'][] = array('id' => $id, 'title' => get_the_title($id), 'image' => get_the_post_thumbnail_url($id, 'thumbnail'), 'sold' => $sold, 'total' => $total, 'reserved' => $reserved, 'status_key' => $status_key, 'status' => $status);
                 if ($total > 0 && $sold < $total && ($sold / $total) >= .9) $data['alerts'][] = array('label' => get_the_title($id) . ' is over 90% filled', 'url' => add_query_arg(array('page' => 'rafflelb-raffles', 'action' => 'view', 'id' => $id), admin_url('admin.php')), 'type' => 'Fill level');
                 if ($status === 'Ready to draw') $data['alerts'][] = array('label' => get_the_title($id) . ' is ready for winner selection', 'url' => add_query_arg(array('page' => 'rafflelb-raffles', 'action' => 'view', 'id' => $id), admin_url('admin.php')), 'type' => 'Draw');
             }
-            $winner_rows = $wpdb->get_results("SELECT product_id, user_id, order_id, selected_at FROM {$results} ORDER BY selected_at DESC LIMIT 5");
+            $data['kpis']['awaiting_fulfillment'] = (int) $wpdb->get_var("SELECT COUNT(*) FROM {$results} WHERE COALESCE(fulfillment_status, 'pending') <> 'fulfilled'");
+            $winner_rows = $wpdb->get_results("SELECT product_id, user_id, order_id, selected_at, fulfillment_status FROM {$results} ORDER BY selected_at DESC LIMIT 5");
             foreach ((array) $winner_rows as $row) {
                 $user = $row->user_id ? get_user_by('id', $row->user_id) : false;
                 $order = function_exists('wc_get_order') ? wc_get_order($row->order_id) : false;
                 $name = $user ? $user->display_name : ($order ? trim($order->get_formatted_billing_full_name()) : __('Guest', 'rafflelb-admin'));
-                $data['winners'][] = array('title' => get_the_title($row->product_id), 'winner' => $name ?: __('Guest', 'rafflelb-admin'), 'date' => $row->selected_at);
+                $data['winners'][] = array('title' => get_the_title($row->product_id), 'winner' => $name ?: __('Guest', 'rafflelb-admin'), 'date' => $row->selected_at, 'fulfillment_status' => $row->fulfillment_status);
+                if (($row->fulfillment_status ?: 'pending') !== 'fulfilled') $data['alerts'][] = array('label' => get_the_title($row->product_id) . ' requires fulfillment', 'url' => add_query_arg(array('page' => 'rafflelb-raffles', 'action' => 'view', 'id' => $row->product_id), admin_url('admin.php')), 'type' => 'Manage Fulfillment');
             }
             if ($data['kpis']['active_reservations'] > 0) $data['alerts'][] = array('label' => sprintf(__('%d active cart reservation(s) need monitoring', 'rafflelb-admin'), $data['kpis']['active_reservations']), 'url' => self::urls()['cart_manager'], 'type' => 'Reservations');
         }
@@ -272,16 +274,14 @@ final class RaffleLB_Admin_Dashboard {
         echo '<a class="rlad-button secondary" href="' . esc_url(home_url('/')) . '" target="_blank" rel="noopener">' . esc_html__('View Website', 'rafflelb-admin') . '</a>';
         echo '<a class="rlad-button primary" href="' . esc_url($urls['create_raffle']) . '">' . esc_html__('Create Raffle', 'rafflelb-admin') . '</a></div></header>';
 
-        echo '<section class="rlad-panel rlad-overview rlad-collapsible" data-rlad-section="overview">';
-        self::collapsible_head(__('Overview', 'rafflelb-admin'));
-        echo '<div class="rlad-collapse-body"><div class="rlad-kpis">';
+        echo '<section class="rlad-control-kpis" aria-label="Operational metrics"><div class="rlad-kpis">';
         self::metric(__('Active Raffles', 'rafflelb-admin'), $data['kpis']['active_raffles']);
+        self::metric(__('Ready to Draw', 'rafflelb-admin'), count(array_filter($data['raffles'], function($r){ return isset($r['status_key']) && $r['status_key'] === 'ready_to_draw'; }))); 
         self::metric($metric_labels['entries'], $data['kpis']['entries_today']);
         self::metric($metric_labels['revenue'], $data['kpis']['revenue_today'], 'money');
         self::metric(__('Active Reservations', 'rafflelb-admin'), $data['kpis']['active_reservations']);
-        self::metric($metric_labels['orders'], $data['kpis']['orders_today']);
-        self::metric($metric_labels['customers'], $data['kpis']['new_customers']);
-        echo '</div></div></section>';
+        self::metric(__('Awaiting Fulfillment', 'rafflelb-admin'), $data['kpis']['awaiting_fulfillment'] ?? 0); 
+        echo '</div></section>';
 
         self::section(
             __('Needs Attention', 'rafflelb-admin'),
@@ -308,7 +308,7 @@ final class RaffleLB_Admin_Dashboard {
         }
         echo '</div></section>';
 
-        echo '<div class="rlad-grid">';
+        echo '<div class="rlad-grid rlad-operations-grid">';
         self::panel_reservations($data['reservations'], $urls['cart_manager']);
         self::panel_orders($data['orders'], $urls['orders']);
         self::panel_winners($data['winners'], $urls['raffles']);

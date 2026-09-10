@@ -167,7 +167,9 @@ final class RaffleLB_Admin_Navigation {
         return array(
             'raffles' => self::find_destination(array('Raffles', 'All Raffles')) ?: 'admin.php?page=rafflelb-raffles',
             'orders' => self::find_destination(array('Orders'), $woo) ?: 'admin.php?page=wc-orders',
-            'products' => 'edit.php?post_type=product',
+            // Product Studio is optional. Keep the established WooCommerce route
+            // when its owning plugin is inactive so navigation never fatals.
+            'products' => class_exists('RaffleLB_Products') ? 'admin.php?page=rafflelb-products' : 'edit.php?post_type=product',
             'cart_manager' => self::find_destination(array('Cart Manager', 'RaffleLB Cart Manager')) ?: 'admin.php?page=rafflelb-cart-manager',
             'customers' => 'users.php',
             'reviews' => self::find_destination(array('RaffleLB Reviews', 'Product Reviews', 'Reviews'), $woo) ?: 'edit.php?post_type=product&page=product-reviews',

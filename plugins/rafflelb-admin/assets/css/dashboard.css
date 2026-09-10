@@ -57,3 +57,6 @@ body.rafflelb-admin-mode .rlad a.rlad-button.primary:focus{
 .rlad-collapsible.is-collapsed > .rlad-collapse-body{display:none}
 .rlad-collapsible.is-collapsed > .rlad-panel-head{border-bottom:0}
 .rlad-collapsible.is-collapsed{margin-bottom:12px}
+
+/* v1.0.8 — Phase 1 operations control-center polish. */
+body.rafflelb-admin-mode #wpcontent{background:#090a08}body.rafflelb-admin-mode .rlad{max-width:1540px}.rlad-header{border-bottom:1px solid var(--rl-border)}.rlad-kpi{box-shadow:0 10px 24px rgba(0,0,0,.12)}.rlad-kpi:hover,.rlad-panel:hover{border-color:#46513f}.rlad-table tr:hover td{background:#161a14}.rlad-table td:last-child{text-align:right}.rlad-table a:focus,.rlad-button:focus{outline:2px solid var(--rl-lime);outline-offset:2px}.rlad-progress{width:min(100%,160px)}

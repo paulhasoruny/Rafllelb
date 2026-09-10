@@ -2,13 +2,14 @@
 /**
  * Plugin Name: RaffleLB Shop
  * Description: Existing RaffleLB catalog and product presentation with reversible Draw Engine delegation.
- * Version: 0.1.43
+ * Version: 0.1.88
  * Author: RaffleLB
  * Requires PHP: 7.4
  */
 if (!defined('ABSPATH')) { exit; }
+require_once plugin_dir_path(__FILE__) . 'includes/class-rafflelb-store-only-renderer.php';
 final class RaffleLB_Shop {
-    const VERSION = '0.1.43';
+    const VERSION = '0.1.88';
     public static function ready() {
         return class_exists('RaffleLB\\Core\\Contracts')
             && version_compare(\RaffleLB\Core\Contracts::VERSION, '0.1.0', '>=')
@@ -178,7 +179,7 @@ final class RaffleLB_Shop {
         foreach ($ids as $pid) {
             $product = wc_get_product($pid);
             if (!$product || !$product->is_visible()) continue;
-            $stats = RaffleLB_Draw_Engine::shop_bridge_stats(RaffleLB_Draw_Engine::shop_bridge_draw_id($product), true);
+            $stats = RaffleLB_Draw_Engine::shop_bridge_stats(RaffleLB_Draw_Engine::shop_bridge_draw_id($product), false);
             if (!$stats || (string)$stats['status'] !== 'live' || absint($stats['available']) < 1) continue;
 
             $terms = get_the_terms($pid, 'product_cat');
@@ -263,23 +264,21 @@ final class RaffleLB_Shop {
         <?php return ob_get_clean();
     }
 
+    private static function current_product($candidate = null) {
+        if ($candidate instanceof WC_Product) return $candidate;
+        $queried_id = function_exists('get_queried_object_id') ? (int) get_queried_object_id() : 0;
+        if ($queried_id > 0 && get_post_type($queried_id) === 'product') {
+            $resolved = wc_get_product($queried_id);
+            if ($resolved instanceof WC_Product) return $resolved;
+        }
+        global $product;
+        return $product instanceof WC_Product ? $product : null;
+    }
+
     public static function is_raffle_product($product = null) {
-        // Product objects are not always available yet when WordPress builds
-        // body classes or prints wp_head. Fall back to the queried product ID
-        // so the raffle layout is applied reliably on every single product page.
-        if (!$product instanceof WC_Product) {
-            $queried_id = function_exists('get_queried_object_id') ? (int) get_queried_object_id() : 0;
-            if ($queried_id > 0 && get_post_type($queried_id) === 'product') {
-                $product = wc_get_product($queried_id);
-            }
-        }
-
-        if (!$product instanceof WC_Product) {
-            global $product;
-            if (!$product instanceof WC_Product) return false;
-        }
-
-        return get_post_meta($product->get_id(), \RaffleLB\Core\Contracts::META_ENABLED, true) === 'yes';
+        $product = self::current_product($product);
+        return $product instanceof WC_Product
+            && get_post_meta($product->get_id(), \RaffleLB\Core\Contracts::META_ENABLED, true) === 'yes';
     }
 
     public static function cart_button_text($text) {
@@ -292,9 +291,13 @@ final class RaffleLB_Shop {
 
     public static function raffle_product_body_class($classes) {
         if (function_exists('is_product') && is_product()) {
-            global $product;
+            $product = self::current_product();
+            if (!$product instanceof WC_Product) return $classes;
             if (self::is_raffle_product($product)) {
                 $classes[] = 'rafflelb-raffle-product';
+            } else {
+                /* Store Only remains outside the raffle contract. */
+                $classes[] = 'rafflelb-store-product';
             }
         }
         return $classes;
@@ -310,8 +313,9 @@ final class RaffleLB_Shop {
             return $price_html;
         }
 
-        $is_raffle = self::is_raffle_product($product);
-        $retail = RaffleLB_Draw_Engine::shop_bridge_buy_now_price($product);
+        $product_mode = self::shop_product_mode($product);
+        $is_raffle = $product_mode !== 'retail';
+        $retail = $product_mode === 'both' ? RaffleLB_Draw_Engine::shop_bridge_buy_now_price($product) : 0;
         $entry  = (float) wc_get_price_to_display($product);
 
         /* On the single raffle product page the two purchase routes are already
@@ -326,7 +330,9 @@ final class RaffleLB_Shop {
             if ($retail > 0) {
                 return '<div class="rl-shop-prices is-retail-only"><div class="rl-shop-price-main"><small>RETAIL PRICE</small><strong>' . wp_kses_post(wc_price($retail)) . '</strong></div></div>';
             }
-            return $price_html;
+            /* Genuine Store Only products share the exact Store-mode card
+             * presentation, while retaining their native WooCommerce price. */
+            return '<div class="rl-shop-prices is-retail-only"><div class="rl-shop-price-main"><small>RETAIL PRICE</small><strong>' . wp_kses_post(wc_price($product->get_price())) . '</strong></div></div>';
         }
 
         if ($mode === 'raffle') {
@@ -355,7 +361,7 @@ final class RaffleLB_Shop {
     }
 
     public static function raffle_quantity_label() {
-        global $product;
+        $product = self::current_product();
         if (!self::is_raffle_product($product)) return;
         echo '<div class="rl-entry-label">SELECT NUMBER OF ENTRIES</div>';
     }
@@ -379,10 +385,41 @@ final class RaffleLB_Shop {
         return self::$early_style_printed;
     }
 
+    /* Store Only uses a Shop-owned WooCommerce template, not browser-side DOM relocation. */
+    public static function store_only_template_part($template, $slug, $name) {
+        if (!function_exists('is_product') || !is_product() || $slug !== 'content' || $name !== 'single-product') return $template;
+        $product = self::current_product();
+        if (!$product instanceof WC_Product || self::is_raffle_product($product)) return $template;
+        $store_template = plugin_dir_path(__FILE__) . 'templates/content-single-product-store.php';
+        return file_exists($store_template) ? $store_template : $template;
+    }
+
+    public static function store_only_product_head() {
+        if (!function_exists('is_product') || !is_product()) return;
+        $product = self::current_product();
+        if (!$product instanceof WC_Product || self::is_raffle_product($product)) return;
+        /* Store Only now consumes the shared RaffleLB component stylesheet.
+         * The former Store-specific layout below is deliberately unreachable:
+         * its selector classes are no longer emitted by the renderer. */
+        $css_url = plugins_url('assets/single-product.css', __FILE__) . '?ver=' . rawurlencode(self::VERSION);
+        self::$early_style_printed = true;
+        echo '<link rel="stylesheet" id="rafflelb-store-only-shared-product-css" href="' . esc_url($css_url) . '" media="all" data-no-optimize="1" data-noptimize="1" data-no-defer="1" data-no-minify="1" data-wpr-nooptimize="1">';
+        echo '<link rel="stylesheet" id="rafflelb-store-product-css" href="' . esc_url(plugins_url('assets/store-product.css', __FILE__) . '?ver=' . rawurlencode(self::VERSION)) . '" media="all" data-no-optimize="1" data-noptimize="1">';
+    }
+
+    public static function raffle_price_visibility_css() {
+        if (!function_exists('is_product') || !is_product() || !self::is_raffle_product()) return;
+        echo '<style id="rafflelb-raffle-price-visibility">body.rafflelb-raffle-product .rl-raffle-secondary-intro p b,body.rafflelb-raffle-product .rl-raffle-secondary-intro p b *,body.rafflelb-raffle-product .rl-raffle-secondary-intro p b .woocommerce-Price-amount,body.rafflelb-raffle-product .rl-raffle-secondary-intro p b .woocommerce-Price-currencySymbol{color:#baff00!important;opacity:1!important;visibility:visible!important;text-shadow:none!important}</style>';
+    }
+
+    public static function store_only_add_to_cart_text($text) {
+        return function_exists('is_product') && is_product() && !self::is_raffle_product() ? 'BUY NOW →' : $text;
+    }
+
     public static function product_layout_bootstrap() {
         if (!function_exists('is_product') || !is_product()) return;
-        global $product;
-        if (!self::is_raffle_product($product)) return;
+        $product = self::current_product();
+        if (!$product instanceof WC_Product || !self::is_raffle_product($product)) return;
 
         /*
          * The layout stylesheet is printed here, ahead of every theme and
@@ -398,11 +435,11 @@ final class RaffleLB_Shop {
         ?>
         <link rel="stylesheet" id="rafflelb-single-product-early-css" href="<?php echo esc_url($css_url); ?>" media="all" data-no-optimize="1" data-noptimize="1" data-no-defer="1" data-no-minify="1" data-wpr-nooptimize="1">
         <style id="rafflelb-product-first-paint" data-no-optimize="1" data-noptimize="1" data-no-minify="1" data-wpr-nooptimize="1">
-        html,body.rafflelb-raffle-product{background:#080b09!important}
-        body.single-product.rafflelb-raffle-product .main-page-wrapper,
-        body.single-product.rafflelb-raffle-product .site-content,
-        body.single-product.rafflelb-raffle-product .product-image-summary-wrap,
-        body.single-product.rafflelb-raffle-product .product-image-summary{background:#080b09!important}
+        html,body.rafflelb-raffle-product,html,body.rafflelb-store-product{background:#080b09!important}
+        body.single-product.rafflelb-raffle-product .main-page-wrapper,body.single-product.rafflelb-store-product .main-page-wrapper,
+        body.single-product.rafflelb-raffle-product .site-content,body.single-product.rafflelb-store-product .site-content,
+        body.single-product.rafflelb-raffle-product .product-image-summary-wrap,body.single-product.rafflelb-store-product .product-image-summary-wrap,
+        body.single-product.rafflelb-raffle-product .product-image-summary,body.single-product.rafflelb-store-product .product-image-summary{background:#080b09!important}
         /*
          * Nothing inside the product region paints until the layout is mounted
          * AND the layout stylesheet has actually applied. The guard covers the
@@ -488,7 +525,15 @@ final class RaffleLB_Shop {
                 var gallery = node(root, '.woocommerce-product-gallery, .product-images, .wd-product-gallery');
                 var galleryColumn = gallery && (gallery.closest('.product-images, .wd-product-gallery, .product-gallery') || gallery.parentElement);
                 var raffle = node(root, '.rl-raffle-option-card');
-                if (!root || !host || !panel || !summary || !galleryColumn || !raffle) return false;
+                /*
+                 * A raffle entry card exists only while the draw can still be
+                 * entered. Ready-to-draw and winner-selected products
+                 * intentionally omit it, but they still need the exact same
+                 * two-column Shop composition. Treat the card as an optional
+                 * action panel; gallery, summary and Product Details are the
+                 * structural requirements.
+                 */
+                if (!root || !host || !panel || !summary || !galleryColumn) return false;
 
                 var layout = node(root, '.rl-product-layout');
                 var breadcrumbs = node(host, '.woocommerce-breadcrumb, .breadcrumbs, .woodmart-breadcrumbs');
@@ -506,12 +551,19 @@ final class RaffleLB_Shop {
                 }
                 if (breadcrumbs && breadcrumbRow && breadcrumbs.parentElement !== breadcrumbRow) breadcrumbRow.appendChild(breadcrumbs);
 
+                /*
+                 * Completed/ready-to-draw states intentionally have no live
+                 * raffle entry card. Give those states a narrower gallery
+                 * column so the result/title side becomes the visual focus.
+                 */
+                layout.classList.toggle('rl-product-layout-no-entry', !raffle);
+
                 var mobile = media && media.matches;
                 if (mobile) {
                     /* Real mobile DOM order: gallery, summary, raffle, details. */
                     move(layout, galleryColumn);
                     move(layout, summary);
-                    move(layout, raffle);
+                    if (raffle) move(layout, raffle);
                     move(layout, panel);
                     if (left && !left.childNodes.length) left.remove();
                     if (right && !right.childNodes.length) right.remove();
@@ -530,7 +582,7 @@ final class RaffleLB_Shop {
                     move(left, galleryColumn);
                     move(left, panel);
                     move(right, summary);
-                    move(right, raffle);
+                    if (raffle) move(right, raffle);
                     layout.dataset.rlMode = 'desktop';
                 }
 
@@ -582,7 +634,7 @@ final class RaffleLB_Shop {
     public static function product_details_panel() {
         global $product;
 
-        if (!self::is_raffle_product($product)) return;
+        if (!$product instanceof WC_Product) return;
 
         $brand = '';
         $brand_candidates = ['pa_brands', 'pa_brand', 'brand'];
@@ -660,7 +712,7 @@ final class RaffleLB_Shop {
 
             echo '<div class="rl-product-retail-notes">';
                 echo '<span>✓ Authentic product</span>';
-                if (RaffleLB_Draw_Engine::shop_bridge_buy_now_enabled($product) && !RaffleLB_Draw_Engine::shop_bridge_is_draw_closed($product)) {
+                if (self::is_raffle_product($product) && RaffleLB_Draw_Engine::shop_bridge_buy_now_enabled($product) && !RaffleLB_Draw_Engine::shop_bridge_is_draw_closed($product)) {
                     echo '<span>✓ Standard direct-purchase option available</span>';
                 }
             echo '</div>';
@@ -720,7 +772,6 @@ final class RaffleLB_Shop {
         global $product;
         if (!self::is_raffle_product($product)) return;
         if (RaffleLB_Draw_Engine::shop_bridge_is_draw_closed($product)) return;
-        if (!RaffleLB_Draw_Engine::shop_bridge_buy_now_enabled($product)) return;
 
         echo '<section class="rl-raffle-option-card" aria-label="Enter the raffle">';
         echo '<div class="rl-raffle-option-head">';
@@ -734,7 +785,6 @@ final class RaffleLB_Shop {
         global $product;
         if (!self::is_raffle_product($product)) return;
         if (RaffleLB_Draw_Engine::shop_bridge_is_draw_closed($product)) return;
-        if (!RaffleLB_Draw_Engine::shop_bridge_buy_now_enabled($product)) return;
 
         echo '</section>';
     }
@@ -743,13 +793,10 @@ final class RaffleLB_Shop {
         global $product;
         if (!self::is_raffle_product($product)) return;
         if (RaffleLB_Draw_Engine::shop_bridge_is_draw_closed($product)) return;
-        if (!RaffleLB_Draw_Engine::shop_bridge_buy_now_enabled($product)) return;
 
-        $entry_price = (float) $product->get_price();
         echo '<div class="rl-raffle-secondary-intro">';
-            if ($entry_price > 0) {
-                $formatted = rtrim(rtrim(number_format($entry_price, 2, '.', ''), '0'), '.');
-                echo '<p>Get a chance to win this product for <b>' . esc_html(get_woocommerce_currency_symbol() . $formatted) . ' per entry</b>.</p>';
+            if ((float) $product->get_price() > 0) {
+                echo '<p>Get a chance to win this product for <b>' . wp_kses_post(wc_price((float) $product->get_price())) . ' per entry</b>.</p>';
             }
         echo '</div>';
     }
@@ -758,9 +805,9 @@ final class RaffleLB_Shop {
         global $product;
         if (!self::is_raffle_product($product)) return;
         if (RaffleLB_Draw_Engine::shop_bridge_is_draw_closed($product)) return;
-        if (!RaffleLB_Draw_Engine::shop_bridge_buy_now_enabled($product)) return;
-
-        $price = RaffleLB_Draw_Engine::shop_bridge_buy_now_price($product);
+        $enabled = get_post_meta($product->get_id(), '_rafflelb_buy_now_enabled', true) === 'yes';
+        $price = (float) get_post_meta($product->get_id(), '_rafflelb_buy_now_price', true);
+        if (!$enabled) return;
         if ($price <= 0) return;
 
         $action = get_permalink($product->get_id());
@@ -834,7 +881,6 @@ final class RaffleLB_Shop {
         echo '<div class="rl-product-meta-row"><span class="rl-stock-badge' . ($product->is_in_stock() ? ' is-in-stock' : ' is-out-of-stock') . '"><i aria-hidden="true"></i>' . esc_html($product->is_in_stock() ? 'IN STOCK' : 'OUT OF STOCK') . '</span>';
         if ($classes) echo '<span class="rl-product-classification">' . esc_html(implode(' / ', array_filter($classes))) . '</span>';
         echo '</div>';
-
         $short = trim((string) $product->get_short_description());
         if ($short === '') return;
 
@@ -870,36 +916,36 @@ final class RaffleLB_Shop {
                     <div class="rl-raffle-detail-col">
                         <h3>PRIZE</h3>
                         <p><strong><?php echo esc_html($title); ?></strong></p>
-                        <ol>
+                        <ul class="rl-raffle-detail-list" role="list">
                             <li>Condition: Brand New</li>
                             <li>Authenticity: 100% Authentic</li>
-                        </ol>
+                        </ul>
                     </div>
 
                     <div class="rl-raffle-detail-col">
                         <h3>HOW IT WORKS</h3>
-                        <ol>
+                        <ul class="rl-raffle-detail-list" role="list">
                             <li>Choose the number of entries you want.</li>
                             <li>Complete your order.</li>
                             <li>Your unique raffle entries are assigned automatically.</li>
                             <li>Follow the raffle from My Raffles.</li>
-                        </ol>
+                        </ul>
                     </div>
 
                     <div class="rl-raffle-detail-col">
                         <h3>WINNER</h3>
-                        <ol>
+                        <ul class="rl-raffle-detail-list" role="list">
                             <li>The winner is selected according to the RaffleLB draw process once the raffle closes.</li>
                             <li>The verified result is published on the Winners page.</li>
-                        </ol>
+                        </ul>
                     </div>
 
                     <div class="rl-raffle-detail-col">
                         <h3>IMPORTANT</h3>
-                        <ol>
+                        <ul class="rl-raffle-detail-list" role="list">
                             <li>Review the raffle details and draw terms before entering.</li>
                             <li>Entries are recorded to your RaffleLB account after a successful order.</li>
-                        </ol>
+                        </ul>
                     </div>
                 </div>
             </div>
@@ -939,13 +985,7 @@ final class RaffleLB_Shop {
         if (!$post_id || get_post_type($post_id) !== 'product') return $classes;
 
         $mode = self::shop_view_mode();
-        $is_raffle = get_post_meta($post_id, \RaffleLB\Core\Contracts::META_ENABLED, true) === 'yes';
-        $has_retail = get_post_meta($post_id, \RaffleLB\Core\Contracts::META_BUY_NOW_ENABLED, true) === 'yes'
-            && (float) get_post_meta($post_id, \RaffleLB\Core\Contracts::META_BUY_NOW_PRICE, true) > 0;
-
-        if (($mode === 'raffle' && $is_raffle)
-            || ($mode === 'retail' && $has_retail)
-            || ($mode === 'both' && $is_raffle && $has_retail)) {
+        if (self::shop_mode_includes_product($mode, self::shop_product_mode($post_id))) {
             $classes[] = 'rl-raffle-card';
         }
         return $classes;
@@ -999,6 +1039,116 @@ final class RaffleLB_Shop {
         return in_array($mode, ['both', 'retail', 'raffle'], true) ? $mode : 'both';
     }
 
+    /**
+     * Shopping Mode is intentionally a document navigation, never an AJAX
+     * catalog refresh. Print this in the head so its capturing listener is
+     * registered before WoodMart's delegated Shop handlers.
+     */
+    public static function shop_mode_navigation_guard() {
+        if (!self::shop_query_is_catalog()) return;
+        ?>
+        <script id="rafflelb-shop-mode-navigation-guard">
+        (function(){
+            document.addEventListener('click', function(event){
+                var link = event.target && event.target.closest ? event.target.closest('.rl-shop-view-mode') : null;
+                if (!link || !link.href) return;
+
+                // Preserve the browser's normal new-tab/window behavior for
+                // explicitly modified clicks. A standard activation below is
+                // always one full GET navigation.
+                if (event.button && event.button !== 0) return;
+                if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+
+                event.preventDefault();
+                event.stopPropagation();
+                event.stopImmediatePropagation();
+
+                try {
+                    // Mode switching is read-only catalogue navigation. The
+                    // generated mode URLs contain none of these keys; deleting
+                    // them defensively ensures a stale/mutated link can never
+                    // become a WooCommerce cart request.
+                    var destination = new URL(link.href, window.location.href);
+                    ['add-to-cart', 'rafflelb_purchase_mode', 'quantity'].forEach(function(key){
+                        destination.searchParams.delete(key);
+                    });
+
+                    try {
+                        window.sessionStorage.setItem('rafflelb_shop_return_v03324', JSON.stringify({
+                            openFilters: false,
+                            ts: Date.now()
+                        }));
+                    } catch (ignore) {}
+
+                    window.location.assign(destination.href);
+                } catch (ignore) {
+                    // The href is emitted by WordPress. This fallback retains
+                    // the same full-page browser navigation if URL parsing is
+                    // unavailable in an older browser.
+                    window.location.assign(link.href);
+                }
+            }, true);
+        })();
+        </script>
+        <?php
+    }
+
+    /* Product type is distinct from the overlapping customer shopping views. */
+    private static function shop_product_mode($product) {
+        $product_id = $product instanceof WC_Product ? $product->get_id() : absint($product);
+        if (!$product_id) return '';
+
+        $raffle_enabled = get_post_meta($product_id, \RaffleLB\Core\Contracts::META_ENABLED, true) === 'yes';
+        if (!$raffle_enabled) return 'retail';
+
+        $buy_now_enabled = get_post_meta($product_id, \RaffleLB\Core\Contracts::META_BUY_NOW_ENABLED, true) === 'yes';
+        $buy_now_price = (float) get_post_meta($product_id, \RaffleLB\Core\Contracts::META_BUY_NOW_PRICE, true);
+        return $buy_now_enabled && $buy_now_price > 0 ? 'both' : 'raffle';
+    }
+
+    private static function shop_mode_includes_product($mode, $product_mode) {
+        if ($mode === 'retail') return $product_mode === 'retail' || $product_mode === 'both';
+        if ($mode === 'raffle') return $product_mode === 'raffle' || $product_mode === 'both';
+        return $product_mode === 'both';
+    }
+
+    private static function shop_mode_meta_query($mode) {
+        if ($mode === 'retail') {
+            /* Store mode is applied by shop_store_catalog_clauses(). A nested
+             * WP_Meta_Query here creates several self-joins on postmeta and
+             * is prohibitively expensive on a live catalogue. */
+            return [];
+        }
+
+        if ($mode === 'raffle') {
+            return [
+                'key'     => \RaffleLB\Core\Contracts::META_ENABLED,
+                'value'   => 'yes',
+                'compare' => '=',
+            ];
+        }
+
+        return [
+            'relation' => 'AND',
+            [
+                'key'     => \RaffleLB\Core\Contracts::META_ENABLED,
+                'value'   => 'yes',
+                'compare' => '=',
+            ],
+            [
+                'key'     => \RaffleLB\Core\Contracts::META_BUY_NOW_ENABLED,
+                'value'   => 'yes',
+                'compare' => '=',
+            ],
+            [
+                'key'     => \RaffleLB\Core\Contracts::META_BUY_NOW_PRICE,
+                'value'   => 0,
+                'type'    => 'NUMERIC',
+                'compare' => '>',
+            ],
+        ];
+    }
+
     public static function shop_mode_url($mode) {
         $mode = in_array($mode, ['both', 'retail', 'raffle'], true) ? $mode : 'both';
         $request_uri = isset($_SERVER['REQUEST_URI']) ? wp_unslash($_SERVER['REQUEST_URI']) : '/shop/';
@@ -1042,63 +1192,94 @@ final class RaffleLB_Shop {
         $meta_query = $query->get('meta_query');
         if (!is_array($meta_query)) $meta_query = [];
 
-        // Three catalogue views share the same Store archive:
-        // both   = direct-purchase products that also have a raffle route
-        // retail = the same direct-purchase products with raffle UI hidden
-        // raffle = all products configured as raffle products
-        if ($mode === 'raffle') {
-            $meta_query[] = [
-                'key'     => \RaffleLB\Core\Contracts::META_ENABLED,
-                'value'   => 'yes',
-                'compare' => '=',
-            ];
+        if ($mode === 'retail') {
+            $query->set('rafflelb_store_catalog_scope', true);
         } else {
-            // The current Buy It Now system is attached to raffle-enabled
-            // products, so both combined and retail-only presentation modes
-            // stay within that same product set.
+            $meta_query[] = self::shop_mode_meta_query($mode);
+            /* Keep winner-selected raffles out of catalogue browsing, while a
+             * genuine Store Only product stays visible even if legacy draw meta
+             * happens to exist on it. */
             $meta_query[] = [
-                'key'     => \RaffleLB\Core\Contracts::META_ENABLED,
-                'value'   => 'yes',
-                'compare' => '=',
-            ];
-            $meta_query[] = [
-                'key'     => \RaffleLB\Core\Contracts::META_BUY_NOW_ENABLED,
-                'value'   => 'yes',
-                'compare' => '=',
-            ];
-            $meta_query[] = [
-                'key'     => \RaffleLB\Core\Contracts::META_BUY_NOW_PRICE,
-                'value'   => 0,
-                'type'    => 'NUMERIC',
-                'compare' => '>',
+                'relation' => 'OR',
+                [
+                    'key'     => \RaffleLB\Core\Contracts::META_ENABLED,
+                    'compare' => 'NOT EXISTS',
+                ],
+                [
+                    'key'     => \RaffleLB\Core\Contracts::META_ENABLED,
+                    'value'   => 'yes',
+                    'compare' => '!=',
+                ],
+                [
+                    'key'     => \RaffleLB\Core\Contracts::META_DRAW_STATUS,
+                    'compare' => 'NOT EXISTS',
+                ],
+                [
+                    'key'     => \RaffleLB\Core\Contracts::META_DRAW_STATUS,
+                    'value'   => 'winner_selected',
+                    'compare' => '!=',
+                ],
             ];
         }
-
-        // Once a raffle's winner has been permanently recorded, it no longer
-        // belongs on the Store grid in any view mode - raffle, retail, or
-        // both. It stays reachable directly (product URL, Winners page);
-        // this only removes it from catalogue/category browsing.
-        $meta_query[] = [
-            'relation' => 'OR',
-            [
-                'key'     => \RaffleLB\Core\Contracts::META_DRAW_STATUS,
-                'compare' => 'NOT EXISTS',
-            ],
-            [
-                'key'     => \RaffleLB\Core\Contracts::META_DRAW_STATUS,
-                'value'   => 'winner_selected',
-                'compare' => '!=',
-            ],
-        ];
 
         $query->set('meta_query', $meta_query);
 
         $orderby = isset($_GET['orderby']) ? sanitize_key(wp_unslash($_GET['orderby'])) : sanitize_key((string)$query->get('orderby'));
-        if ($mode !== 'raffle' && ($orderby === 'rl_retail_asc' || $orderby === 'rl_retail_desc')) {
-            $query->set('meta_key', \RaffleLB\Core\Contracts::META_BUY_NOW_PRICE);
-            $query->set('orderby', 'meta_value_num');
-            $query->set('order', $orderby === 'rl_retail_asc' ? 'ASC' : 'DESC');
+        if (($mode === 'both' || $mode === 'retail') && ($orderby === 'rl_retail_asc' || $orderby === 'rl_retail_desc')) {
+            $query->set('rafflelb_effective_retail_order', $orderby === 'rl_retail_asc' ? 'ASC' : 'DESC');
         }
+    }
+
+    /**
+     * Store mode is Store Only plus Store & Raffle. Correlated subqueries keep
+     * each meta lookup constrained by post_id and meta_key, avoiding the large
+     * multi-alias WP_Meta_Query generated by the former OR tree.
+     */
+    public static function shop_store_catalog_clauses($clauses, $query) {
+        if (!$query instanceof WP_Query || !$query->is_main_query()) return $clauses;
+        if (!self::shop_query_is_catalog($query) || !$query->get('rafflelb_store_catalog_scope')) return $clauses;
+        if (strpos((string) ($clauses['where'] ?? ''), 'rafflelb_store_catalog_scope') !== false) return $clauses;
+
+        global $wpdb;
+        $enabled = \RaffleLB\Core\Contracts::META_ENABLED;
+        $buy_enabled = \RaffleLB\Core\Contracts::META_BUY_NOW_ENABLED;
+        $buy_price = \RaffleLB\Core\Contracts::META_BUY_NOW_PRICE;
+        $draw_status = \RaffleLB\Core\Contracts::META_DRAW_STATUS;
+        $id = "{$wpdb->posts}.ID";
+
+        $is_raffle = $wpdb->prepare(
+            "EXISTS (SELECT 1 FROM {$wpdb->postmeta} rl_store_draw WHERE rl_store_draw.post_id = {$id} AND rl_store_draw.meta_key = %s AND rl_store_draw.meta_value = 'yes')",
+            $enabled
+        );
+        $is_buyable_raffle = $wpdb->prepare(
+            "EXISTS (SELECT 1 FROM {$wpdb->postmeta} rl_store_buy_enabled WHERE rl_store_buy_enabled.post_id = {$id} AND rl_store_buy_enabled.meta_key = %s AND rl_store_buy_enabled.meta_value = 'yes')
+             AND EXISTS (SELECT 1 FROM {$wpdb->postmeta} rl_store_buy_price WHERE rl_store_buy_price.post_id = {$id} AND rl_store_buy_price.meta_key = %s AND CAST(rl_store_buy_price.meta_value AS DECIMAL(18,4)) > 0)",
+            $buy_enabled,
+            $buy_price
+        );
+        $winner_selected = $wpdb->prepare(
+            "EXISTS (SELECT 1 FROM {$wpdb->postmeta} rl_store_winner WHERE rl_store_winner.post_id = {$id} AND rl_store_winner.meta_key = %s AND rl_store_winner.meta_value = 'winner_selected')",
+            $draw_status
+        );
+
+        $clauses['where'] .= " AND /* rafflelb_store_catalog_scope */ ((NOT {$is_raffle}) OR ({$is_buyable_raffle})) AND ((NOT {$is_raffle}) OR NOT {$winner_selected})";
+        return $clauses;
+    }
+
+    public static function shop_effective_retail_sort($clauses, $query) {
+        if (!$query instanceof WP_Query || !self::shop_query_is_catalog($query)) return $clauses;
+        $direction = $query->get('rafflelb_effective_retail_order');
+        if ($direction !== 'ASC' && $direction !== 'DESC') return $clauses;
+        global $wpdb;
+        $lookup = $wpdb->wc_product_meta_lookup;
+        $clauses['join'] .= $wpdb->prepare(" LEFT JOIN {$wpdb->postmeta} rl_sort_price ON rl_sort_price.post_id = {$wpdb->posts}.ID AND rl_sort_price.meta_key = %s ", \RaffleLB\Core\Contracts::META_BUY_NOW_PRICE);
+        $clauses['join'] .= $wpdb->prepare(" LEFT JOIN {$wpdb->postmeta} rl_sort_draw ON rl_sort_draw.post_id = {$wpdb->posts}.ID AND rl_sort_draw.meta_key = %s ", \RaffleLB\Core\Contracts::META_ENABLED);
+        $clauses['join'] .= $wpdb->prepare(" LEFT JOIN {$wpdb->postmeta} rl_sort_enabled ON rl_sort_enabled.post_id = {$wpdb->posts}.ID AND rl_sort_enabled.meta_key = %s ", \RaffleLB\Core\Contracts::META_BUY_NOW_ENABLED);
+        $clauses['join'] .= " INNER JOIN {$lookup} rl_sort_store ON rl_sort_store.product_id = {$wpdb->posts}.ID ";
+        $retail = "CAST(COALESCE(rl_sort_price.meta_value, '0') AS DECIMAL(18,4))";
+        $effective = "CASE WHEN rl_sort_draw.meta_value = 'yes' AND rl_sort_enabled.meta_value = 'yes' AND {$retail} > 0 THEN {$retail} ELSE rl_sort_store.min_price END";
+        $clauses['orderby'] = "{$effective} {$direction}";
+        return $clauses;
     }
 
     public static function shop_premium_toolbar() {
@@ -1205,15 +1386,22 @@ final class RaffleLB_Shop {
         $post_types_sql = "'" . implode("','", $post_types) . "'";
         $retail_key = esc_sql(\RaffleLB\Core\Contracts::META_BUY_NOW_PRICE);
 
-        return "SELECT MIN(CAST(rl_retail_price.meta_value AS DECIMAL(18,4))) AS min_price, "
-            . "MAX(CAST(rl_retail_price.meta_value AS DECIMAL(18,4))) AS max_price "
+        $lookup_table = $wpdb->wc_product_meta_lookup;
+        $retail_value = "CAST(COALESCE(rl_retail_price.meta_value, '0') AS DECIMAL(18,4))";
+        $is_both = "rl_price_draw.meta_value = 'yes' AND rl_price_enabled.meta_value = 'yes' AND {$retail_value} > 0";
+        $minimum_value = "CASE WHEN {$is_both} THEN {$retail_value} ELSE rl_store_price.min_price END";
+        $maximum_value = "CASE WHEN {$is_both} THEN {$retail_value} ELSE rl_store_price.max_price END";
+
+        return "SELECT MIN({$minimum_value}) AS min_price, "
+            . "MAX({$maximum_value}) AS max_price "
             . "FROM {$wpdb->posts} "
-            . "INNER JOIN {$wpdb->postmeta} rl_retail_price ON {$wpdb->posts}.ID = rl_retail_price.post_id "
+            . "LEFT JOIN {$wpdb->postmeta} rl_retail_price ON {$wpdb->posts}.ID = rl_retail_price.post_id AND rl_retail_price.meta_key = '{$retail_key}' "
+            . "LEFT JOIN {$wpdb->postmeta} rl_price_draw ON {$wpdb->posts}.ID = rl_price_draw.post_id AND rl_price_draw.meta_key = '" . esc_sql(\RaffleLB\Core\Contracts::META_ENABLED) . "' "
+            . "LEFT JOIN {$wpdb->postmeta} rl_price_enabled ON {$wpdb->posts}.ID = rl_price_enabled.post_id AND rl_price_enabled.meta_key = '" . esc_sql(\RaffleLB\Core\Contracts::META_BUY_NOW_ENABLED) . "' "
+            . "INNER JOIN {$lookup_table} rl_store_price ON {$wpdb->posts}.ID = rl_store_price.product_id "
             . $tax_join . $meta_join
             . " WHERE {$wpdb->posts}.post_type IN ({$post_types_sql}) "
             . "AND {$wpdb->posts}.post_status = 'publish' "
-            . "AND rl_retail_price.meta_key = '{$retail_key}' "
-            . "AND CAST(rl_retail_price.meta_value AS DECIMAL(18,4)) > 0 "
             . $tax_where . $meta_where . $search_where;
     }
 
@@ -1234,23 +1422,27 @@ final class RaffleLB_Shop {
         global $wpdb;
         $min = self::shop_native_price_value('min_price', $query, 0);
         $max = self::shop_native_price_value('max_price', $query, null);
-        $key = \RaffleLB\Core\Contracts::META_BUY_NOW_PRICE;
-
         $price_conditions = [];
+        $retail_value = "CAST(COALESCE(rl_retail_filter.meta_value, '0') AS DECIMAL(18,4))";
+        $is_both = "rl_filter_draw.meta_value = 'yes' AND rl_filter_enabled.meta_value = 'yes' AND {$retail_value} > 0";
+        $effective_price = "CASE WHEN {$is_both} THEN {$retail_value} ELSE rl_store_filter.min_price END";
         if ($min !== null && $min > 0) {
-            $price_conditions[] = $wpdb->prepare('CAST(rl_retail_filter.meta_value AS DECIMAL(18,4)) >= %f', $min);
+            $price_conditions[] = $wpdb->prepare("{$effective_price} >= %f", $min);
         }
         if ($max !== null && $max > 0) {
-            $price_conditions[] = $wpdb->prepare('CAST(rl_retail_filter.meta_value AS DECIMAL(18,4)) <= %f', $max);
+            $price_conditions[] = $wpdb->prepare("{$effective_price} <= %f", $max);
         }
         if (!$price_conditions) return $clauses;
 
-        $clauses['where'] .= $wpdb->prepare(
-            " AND EXISTS (SELECT 1 FROM {$wpdb->postmeta} rl_retail_filter "
-            . "WHERE rl_retail_filter.post_id = {$wpdb->posts}.ID "
-            . "AND rl_retail_filter.meta_key = %s AND " . implode(' AND ', $price_conditions) . ") /* rafflelb_retail_price_filter */",
-            $key
+        $lookup_table = $wpdb->wc_product_meta_lookup;
+        $clauses['join'] .= $wpdb->prepare(
+            " LEFT JOIN {$wpdb->postmeta} rl_retail_filter ON rl_retail_filter.post_id = {$wpdb->posts}.ID AND rl_retail_filter.meta_key = %s ",
+            \RaffleLB\Core\Contracts::META_BUY_NOW_PRICE
         );
+        $clauses['join'] .= $wpdb->prepare(" LEFT JOIN {$wpdb->postmeta} rl_filter_draw ON rl_filter_draw.post_id = {$wpdb->posts}.ID AND rl_filter_draw.meta_key = %s ", \RaffleLB\Core\Contracts::META_ENABLED);
+        $clauses['join'] .= $wpdb->prepare(" LEFT JOIN {$wpdb->postmeta} rl_filter_enabled ON rl_filter_enabled.post_id = {$wpdb->posts}.ID AND rl_filter_enabled.meta_key = %s ", \RaffleLB\Core\Contracts::META_BUY_NOW_ENABLED);
+        $clauses['join'] .= " INNER JOIN {$lookup_table} rl_store_filter ON rl_store_filter.product_id = {$wpdb->posts}.ID ";
+        $clauses['where'] .= ' AND ' . implode(' AND ', $price_conditions) . ' /* rafflelb_retail_price_filter */';
         return $clauses;
     }
 
@@ -1262,7 +1454,7 @@ final class RaffleLB_Shop {
         global $product;
         if (!self::is_raffle_product($product)) return;
 
-        $stats = RaffleLB_Draw_Engine::shop_bridge_stats($product->get_id(), true);
+        $stats = RaffleLB_Draw_Engine::shop_bridge_stats($product->get_id(), false);
         if (!$stats) return;
 
         $status    = (string) $stats['status'];
@@ -1294,17 +1486,18 @@ final class RaffleLB_Shop {
         if (!$product instanceof WC_Product) return;
 
         $mode = self::shop_view_mode();
-        $is_raffle = self::is_raffle_product($product);
-        $has_retail = RaffleLB_Draw_Engine::shop_bridge_buy_now_enabled($product);
-        if ($mode === 'raffle' && !$is_raffle) return;
-        if ($mode === 'retail' && !$has_retail) return;
-        if ($mode === 'both' && (!$is_raffle || !$has_retail)) return;
+        $product_mode = self::shop_product_mode($product);
+        if (!self::shop_mode_includes_product($mode, $product_mode)) return;
+
+        $is_raffle = $product_mode !== 'retail';
+        $has_retail = $product_mode === 'retail' || $product_mode === 'both';
 
         $pid = $product->get_id();
         $url = get_permalink($pid);
-        $stats = $is_raffle ? RaffleLB_Draw_Engine::shop_bridge_stats($pid, true) : null;
+        $stats = $is_raffle ? RaffleLB_Draw_Engine::shop_bridge_stats($pid, false) : null;
         $raffle_live = $stats && (string)$stats['status'] === 'live' && absint($stats['available']) > 0;
-        $can_buy = $has_retail && !$product->is_type('variable') && $product->is_in_stock() && !RaffleLB_Draw_Engine::shop_bridge_is_draw_closed($product);
+        $can_buy = $has_retail && !$product->is_type('variable') && $product->is_in_stock()
+            && ($product_mode === 'retail' || !RaffleLB_Draw_Engine::shop_bridge_is_draw_closed($product));
 
         $showed_buy_action = false;
 
@@ -1318,7 +1511,7 @@ final class RaffleLB_Shop {
                         echo '<form class="rl-shop-buy-form" method="post" action="' . esc_url($url) . '">';
                             echo '<input type="hidden" name="add-to-cart" value="' . esc_attr($pid) . '">';
                             echo '<input type="hidden" name="quantity" value="1">';
-                            echo '<input type="hidden" name="rafflelb_purchase_mode" value="buy_now">';
+                            if ($product_mode === 'both') echo '<input type="hidden" name="rafflelb_purchase_mode" value="buy_now">';
                             echo '<button type="submit" class="rl-shop-buy"><span class="rl-shop-buy-label">BUY NOW</span><span class="rl-shop-buy-bag" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><path d="M6.5 8V6.5a5.5 5.5 0 0 1 11 0V8M4.5 8h15l1 13h-17l1-13Z"/></svg></span></button>';
                         echo '</form>';
                     }
@@ -3506,19 +3699,48 @@ final class RaffleLB_Shop {
                         \RaffleLB\Core\Contracts::META_ENABLED
                     ));
                 } elseif ($rl_shop_mode === 'retail') {
-                    $store_rows = $wpdb->get_results($wpdb->prepare(
-                        "SELECT DISTINCT tt.term_id
-                         FROM {$wpdb->posts} p
-                         INNER JOIN {$wpdb->term_relationships} tr ON tr.object_id = p.ID
-                         INNER JOIN {$wpdb->term_taxonomy} tt ON tt.term_taxonomy_id = tr.term_taxonomy_id AND tt.taxonomy = 'product_cat'
-                         INNER JOIN {$wpdb->postmeta} raffle_enabled ON raffle_enabled.post_id = p.ID AND raffle_enabled.meta_key = %s AND raffle_enabled.meta_value = 'yes'
-                         INNER JOIN {$wpdb->postmeta} buy_enabled ON buy_enabled.post_id = p.ID AND buy_enabled.meta_key = %s AND buy_enabled.meta_value = 'yes'
-                         INNER JOIN {$wpdb->postmeta} buy_price ON buy_price.post_id = p.ID AND buy_price.meta_key = %s AND CAST(buy_price.meta_value AS DECIMAL(18,4)) > 0
-                         WHERE p.post_type = 'product' AND p.post_status = 'publish'",
-                        \RaffleLB\Core\Contracts::META_ENABLED,
-                        \RaffleLB\Core\Contracts::META_BUY_NOW_ENABLED,
-                        \RaffleLB\Core\Contracts::META_BUY_NOW_PRICE
-                    ));
+                    /* The Store category map is reused briefly because it is
+                     * identical for every Store archive/category page. Unlike
+                     * the prior three-way postmeta join, the correlated checks
+                     * use the post_id/meta_key index and only cast a matching
+                     * Buy Direct price row. */
+                    $cache_key = 'rafflelb_shop_store_categories_v074';
+                    $cached_ids = get_transient($cache_key);
+                    if ($cached_ids === false) {
+                        $enabled_key = \RaffleLB\Core\Contracts::META_ENABLED;
+                        $buy_enabled_key = \RaffleLB\Core\Contracts::META_BUY_NOW_ENABLED;
+                        $buy_price_key = \RaffleLB\Core\Contracts::META_BUY_NOW_PRICE;
+                        $status_key = \RaffleLB\Core\Contracts::META_DRAW_STATUS;
+                        $store_rows = $wpdb->get_col($wpdb->prepare(
+                            "SELECT DISTINCT tt.term_id
+                             FROM {$wpdb->posts} p
+                             INNER JOIN {$wpdb->term_relationships} tr ON tr.object_id = p.ID
+                             INNER JOIN {$wpdb->term_taxonomy} tt ON tt.term_taxonomy_id = tr.term_taxonomy_id AND tt.taxonomy = 'product_cat'
+                             WHERE p.post_type = 'product' AND p.post_status = 'publish'
+                               AND (
+                                   NOT EXISTS (SELECT 1 FROM {$wpdb->postmeta} re WHERE re.post_id = p.ID AND re.meta_key = %s AND re.meta_value = 'yes')
+                                   OR (
+                                       EXISTS (SELECT 1 FROM {$wpdb->postmeta} be WHERE be.post_id = p.ID AND be.meta_key = %s AND be.meta_value = 'yes')
+                                       AND EXISTS (SELECT 1 FROM {$wpdb->postmeta} bp WHERE bp.post_id = p.ID AND bp.meta_key = %s AND CAST(bp.meta_value AS DECIMAL(18,4)) > 0)
+                                   )
+                               )
+                               AND (
+                                   NOT EXISTS (SELECT 1 FROM {$wpdb->postmeta} re_winner WHERE re_winner.post_id = p.ID AND re_winner.meta_key = %s AND re_winner.meta_value = 'yes')
+                                   OR NOT EXISTS (SELECT 1 FROM {$wpdb->postmeta} winner WHERE winner.post_id = p.ID AND winner.meta_key = %s AND winner.meta_value = 'winner_selected')
+                               )",
+                            $enabled_key,
+                            $buy_enabled_key,
+                            $buy_price_key,
+                            $enabled_key,
+                            $status_key
+                        ));
+                        $cached_ids = array_values(array_unique(array_map('absint', (array) $store_rows)));
+                        set_transient($cache_key, $cached_ids, MINUTE_IN_SECONDS);
+                    }
+                    $store_rows = [];
+                    foreach ((array) $cached_ids as $term_id) {
+                        $store_rows[] = (object) ['term_id' => (int) $term_id];
+                    }
                 } else {
                     $store_rows = $wpdb->get_results($wpdb->prepare(
                         "SELECT DISTINCT tt.term_id
@@ -5023,22 +5245,22 @@ final class RaffleLB_Shop {
             color:#f5f6f2 !important;
             font-weight:750 !important;
         }
-        .rafflelb-raffle-product .rl-raffle-detail-col ol{
+        .rafflelb-raffle-product .rl-raffle-detail-list{
             list-style:none !important;
             counter-reset:rlraffledetail !important;
             margin:0 !important;
             padding:0 !important;
         }
-        .rafflelb-raffle-product .rl-raffle-detail-col ol li{
+        .rafflelb-raffle-product .rl-raffle-detail-list li{
             position:relative !important;
             padding-left:30px !important;
             margin-bottom:12px !important;
             counter-increment:rlraffledetail !important;
         }
-        .rafflelb-raffle-product .rl-raffle-detail-col ol li:last-child{
+        .rafflelb-raffle-product .rl-raffle-detail-list li:last-child{
             margin-bottom:0 !important;
         }
-        .rafflelb-raffle-product .rl-raffle-detail-col ol li:before{
+        .rafflelb-raffle-product .rl-raffle-detail-list li:before{
             content:counter(rlraffledetail) !important;
             position:absolute !important;
             top:0 !important;
@@ -7376,6 +7598,17 @@ final class RaffleLB_Shop {
 
 /* Install first-paint product mounting before the browser parses product markup. */
 add_action('wp_head', ['RaffleLB_Shop', 'product_layout_bootstrap'], 1);
+
+/* Register the Shopping Mode capture listener before theme Shop AJAX scripts. */
+add_action('wp_head', ['RaffleLB_Shop', 'shop_mode_navigation_guard'], 0);
+
+/* Store Only is rendered by WooCommerce's normal content template-part path. */
+add_filter('wc_get_template_part', ['RaffleLB_Shop', 'store_only_template_part'], 99, 3);
+add_action('wp_head', ['RaffleLB_Shop', 'store_only_product_head'], 2);
+add_action('wp_head', ['RaffleLB_Shop', 'raffle_price_visibility_css'], 999);
+add_filter('woocommerce_product_single_add_to_cart_text', ['RaffleLB_Shop', 'store_only_add_to_cart_text'], 20);
+add_filter('posts_clauses', ['RaffleLB_Shop', 'shop_effective_retail_sort'], 20, 2);
+add_filter('posts_clauses', ['RaffleLB_Shop', 'shop_store_catalog_clauses'], 10, 2);
 
 /* Drop the enqueued duplicate when wp_head already printed the stylesheet. */
 add_action('wp_print_styles', function () {

@@ -2,14 +2,14 @@
 /**
  * Plugin Name: RaffleLB Account
  * Description: Existing RaffleLB account presentation with reversible Draw Engine delegation.
- * Version: 0.1.0
+ * Version: 0.1.5
  * Author: RaffleLB
  * Requires PHP: 7.4
  */
 if (!defined('ABSPATH')) { exit; }
 
 final class RaffleLB_Account {
-    const VERSION = '0.1.0';
+    const VERSION = '0.1.5';
     public static function ready() {
         return class_exists('RaffleLB\\Core\\Contracts')
             && version_compare(\RaffleLB\Core\Contracts::VERSION, '0.1.0', '>=')
@@ -466,11 +466,131 @@ final class RaffleLB_Account {
         <?php
     }
 
+    /**
+     * A customer-facing raffle order must never expose WooCommerce's cancel
+     * action. Direct-purchase orders keep WooCommerce's normal policy.
+     */
     public static function remove_customer_cancel_action($actions, $order) {
-        if (isset($actions['cancel'])) {
+        if (self::order_contains_raffle_entry($order) && isset($actions['cancel'])) {
             unset($actions['cancel']);
         }
         return $actions;
+    }
+
+    /**
+     * Return true when an order contains at least one explicitly raffle-mode
+     * item. A Buy Direct-only order has only `buy_now` item metadata.
+     */
+    public static function order_contains_raffle_entry($order) {
+        if (!is_object($order) && function_exists('wc_get_order')) {
+            $order = wc_get_order($order);
+        }
+        if (!$order instanceof WC_Order) return false;
+
+        foreach ($order->get_items('line_item') as $item) {
+            if (!$item instanceof WC_Order_Item_Product) continue;
+
+            $mode = sanitize_key((string) $item->get_meta('_rafflelb_purchase_mode', true));
+            if ($mode === '') {
+                $mode = sanitize_key((string) $item->get_meta('rafflelb_purchase_mode', true));
+            }
+            if ($mode === 'raffle_entry') return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * A friendly raffle payment label is appropriate only when every explicit
+     * purchase-mode line is a raffle entry. Mixed and Buy Direct orders retain
+     * WooCommerce's native status wording.
+     */
+    public static function order_is_raffle_only($order) {
+        if (!is_object($order) && function_exists('wc_get_order')) {
+            $order = wc_get_order($order);
+        }
+        if (!$order instanceof WC_Order) return false;
+
+        $has_raffle = false;
+        foreach ($order->get_items('line_item') as $item) {
+            if (!$item instanceof WC_Order_Item_Product) continue;
+
+            $mode = sanitize_key((string) $item->get_meta('_rafflelb_purchase_mode', true));
+            if ($mode === '') {
+                $mode = sanitize_key((string) $item->get_meta('rafflelb_purchase_mode', true));
+            }
+            if ($mode !== 'raffle_entry') return false;
+            $has_raffle = true;
+        }
+
+        return $has_raffle;
+    }
+
+    /**
+     * True only when every explicit purchase-mode line is a Buy Direct item.
+     * Untagged legacy/store lines retain WooCommerce's default eligibility and
+     * are not granted the RaffleLB COD processing exception.
+     */
+    public static function order_is_buy_direct_only($order) {
+        if (!is_object($order) && function_exists('wc_get_order')) {
+            $order = wc_get_order($order);
+        }
+        if (!$order instanceof WC_Order) return false;
+
+        $has_direct = false;
+        foreach ($order->get_items('line_item') as $item) {
+            if (!$item instanceof WC_Order_Item_Product) continue;
+
+            $mode = sanitize_key((string) $item->get_meta('_rafflelb_purchase_mode', true));
+            if ($mode === '') {
+                $mode = sanitize_key((string) $item->get_meta('rafflelb_purchase_mode', true));
+            }
+            if ($mode !== 'buy_now') return false;
+            $has_direct = true;
+        }
+
+        return $has_direct;
+    }
+
+    /**
+     * Keep WooCommerce's status labels global and apply the raffle-specific
+     * Paid wording only in customer-facing Account presentation.
+     */
+    public static function customer_order_status_label($order) {
+        if (!is_object($order) && function_exists('wc_get_order')) {
+            $order = wc_get_order($order);
+        }
+        if (!$order instanceof WC_Order) return '';
+
+        if ($order->has_status('processing') && self::order_is_raffle_only($order)) {
+            return 'Paid';
+        }
+
+        return wc_get_order_status_name($order->get_status());
+    }
+
+    /**
+     * This filter is also used by WooCommerce's customer cancel endpoint, not
+     * only the My Account button. Returning no eligible statuses for a raffle
+     * or mixed order preserves administrator cancellation/refund capabilities.
+     */
+    public static function customer_cancellable_statuses($statuses, $order) {
+        if (self::order_contains_raffle_entry($order)) return [];
+
+        // WooCommerce normally limits customer cancellation to pending/failed.
+        // RaffleLB additionally permits a still-processing, tangible Buy Direct
+        // COD order, based on the gateway ID rather than its display label.
+        if (
+            $order instanceof WC_Order
+            && $order->has_status('processing')
+            && $order->get_payment_method() === 'cod'
+            && self::order_is_buy_direct_only($order)
+            && !in_array('processing', $statuses, true)
+        ) {
+            $statuses[] = 'processing';
+        }
+
+        return $statuses;
     }
 
     public static function account_entries_grouped(){
@@ -479,7 +599,8 @@ final class RaffleLB_Account {
         $rows = $wpdb->get_results($wpdb->prepare(
             "SELECT e.*, r.id AS result_id, r.entry_id AS winning_entry_id,
                     r.entry_number AS winning_entry_number, r.user_id AS winner_user_id,
-                    r.selected_at AS winner_selected_at
+                    r.selected_at AS winner_selected_at,
+                    r.fulfillment_status, r.contacted_at, r.claimed_at, r.fulfilled_at
              FROM {$wpdb->prefix}".\RaffleLB\Core\Contracts::ENTRY_TABLE." e
              LEFT JOIN {$wpdb->prefix}".\RaffleLB\Core\Contracts::RESULT_TABLE." r ON r.product_id=e.product_id
              WHERE e.user_id=%d AND e.status='active'
@@ -527,6 +648,27 @@ final class RaffleLB_Account {
             $is_complete = $draw_status === 'winner_selected';
             $is_won = $is_complete && (int)$first->winner_user_id === $uid;
             $bucket = $is_complete ? ($is_won ? 'won' : 'past') : 'active';
+
+            $fulfillment_status = $is_won && !empty($first->fulfillment_status)
+                ? sanitize_key((string) $first->fulfillment_status)
+                : 'pending';
+            $fulfillment_labels = [
+                'pending'   => 'Pending Fulfillment',
+                'contacted' => 'Winner Contacted',
+                'claimed'   => 'Prize Claimed',
+                'fulfilled' => 'Prize Fulfilled',
+            ];
+            if (!isset($fulfillment_labels[$fulfillment_status])) $fulfillment_status = 'pending';
+            $fulfillment_label = $fulfillment_labels[$fulfillment_status];
+            $fulfillment_date = '';
+            if ($fulfillment_status === 'contacted' && !empty($first->contacted_at)) {
+                $fulfillment_date = wp_date('j M Y', strtotime((string) $first->contacted_at));
+            } elseif ($fulfillment_status === 'claimed' && !empty($first->claimed_at)) {
+                $fulfillment_date = wp_date('j M Y', strtotime((string) $first->claimed_at));
+            } elseif ($fulfillment_status === 'fulfilled' && !empty($first->fulfilled_at)) {
+                $fulfillment_date = wp_date('j M Y', strtotime((string) $first->fulfilled_at));
+            }
+
             $stats = RaffleLB_Draw_Engine::account_stats($pid, true);
             $total = $stats ? (int)$stats['total'] : 0;
             $claimed = $stats ? (int)$stats['claimed'] : 0;
@@ -561,6 +703,18 @@ final class RaffleLB_Account {
                 echo '<div class="rlmy-progress"><div class="rlmy-track"><i style="width:'.esc_attr($percent).'%"></i></div><div><span>'.esc_html($claimed).' / '.esc_html($total).' entries sold</span><span>'.esc_html($left).' left</span></div></div>';
             } elseif ($is_won) {
                 echo '<div class="rlmy-winner"><span aria-hidden="true">&#127942;</span><div><strong>You Won!</strong><small>Winning Ticket: #'.esc_html(str_pad((string)$first->winning_entry_number,3,'0',STR_PAD_LEFT)).'</small></div></div>';
+
+                $fulfillment_messages = [
+                    'pending'   => 'Our team will contact you regarding your prize.',
+                    'contacted' => 'RaffleLB has contacted you regarding prize fulfillment.',
+                    'claimed'   => 'Your prize has been marked as claimed.',
+                    'fulfilled' => 'Prize fulfillment has been completed.',
+                ];
+                echo '<div class="rlmy-fulfillment is-'.esc_attr($fulfillment_status).'">';
+                echo '<div><span>Prize Fulfillment</span><strong>'.esc_html($fulfillment_label).'</strong></div>';
+                echo '<p>'.esc_html($fulfillment_messages[$fulfillment_status]);
+                if ($fulfillment_date !== '') echo ' <small>'.esc_html($fulfillment_date).'</small>';
+                echo '</p></div>';
             }
             echo '</div><aside class="rlmy-side"><span>Draw Date</span><strong>'.esc_html($date_value).'</strong><a href="'.esc_url($url).'">'.($is_complete ? 'View Result' : 'View Raffle').'<b aria-hidden="true">&#8594;</b></a></aside>';
             echo '</article>';
@@ -703,7 +857,7 @@ final class RaffleLB_Account {
             $percent = $stats ? (int)$stats['percent'] : 0;
 
             $order = function_exists('wc_get_order') ? wc_get_order((int)$r->order_id) : false;
-            $order_status = $order ? wc_get_order_status_name($order->get_status()) : '';
+            $order_status = $order ? self::customer_order_status_label($order) : '';
             $order_url = $order ? $order->get_view_order_url() : '';
 
             $date_display = $r->created_at;
@@ -2675,7 +2829,8 @@ body.home .rlp270-button{margin-top:14px!important}
         html body .rlmy .rlmy-tickets{grid-column:1/-1!important;grid-row:4!important}
         html body .rlmy .rlmy-progress,
         html body .rlmy .rlmy-winner{grid-column:1/-1!important;grid-row:5!important;margin-top:0!important}
-        html body .rlmy .rlmy-side{grid-column:1/-1!important;grid-row:6!important}
+        html body .rlmy .rlmy-fulfillment{grid-column:1/-1!important;grid-row:6!important;margin-top:0!important}
+        html body .rlmy .rlmy-side{grid-column:1/-1!important;grid-row:7!important}
         html body .rlmy .rlmy-content h3,
         html body .rlmy .rlmy-content h3 a{font-size:15px!important}
         html body .rlmy .rlmy-ticket-label{font-size:11px!important}
@@ -2833,7 +2988,7 @@ body.home .rlp270-button{margin-top:14px!important}
                 echo '<a class="rlpa-recent-order" href="' . esc_url($order->get_view_order_url()) . '">';
                 echo '<span class="rlpa-order-thumb">' . wp_kses_post(rafflelb_premium_account_product_image($product, 'rlpa-order-product-image')) . '</span>';
                 echo '<span class="rlpa-recent-order-copy"><small>ORDER #' . esc_html($order->get_order_number()) . '</small><strong>' . esc_html($product_name) . '</strong><em>' . esc_html(wc_format_datetime($order->get_date_created())) . '</em></span>';
-                echo '<span class="rlpa-order-status status-' . esc_attr($order->get_status()) . '">' . esc_html(wc_get_order_status_name($order->get_status())) . '</span>';
+                echo '<span class="rlpa-order-status status-' . esc_attr($order->get_status()) . '">' . esc_html(self::customer_order_status_label($order)) . '</span>';
                 echo '<span class="rlpa-order-total">' . wp_kses_post($order->get_formatted_order_total()) . '</span>';
                 echo '<span class="rlpa-order-arrow" aria-hidden="true">›</span></a>';
             }
@@ -2873,7 +3028,7 @@ body.home .rlp270-button{margin-top:14px!important}
             echo '<article class="rlpa-order-card">';
             echo '<a class="rlpa-order-thumb" href="' . esc_url($order->get_view_order_url()) . '">' . wp_kses_post(rafflelb_premium_account_product_image($product, 'rlpa-order-image')) . '</a>';
             echo '<div class="rlpa-order-body">';
-            echo '<div class="rlpa-order-top"><span class="rlpa-order-number">ORDER #' . esc_html($order->get_order_number()) . '</span><span class="rlpa-order-status status-' . esc_attr($order->get_status()) . '">' . esc_html(wc_get_order_status_name($order->get_status())) . '</span></div>';
+            echo '<div class="rlpa-order-top"><span class="rlpa-order-number">ORDER #' . esc_html($order->get_order_number()) . '</span><span class="rlpa-order-status status-' . esc_attr($order->get_status()) . '">' . esc_html(self::customer_order_status_label($order)) . '</span></div>';
             echo '<h3 class="rlpa-order-title"><a href="' . esc_url($order->get_view_order_url()) . '">' . esc_html($item_name) . '</a></h3>';
             if ($extra_count > 0) {
                 echo '<p class="rlpa-order-extra">+' . esc_html($extra_count) . ' more item' . ($extra_count === 1 ? '' : 's') . '</p>';
@@ -2900,6 +3055,20 @@ body.home .rlp270-button{margin-top:14px!important}
         }
     }
 
+    /**
+     * Give the Account renderer sole ownership of the View Order endpoint.
+     *
+     * WooCommerce registers woocommerce_account_view_order(), which renders
+     * the native order-details.php template (and its customer-details
+     * template).  The custom Account renderer already presents that data, so
+     * allowing both endpoint callbacks produces duplicate order details.
+     */
+    public static function ensure_custom_view_order_endpoint() {
+        remove_action('woocommerce_account_view-order_endpoint', 'woocommerce_account_view_order');
+        remove_action('woocommerce_account_view-order_endpoint', 'rafflelb_account_view_order_premium');
+        add_action('woocommerce_account_view-order_endpoint', [__CLASS__, 'rafflelb_account_view_order_premium'], 10, 1);
+    }
+
     public static function rafflelb_account_view_order_premium($order_id) {
         if (!is_user_logged_in()) return;
 
@@ -2915,7 +3084,7 @@ body.home .rlp270-button{margin-top:14px!important}
         echo '<div><span class="rlpa-order-number">ORDER #' . esc_html($order->get_order_number()) . '</span>';
         echo '<h2>Order details</h2>';
         echo '<p class="rlpa-order-detail-sub">Placed on ' . esc_html(wc_format_datetime($order->get_date_created())) . '</p></div>';
-        echo '<span class="rlpa-order-status status-' . esc_attr($order->get_status()) . '">' . esc_html(wc_get_order_status_name($order->get_status())) . '</span>';
+        echo '<span class="rlpa-order-status status-' . esc_attr($order->get_status()) . '">' . esc_html(self::customer_order_status_label($order)) . '</span>';
         echo '</header>';
 
         echo '<div class="rlpa-order-items">';
@@ -2979,7 +3148,9 @@ body.home .rlp270-button{margin-top:14px!important}
     ?>
     <script id="rafflelb-account-stray-table-cleanup-v03389">
     (function(){
-        var STRAY_SELECTORS = ['table.woocommerce-orders-table', 'table.woocommerce-table--order-details'];
+        // Native View Order output is suppressed at the endpoint. Do not hide
+        // order-detail tables here: extensions may render legitimate content.
+        var STRAY_SELECTORS = ['table.woocommerce-orders-table'];
 
         function isVisible(el) {
             return !!el && window.getComputedStyle(el).display !== 'none';
@@ -3119,3 +3290,12 @@ body.home .rlp270-button{margin-top:14px!important}
     <?php
 }
 }
+
+// Enforce the policy independently of Draw Engine's presentation bridge.
+// WooCommerce consults these filters for both My Account and customer cancel requests.
+add_filter('woocommerce_my_account_my_orders_actions', ['RaffleLB_Account', 'remove_customer_cancel_action'], 50, 2);
+add_filter('woocommerce_valid_order_statuses_for_cancel', ['RaffleLB_Account', 'customer_cancellable_statuses'], 50, 2);
+
+// Run after all plugins have registered endpoint callbacks, but before the
+// account template is rendered.
+add_action('wp', ['RaffleLB_Account', 'ensure_custom_view_order_endpoint'], 1);

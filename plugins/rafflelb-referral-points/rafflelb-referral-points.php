@@ -2,7 +2,7 @@
 /**
  * Plugin Name: RaffleLB Referral & Points
  * Description: Referral links, Raffle Points rewards, and a WooCommerce "Pay with Raffle Points" payment method for RaffleLB.
- * Version: 1.2.14
+ * Version: 1.2.15
  * Author: RaffleLB
  * Text Domain: rafflelb-referral-points
  */
@@ -10,7 +10,7 @@
 if (!defined('ABSPATH')) exit;
 
 final class RaffleLB_Referral_Points {
-    const VERSION = '1.2.14';
+    const VERSION = '1.2.15';
     const ENDPOINT = 'refer-and-earn';
     const COOKIE = 'rafflelb_ref';
     const OPT = 'rafflelb_referral_settings';
@@ -37,6 +37,8 @@ final class RaffleLB_Referral_Points {
         add_action('woocommerce_order_status_failed', [__CLASS__, 'restore_points_payment'], 5);
 
         add_filter('woocommerce_payment_gateways', [__CLASS__, 'register_points_gateway']);
+        add_filter('woocommerce_available_payment_gateways', [__CLASS__, 'replace_unavailable_points_gateway_choice'], 10000);
+        add_action('woocommerce_review_order_before_payment', [__CLASS__, 'render_unavailable_points_gateway_notice'], 5);
 
         add_action('admin_menu', [__CLASS__, 'admin_menu']);
         add_action('admin_init', [__CLASS__, 'register_settings']);
@@ -278,6 +280,47 @@ final class RaffleLB_Referral_Points {
             $gateways[] = 'RaffleLB_Points_Gateway';
         }
         return $gateways;
+    }
+
+    /**
+     * A checkout refresh may retain a previously selected Points method after
+     * the cart total or the customer's balance changes. Once the gateway is no
+     * longer available, replace that stale session value with WooCommerce's
+     * first currently available gateway (in its already-filtered order).
+     */
+    public static function replace_unavailable_points_gateway_choice($gateways) {
+        if (!function_exists('WC') || !WC()->session) return $gateways;
+        if ((string) WC()->session->get('chosen_payment_method') !== 'rafflelb_points') return $gateways;
+        if (isset($gateways['rafflelb_points'])) return $gateways;
+
+        foreach ($gateways as $gateway_id => $gateway) {
+            WC()->session->set('chosen_payment_method', $gateway_id);
+            return $gateways;
+        }
+
+        WC()->session->__unset('chosen_payment_method');
+        return $gateways;
+    }
+
+    /**
+     * Keep the customer's balance context visible at checkout without exposing
+     * an insufficient Points balance as a selectable WooCommerce gateway.
+     */
+    public static function render_unavailable_points_gateway_notice() {
+        if (!is_user_logged_in() || !function_exists('WC') || !WC()->cart) return;
+
+        $total = (float) WC()->cart->get_total('edit');
+        $required = self::points_required_for_amount($total);
+        $balance = self::points(get_current_user_id());
+
+        if ($required <= 0 || $balance >= $required) return;
+
+        echo '<div class="rafflelb-points-payment-box rafflelb-points-payment-unavailable">';
+        echo '<strong>Raffle Points unavailable for this order</strong>';
+        echo '<div class="rl-points-row"><span class="rl-points-label">Raffle Points balance</span><strong class="rl-points-value">' . esc_html($balance) . '</strong></div>';
+        echo '<div class="rl-points-row"><span class="rl-points-label">Points required</span><strong class="rl-points-value">' . esc_html($required) . '</strong></div>';
+        echo '<p class="rl-points-status">You need <strong>' . esc_html($required - $balance) . '</strong> more Raffle Points to use this payment method.</p>';
+        echo '</div>';
     }
 
     public static function referred_customers($referrer_id) {
@@ -829,11 +872,10 @@ add_action('plugins_loaded', function() {
                 $total = (float) WC()->cart->get_total('edit');
                 if ($total <= 0) return false;
 
-                // Keep the gateway visible to logged-in customers even when their
-                // current balance is too low. The payment fields explain the balance
-                // and validate_fields() prevents payment unless enough points exist.
                 $required = RaffleLB_Referral_Points::points_required_for_amount($total);
-                return $required > 0;
+                $balance = RaffleLB_Referral_Points::points(get_current_user_id());
+
+                return $required > 0 && $balance >= $required;
             }
 
             public function payment_fields() {

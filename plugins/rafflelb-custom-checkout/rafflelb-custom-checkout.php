@@ -2,11 +2,11 @@
 /**
  * Plugin Name: RaffleLB Custom Checkout
  * Description: Native custom WooCommerce checkout template for RaffleLB. Keeps WooCommerce order/payment processing while replacing the checkout presentation.
- * Version: 4.8.6
+ * Version: 4.8.9
  * Author: RaffleLB
  */
 if ( ! defined( 'ABSPATH' ) ) exit;
-define('RLCC_VERSION','4.8.6');
+define('RLCC_VERSION','4.8.9');
 define('RLCC_PATH',plugin_dir_path(__FILE__));
 
 
@@ -135,6 +135,8 @@ add_filter('woocommerce_available_payment_gateways', function($gateways){
     if (is_admin() && !defined('DOING_AJAX')) return $gateways;
     if (!function_exists('is_checkout') || !is_checkout()) return $gateways;
 
+    // Delivery COD is permitted only for a tangible, Buy Direct-only cart.
+    // Raffle and mixed carts are intentionally ineligible.
     if (isset($gateways['cod']) && !rlcc_is_tangible_direct_purchase()) {
         unset($gateways['cod']);
     }
@@ -2862,3 +2864,88 @@ add_action('wp_footer', function(){
  </script>
  <?php
 }, 1001);
+
+/*
+ * Keep WooCommerce's real unavailable-gateway notice intact.  The status below
+ * only masks that notice while the checkout payment fragment is being refreshed.
+ */
+add_action('wp_head', function(){
+ if(!function_exists('is_checkout') || !is_checkout() || is_order_received_page()) return;
+ ?>
+<style id="rlcc-payment-loading-state">
+.rlcc-payment-verification{
+ display:flex;align-items:center;gap:9px;margin:0;padding:12px 14px;
+ border:1px solid rgba(186,255,0,.28);border-radius:10px;
+ background:rgba(186,255,0,.055);color:#dce6d5;font-size:13px;line-height:1.4;
+}
+.rlcc-payment-verification[hidden]{display:none!important}
+.rlcc-payment-verification__spinner{
+ width:15px;height:15px;flex:0 0 15px;border:2px solid rgba(186,255,0,.26);
+ border-top-color:#baff00;border-radius:50%;animation:rlcc-payment-spin .7s linear infinite;
+}
+.rlcc-payment-loading #payment .woocommerce-info{display:none!important}
+@keyframes rlcc-payment-spin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.rlcc-payment-verification__spinner{animation:none}}
+</style>
+<?php
+}, 1002);
+
+add_action('wp_footer', function(){
+ if(!function_exists('is_checkout') || !is_checkout() || is_order_received_page()) return;
+ ?>
+<script>
+(function($){
+  var loading = true;
+
+  function syncPaymentLoadingState(){
+    var review = document.getElementById('order_review');
+    if(!review) return;
+
+    var payment = review.querySelector('#payment');
+    var status = review.querySelector('.rlcc-payment-verification');
+    var hasGateway = !!(payment && payment.querySelector('input[name="payment_method"], ul.payment_methods > li'));
+    var notice = payment ? payment.querySelector('.woocommerce-info') : null;
+    var pendingUnavailable = !hasGateway && (loading || hasPendingTurnstile());
+
+    review.classList.toggle('rlcc-payment-loading', pendingUnavailable);
+    review.setAttribute('aria-busy', pendingUnavailable ? 'true' : 'false');
+    if(status) status.hidden = !pendingUnavailable;
+    if(notice) notice.classList.toggle('rlcc-payment-unavailable-pending', pendingUnavailable);
+  }
+
+  function setLoading(nextLoading){
+    loading = nextLoading;
+    syncPaymentLoadingState();
+  }
+
+  function hasPendingTurnstile(){
+    var widgets = document.querySelectorAll('.cf-turnstile,[class*="turnstile"]');
+    if(!widgets.length) return false;
+
+    var responses = document.querySelectorAll('input[name^="cf-turnstile-response"],textarea[name^="cf-turnstile-response"]');
+    if(responses.length < widgets.length) return true;
+
+    return Array.prototype.some.call(responses, function(response){
+      return !String(response.value || response.getAttribute('value') || '').trim();
+    });
+  }
+
+  syncPaymentLoadingState();
+
+  document.addEventListener('DOMContentLoaded', function(){
+    syncPaymentLoadingState();
+
+    var review = document.getElementById('order_review');
+    if(window.MutationObserver){
+      new MutationObserver(syncPaymentLoadingState).observe(document.body, {childList:true, subtree:true, attributes:true, attributeFilter:['value']});
+    }
+    document.addEventListener('input', syncPaymentLoadingState, true);
+    document.addEventListener('change', syncPaymentLoadingState, true);
+  });
+
+  $(document.body).on('update_checkout.rlccPaymentLoading', function(){ setLoading(true); });
+  $(document.body).on('updated_checkout.rlccPaymentLoading checkout_error.rlccPaymentLoading', function(){ setLoading(false); });
+})(jQuery);
+</script>
+<?php
+}, 1002);

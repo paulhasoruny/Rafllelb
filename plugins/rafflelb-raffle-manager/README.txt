@@ -1,3 +1,12 @@
+RaffleLB Raffle Manager v1.6.3
+
+- Completed the Monitor workspace split without changing Draw Engine handlers.
+- Winner tab now contains winner details and winner-email controls only.
+- Fulfillment tab owns the existing nonce-backed fulfillment form exactly once, including the fulfilled lock and Edit Anyway behavior.
+- Audit tab is read-only and contains draw/audit/early-close information only.
+- Overview now shows operational status, capacity, active holds, available entries, prices, revenue, and delivery type.
+- Existing Entries, Orders, Draw, void, close, winner, email, fulfillment and order-protection actions remain unchanged.
+
 RaffleLB Raffle Manager v1.4.1
 
 Added whole-site test-order cleanup to Reset / Cleanup:
