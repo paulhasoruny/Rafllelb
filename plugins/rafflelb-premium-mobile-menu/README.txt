@@ -1,5 +1,10 @@
 RAFFLELB PREMIUM MOBILE MENU
-Version 1.1.7
+Version 1.1.8
+
+1.1.8
+- Premium typography pass using the RaffleLB Design System Manrope variable.
+- Main drawer labels use 16px/700 with clean tracking; referral supporting text is now at least 11px and higher contrast.
+- Drawer geometry, icons, link order/destinations, logo, animation, overlay, scrolling, body lock, account/cart behavior, and JavaScript are unchanged.
 
 1.1.7
 

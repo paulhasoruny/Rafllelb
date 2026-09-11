@@ -2,7 +2,7 @@
 /**
  * Plugin Name: RaffleLB Premium Mobile Menu
  * Description: Replaces the Woodmart mobile hamburger drawer with the premium RaffleLB navigation design.
- * Version: 1.1.7
+ * Version: 1.1.8
  * Author: RaffleLB
  * Text Domain: rafflelb-premium-mobile-menu
  */
@@ -12,7 +12,7 @@ if (!defined('ABSPATH')) {
 }
 
 final class RaffleLB_Premium_Mobile_Menu {
-    const VERSION = '1.1.7';
+    const VERSION = '1.1.8';
     const OPTION  = 'rafflelb_mobile_menu_socials';
 
     public static function init() {

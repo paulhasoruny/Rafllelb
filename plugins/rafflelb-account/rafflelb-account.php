@@ -2,14 +2,14 @@
 /**
  * Plugin Name: RaffleLB Account
  * Description: Existing RaffleLB account presentation with reversible Draw Engine delegation.
- * Version: 0.1.5
+ * Version: 0.1.6
  * Author: RaffleLB
  * Requires PHP: 7.4
  */
 if (!defined('ABSPATH')) { exit; }
 
 final class RaffleLB_Account {
-    const VERSION = '0.1.5';
+    const VERSION = '0.1.6';
     public static function ready() {
         return class_exists('RaffleLB\\Core\\Contracts')
             && version_compare(\RaffleLB\Core\Contracts::VERSION, '0.1.0', '>=')
@@ -695,7 +695,7 @@ final class RaffleLB_Account {
             echo '<article class="rlmy-card '.($is_complete ? 'is-complete ' : '').($is_won ? 'is-won' : '').'" data-rlmy-bucket="'.esc_attr($bucket).'"'.($bucket !== 'active' ? ' hidden' : '').'>';
             echo '<div class="rlmy-media" style="display:flex!important;flex-direction:column!important;align-items:center!important;overflow:visible!important"><a href="'.esc_url($url).'">'.wp_kses_post($image).'</a><span class="rlmy-status rlmy-status-media">'.($is_complete ? 'Completed' : 'Active').'</span></div>';
             echo '<div class="rlmy-content"><div class="rlmy-titleblock"><h3><a href="'.esc_url($url).'">'.esc_html($title).'</a></h3><span class="rlmy-status rlmy-status-inline">'.($is_complete ? 'Completed' : 'Active').'</span></div>';
-            echo '<div class="rlmy-stats"><div><span style="font-family:Inter,Arial,sans-serif!important;font-size:14px!important;font-weight:600!important;line-height:1.25!important">Entries</span><strong style="font-family:Inter,Arial,sans-serif!important;font-size:16px!important;font-weight:750!important;line-height:1.3!important">'.esc_html(count($tickets)).'</strong></div><div><span style="font-family:Inter,Arial,sans-serif!important;font-size:14px!important;font-weight:600!important;line-height:1.25!important">Entry Price</span><strong style="font-family:Inter,Arial,sans-serif!important;font-size:16px!important;font-weight:750!important;line-height:1.3!important">'.wp_kses_post(wc_price($entry_price)).'</strong></div><div><span style="font-family:Inter,Arial,sans-serif!important;font-size:14px!important;font-weight:600!important;line-height:1.25!important">Total Spent</span><strong style="font-family:Inter,Arial,sans-serif!important;font-size:16px!important;font-weight:750!important;line-height:1.3!important">'.wp_kses_post(wc_price($entry_price * count($tickets))).'</strong></div></div>';
+            echo '<div class="rlmy-stats"><div><span style="font-family:var(--rl-font, &quot;Manrope&quot;, sans-serif)!important;font-size:14px!important;font-weight:600!important;line-height:1.25!important">Entries</span><strong style="font-family:var(--rl-font, &quot;Manrope&quot;, sans-serif)!important;font-size:16px!important;font-weight:750!important;line-height:1.3!important">'.esc_html(count($tickets)).'</strong></div><div><span style="font-family:var(--rl-font, &quot;Manrope&quot;, sans-serif)!important;font-size:14px!important;font-weight:600!important;line-height:1.25!important">Entry Price</span><strong style="font-family:var(--rl-font, &quot;Manrope&quot;, sans-serif)!important;font-size:16px!important;font-weight:750!important;line-height:1.3!important">'.wp_kses_post(wc_price($entry_price)).'</strong></div><div><span style="font-family:var(--rl-font, &quot;Manrope&quot;, sans-serif)!important;font-size:14px!important;font-weight:600!important;line-height:1.25!important">Total Spent</span><strong style="font-family:var(--rl-font, &quot;Manrope&quot;, sans-serif)!important;font-size:16px!important;font-weight:750!important;line-height:1.3!important">'.wp_kses_post(wc_price($entry_price * count($tickets))).'</strong></div></div>';
             echo '<div class="rlmy-ticket-label">Your Ticket Numbers</div><div class="rlmy-tickets">';
             foreach ($ticket_numbers as $number) echo '<span>'.esc_html($number).'</span>';
             echo '</div>';
@@ -2498,7 +2498,7 @@ body.home .rlp270-button{margin-top:14px!important}
         border-color:#baff00!important;
         color:#050805!important;
         -webkit-text-fill-color:#050805!important;
-        font-family:Inter,"Segoe UI",Arial,sans-serif!important;
+        font-family:var(--rl-font, "Manrope", sans-serif)!important;
         font-size:13px!important;
         font-weight:800!important;
         line-height:1!important;
@@ -2530,7 +2530,7 @@ body.home .rlp270-button{margin-top:14px!important}
         padding:0 18px!important;
         color:#f2f5ef!important;
         -webkit-text-fill-color:#f2f5ef!important;
-        font-family:Inter,"Segoe UI",Arial,sans-serif!important;
+        font-family:var(--rl-font, "Manrope", sans-serif)!important;
         font-size:13px!important;
         font-weight:800!important;
         letter-spacing:.03em!important;
@@ -2639,7 +2639,7 @@ body.home .rlp270-button{margin-top:14px!important}
     <style id="rafflelb-my-raffles-final-v03386">
     html body .rlmy,
     html body .rlmy *:not(svg):not(path){
-        font-family:Inter,"Segoe UI",Arial,sans-serif!important;
+        font-family:var(--rl-font, "Manrope", sans-serif)!important;
     }
     html body .rlmy .rlmy-media{
         position:relative!important;
@@ -2678,7 +2678,7 @@ body.home .rlp270-button{margin-top:14px!important}
         background:#baff00!important;
         color:#050705!important;
         -webkit-text-fill-color:#050705!important;
-        font-family:Inter,"Segoe UI",Arial,sans-serif!important;
+        font-family:var(--rl-font, "Manrope", sans-serif)!important;
         font-size:13px!important;
         line-height:1!important;
         font-weight:800!important;
@@ -2698,7 +2698,7 @@ body.home .rlp270-button{margin-top:14px!important}
         margin:0 0 6px!important;
         color:#c2c9bf!important;
         -webkit-text-fill-color:#c2c9bf!important;
-        font-family:Inter,"Segoe UI",Arial,sans-serif!important;
+        font-family:var(--rl-font, "Manrope", sans-serif)!important;
         font-size:14px!important;
         line-height:1.25!important;
         font-weight:600!important;
@@ -2710,7 +2710,7 @@ body.home .rlp270-button{margin-top:14px!important}
         display:inline!important;
         color:#fff!important;
         -webkit-text-fill-color:#fff!important;
-        font-family:Inter,"Segoe UI",Arial,sans-serif!important;
+        font-family:var(--rl-font, "Manrope", sans-serif)!important;
         font-size:16px!important;
         line-height:1.3!important;
         font-weight:750!important;
@@ -2774,7 +2774,7 @@ body.home .rlp270-button{margin-top:14px!important}
             background:#baff00!important;
             color:#050705!important;
             -webkit-text-fill-color:#050705!important;
-            font-family:Inter,"Segoe UI",Arial,sans-serif!important;
+            font-family:var(--rl-font, "Manrope", sans-serif)!important;
             font-size:12px!important;
             line-height:1!important;
             font-weight:800!important;
@@ -3201,7 +3201,7 @@ body.home .rlp270-button{margin-top:14px!important}
     public static function legacy_callback_18014() {
     if (!is_user_logged_in() || !function_exists('is_account_page') || !is_account_page()) return;
     $url = plugins_url('assets/account-premium.css', __FILE__);
-    echo '<link id="rafflelb-account-premium-v0324-css" rel="stylesheet" href="' . esc_url(add_query_arg('ver', RaffleLB_Draw_Engine::VERSION, $url)) . '" media="all">';
+    echo '<link id="rafflelb-account-premium-v016-css" rel="stylesheet" href="' . esc_url(add_query_arg('ver', self::VERSION, $url)) . '" media="all">';
 }
 
     public static function legacy_callback_18021() {
@@ -3231,7 +3231,7 @@ body.home .rlp270-button{margin-top:14px!important}
     public static function legacy_callback_18045() {
     if (is_user_logged_in() || !function_exists('is_account_page') || !is_account_page()) return;
     $url = plugins_url('assets/account-login.css', __FILE__);
-    echo '<link id="rafflelb-account-login-v1-css" rel="stylesheet" href="' . esc_url(add_query_arg('ver', '0.34.00', $url)) . '" media="all">';
+    echo '<link id="rafflelb-account-login-v016-css" rel="stylesheet" href="' . esc_url(add_query_arg('ver', self::VERSION, $url)) . '" media="all">';
 }
 
     public static function legacy_callback_18052() {

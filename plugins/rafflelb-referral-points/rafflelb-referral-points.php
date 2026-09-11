@@ -2,7 +2,7 @@
 /**
  * Plugin Name: RaffleLB Referral & Points
  * Description: Referral links, Raffle Points rewards, and a WooCommerce "Pay with Raffle Points" payment method for RaffleLB.
- * Version: 1.2.15
+ * Version: 1.2.17
  * Author: RaffleLB
  * Text Domain: rafflelb-referral-points
  */
@@ -10,7 +10,7 @@
 if (!defined('ABSPATH')) exit;
 
 final class RaffleLB_Referral_Points {
-    const VERSION = '1.2.15';
+    const VERSION = '1.2.17';
     const ENDPOINT = 'refer-and-earn';
     const COOKIE = 'rafflelb_ref';
     const OPT = 'rafflelb_referral_settings';
@@ -762,9 +762,20 @@ final class RaffleLB_Referral_Points {
             font-size:9px;font-weight:800;letter-spacing:.45px;opacity:.72;
         }
         @media(max-width:767px){
-            .rl-ref-float{left:14px;bottom:18px;min-height:46px;padding:5px 12px 5px 6px;gap:8px}
-            .rl-ref-float-icon{width:34px;height:34px;flex-basis:34px;font-size:14px}
-            .rl-ref-float-label{font-size:10px}
+            .rl-ref-float{
+                left:max(12px,env(safe-area-inset-left));
+                bottom:calc(18px + env(safe-area-inset-bottom));
+                width:132px;min-width:132px;max-width:132px;
+                height:44px;min-height:44px;max-height:44px;
+                padding:4px 10px 4px 4px;gap:7px;
+                justify-content:flex-start;
+                border-radius:999px;
+                box-sizing:border-box;
+                box-shadow:0 6px 18px rgba(0,0,0,.26);
+                pointer-events:auto;
+            }
+            .rl-ref-float-icon{width:34px;height:34px;flex:0 0 34px;font-size:15px}
+            .rl-ref-float-label{position:static!important;display:block!important;width:auto!important;height:auto!important;max-width:none!important;margin:0!important;padding:0!important;overflow:visible!important;clip:auto!important;clip-path:none!important;white-space:nowrap!important;color:#050605!important;-webkit-text-fill-color:#050605!important;font-size:10px!important;font-weight:900!important;line-height:1!important;letter-spacing:.25px!important}
             .rl-ref-float-label:after{display:none}
         }
         </style>';

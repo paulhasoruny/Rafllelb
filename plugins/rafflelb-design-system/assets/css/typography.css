@@ -1,0 +1,210 @@
+/**
+ * RaffleLB Design System — Final Safe Foundation (0.1.2)
+ *
+ * Scope: typography only. No layout, no color, no component dimensions.
+ * Loaded frontend-only (see rafflelb-design-system.php); never reaches
+ * wp-admin, the block editor, or WooCommerce admin screens.
+ *
+ * Manrope is served as a single self-hosted variable font file so every
+ * weight in the 200–800 range comes from one download.
+ *
+ * 0.1.x deliberately stops at font-family + tokens for anything that
+ * isn't already an explicit opt-in (.rl-hero-title, .rl-type-*, .rl-label,
+ * .rl-eyebrow). Bare h1/h2/h3, list items, labels, buttons and prices keep
+ * whatever size/weight/line-height their existing component CSS gives
+ * them — only their typeface changes. Sizing tokens (--rl-size-*,
+ * --rl-text-*) stay defined for plugins to opt into deliberately in a
+ * later release.
+ *
+ * 0.1.2: the global body rule sets font-family only (plus font smoothing).
+ * font-weight and line-height are inherited properties — setting them on
+ * body would still reach every descendant (nav, WooCommerce components,
+ * list elements) even with no selector naming them directly, so they are
+ * left off body and stay opt-in only via the --rl-weight-*/--rl-line-*
+ * tokens and the .rl-type-* classes.
+ */
+
+@font-face {
+    font-family: "Manrope";
+    font-style: normal;
+    font-weight: 200 800;
+    font-display: swap;
+    src: url("../fonts/manrope-variable.woff2") format("woff2-variations"),
+         url("../fonts/manrope-variable.woff2") format("woff2");
+}
+
+:root {
+    --rl-font: "Manrope", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+
+    /* Type scale — available for opt-in use, not applied globally. */
+    --rl-text-xs: 11px;
+    --rl-text-sm: 13px;
+    --rl-text-base: 16px;
+    --rl-text-lg: 18px;
+    --rl-text-xl: 22px;
+    --rl-text-2xl: 28px;
+    --rl-text-3xl: 36px;
+    --rl-text-4xl: 48px;
+    --rl-text-hero: 72px;
+
+    /* Weights */
+    --rl-weight-regular: 400;
+    --rl-weight-medium: 500;
+    --rl-weight-semibold: 600;
+    --rl-weight-bold: 700;
+    --rl-weight-heavy: 800;
+
+    /* Line height */
+    --rl-line-tight: 1.08;
+    --rl-line-heading: 1.18;
+    --rl-line-body: 1.6;
+
+    /* Tracking */
+    --rl-tracking-tight: -0.025em;
+    --rl-tracking-normal: 0;
+    --rl-tracking-label: 0.09em;
+
+    /* Responsive heading clamps — for opt-in use via .rl-type-*, not applied to bare headings yet. */
+    --rl-size-hero: clamp(42px, 5vw + 1rem, 72px);
+    --rl-size-h1: clamp(32px, 3vw + 1.2rem, 46px);
+    --rl-size-h2: clamp(26px, 2.4vw + 1rem, 36px);
+    --rl-size-h3: clamp(20px, 1.4vw + 0.9rem, 24px);
+}
+
+/*
+ * Base frontend font. Inheritance carries this to nearly every text node
+ * already, so most WooCommerce, account, checkout, shop and nav markup
+ * picks it up for free without any additional selectors — that's the
+ * point: fewer rules, lower specificity, easier for plugin CSS to win
+ * where it needs to.
+ */
+body {
+    font-family: var(--rl-font);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+/*
+ * Form controls do not inherit font-family from the page in browser UA
+ * stylesheets, so they need an explicit rule to pick up Manrope. Only
+ * font-family changes here — no size/weight/padding, so WoodMart and
+ * RaffleLB button/input dimensions are untouched.
+ */
+button,
+input,
+select,
+textarea,
+.button,
+.wp-block-button__link {
+    font-family: var(--rl-font);
+}
+
+/*
+ * Headings inherit Manrope only. Font size, weight and line-height stay
+ * whatever the active theme/component already sets — 0.1.1 does not
+ * migrate heading hierarchy yet.
+ */
+h1, h2, h3, h4, h5, h6 {
+    font-family: var(--rl-font);
+}
+
+/* Hero headings opt in explicitly; nothing is force-promoted to hero size. */
+.rl-hero-title {
+    font-size: var(--rl-size-hero);
+    font-weight: var(--rl-weight-heavy);
+    line-height: var(--rl-line-tight);
+    letter-spacing: var(--rl-tracking-tight);
+}
+
+/*
+ * Opt-in typography utilities. Nothing existing carries these classes —
+ * Homepage, Shop, Account, Checkout etc. adopt them deliberately when
+ * they migrate a component to the design system.
+ */
+.rl-type-hero {
+    font-family: var(--rl-font);
+    font-size: var(--rl-size-hero);
+    font-weight: var(--rl-weight-heavy);
+    line-height: var(--rl-line-tight);
+    letter-spacing: var(--rl-tracking-tight);
+}
+
+.rl-type-h1 {
+    font-family: var(--rl-font);
+    font-size: var(--rl-size-h1);
+    font-weight: var(--rl-weight-heavy);
+    line-height: var(--rl-line-tight);
+    letter-spacing: var(--rl-tracking-tight);
+}
+
+.rl-type-h2 {
+    font-family: var(--rl-font);
+    font-size: var(--rl-size-h2);
+    font-weight: var(--rl-weight-bold);
+    line-height: var(--rl-line-heading);
+    letter-spacing: var(--rl-tracking-tight);
+}
+
+.rl-type-h3 {
+    font-family: var(--rl-font);
+    font-size: var(--rl-size-h3);
+    font-weight: var(--rl-weight-bold);
+    line-height: var(--rl-line-heading);
+    letter-spacing: var(--rl-tracking-tight);
+}
+
+.rl-type-body {
+    font-family: var(--rl-font);
+    font-size: var(--rl-text-base);
+    font-weight: var(--rl-weight-regular);
+    line-height: var(--rl-line-body);
+    letter-spacing: var(--rl-tracking-normal);
+}
+
+.rl-type-small {
+    font-family: var(--rl-font);
+    font-size: var(--rl-text-sm);
+    font-weight: var(--rl-weight-medium);
+    line-height: var(--rl-line-body);
+    letter-spacing: var(--rl-tracking-normal);
+}
+
+.rl-type-label {
+    font-family: var(--rl-font);
+    font-size: var(--rl-text-xs);
+    font-weight: var(--rl-weight-bold);
+    line-height: var(--rl-line-heading);
+    letter-spacing: var(--rl-tracking-label);
+}
+
+/* Reserve small uppercase treatment for genuine opt-in labels/metadata. */
+.rl-label,
+.rl-eyebrow {
+    font-size: var(--rl-text-xs);
+    font-weight: var(--rl-weight-bold);
+    letter-spacing: var(--rl-tracking-label);
+}
+
+/*
+ * WooCommerce product titles and prices: typeface only. No weight or
+ * letter-spacing change, so Shop card heights and price column widths
+ * are unaffected — hierarchy styling is deferred to a later, page-by-page
+ * migration onto the opt-in classes above.
+ */
+.woocommerce ul.products li.product .woocommerce-loop-product__title,
+.woocommerce div.product .product_title,
+.product-title,
+.wd-product-title,
+.woocommerce .price,
+.woocommerce-Price-amount,
+.price {
+    font-family: var(--rl-font);
+}
+
+/*
+ * Icon fonts and SVG icons are intentionally never targeted here. Their
+ * own stylesheets declare font-family directly on the icon element, which
+ * always wins over our inherited body font-family regardless of load
+ * order — no rule for us to add, and adding one would risk overriding
+ * theirs instead of protecting it.
+ */

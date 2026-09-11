@@ -2,7 +2,7 @@
 /**
  * Plugin Name: RaffleLB Draw Engine
  * Description: Raffle entry engine with cart-level reservation locking, unique paid entries, live progress, and WooCommerce integration.
- * Version: 0.34.18.37
+ * Version: 0.34.18.40
  * Author: RaffleLB
  */
 
@@ -69,6 +69,7 @@ final class RaffleLB_Draw_Engine {
     const META_HERO_IMAGE      = '_rafflelb_homepage_hero_image_id';
     const ITEM_MODE_META       = '_rafflelb_purchase_mode';
     const HOLD_MINUTES = 15;
+    const RAFFLE_LOCK_TIMEOUT = 3;
 
     public static function init() {
         register_activation_hook(__FILE__, [__CLASS__, 'activate']);
@@ -932,6 +933,47 @@ final class RaffleLB_Draw_Engine {
         return 'live';
     }
 
+    /**
+     * Authoritative paid-entry gate. A closed raffle can never accept another
+     * entry, including when an older pending order becomes paid afterward.
+     */
+    private static function raffle_accepts_new_entries($pid) {
+        if (get_post_meta($pid, self::META_EARLY_CLOSED, true) === 'yes') return false;
+        if (self::get_draw_result($pid)) return false;
+
+        $status = (string) get_post_meta($pid, self::META_DRAW_STATUS, true);
+        if (in_array($status, ['ready_to_draw', 'winner_selected'], true)) return false;
+        if ($status !== '' && $status !== 'live') return false;
+
+        return self::draw_status($pid) === 'live';
+    }
+
+    private static function raffle_lock_name($pid) {
+        global $wpdb;
+        $site_id = function_exists('get_current_blog_id') ? absint(get_current_blog_id()) : 1;
+        $database = defined('DB_NAME') ? (string) DB_NAME : 'wordpress';
+        $scope = substr(hash('sha256', $database . '|' . $wpdb->prefix . '|' . $site_id), 0, 12);
+        return 'rafflelb_draw_' . $scope . '_' . absint($pid);
+    }
+
+    private static function acquire_raffle_lock($pid) {
+        global $wpdb;
+        $acquired = $wpdb->get_var($wpdb->prepare(
+            'SELECT GET_LOCK(%s, %d)',
+            self::raffle_lock_name($pid),
+            self::RAFFLE_LOCK_TIMEOUT
+        ));
+        return (string) $acquired === '1';
+    }
+
+    private static function release_raffle_lock($pid) {
+        global $wpdb;
+        $wpdb->get_var($wpdb->prepare(
+            'SELECT RELEASE_LOCK(%s)',
+            self::raffle_lock_name($pid)
+        ));
+    }
+
     private static function mark_ready_to_draw($pid) {
         $total = absint(get_post_meta($pid, self::META_TOTAL, true));
         if ($total < 1 || self::claimed($pid) < $total) return false;
@@ -1364,13 +1406,35 @@ final class RaffleLB_Draw_Engine {
             $needed=max(0,$qty-$existing);
             if(!$total || !$needed) continue;
 
+            if (!self::raffle_accepts_new_entries($pid)) {
+                $order->add_order_note(
+                    'RaffleLB: entry generation was BLOCKED for ' . get_the_title($pid) .
+                    ' because the raffle was already closed. The order was preserved and no raffle entry was allocated.'
+                );
+                continue;
+            }
+
             $claimed=self::claimed($pid);
             if($claimed+$needed>$total) {
                 $order->add_order_note('RaffleLB: entry limit protection blocked entry generation.');
                 continue;
             }
 
-            $created=self::allocate($order_id,$item_id,$pid,absint($order->get_user_id()),$needed,$total);
+            $allocation_failure = '';
+            $created=self::allocate($order_id,$item_id,$pid,absint($order->get_user_id()),$needed,$total,$qty,$allocation_failure);
+            if ($allocation_failure === 'lock') {
+                $order->add_order_note(
+                    'RaffleLB: entry generation could not safely obtain the raffle allocation guard for ' . get_the_title($pid) .
+                    '. No entry was created; manual review is required.'
+                );
+            } elseif ($allocation_failure === 'capacity') {
+                $order->add_order_note('RaffleLB: entry limit protection blocked entry generation.');
+            } elseif (count($created) < $needed && !self::raffle_accepts_new_entries($pid)) {
+                $order->add_order_note(
+                    'RaffleLB: entry generation was BLOCKED for ' . get_the_title($pid) .
+                    ' because the raffle closed before allocation completed. The order was preserved and the closed eligible pool was not expanded further.'
+                );
+            }
             if($created) {
                 $order->add_order_note('RaffleLB entries generated: '.implode(', ',array_map(
                     fn($n)=>'#'.str_pad((string)$n,3,'0',STR_PAD_LEFT),$created
@@ -1694,37 +1758,75 @@ final class RaffleLB_Draw_Engine {
         ));
     }
 
-    private static function allocate($order_id,$item_id,$pid,$uid,$needed,$total) {
+    private static function allocate($order_id,$item_id,$pid,$uid,$needed,$total,$target_qty,&$failure_reason) {
         global $wpdb;
         $table=$wpdb->prefix.self::ENTRY_TABLE;
         $made=[];
+        $failure_reason = '';
 
-        // Entry records are immutable audit objects. A voided number remains
-        // visible as Void forever and is never reassigned to another order.
-        // Capacity is governed by the active-entry count, so allocate new,
-        // monotonically increasing ticket numbers when a void makes room.
-        $next_number = (int) $wpdb->get_var($wpdb->prepare(
-            "SELECT COALESCE(MAX(entry_number), 0) + 1 FROM {$table} WHERE product_id=%d",
-            $pid
-        ));
-
-        // A concurrent allocation can claim the same next number between the
-        // MAX() read and INSERT IGNORE. Advance and retry a bounded number of
-        // times so a database failure can never spin a request indefinitely.
-        $attempts = 0;
-        $max_attempts = max(10, $needed * 4);
-        while (count($made) < $needed && $attempts < $max_attempts) {
-            $attempts++;
-            $n = $next_number++;
-            $ok=$wpdb->query($wpdb->prepare(
-                "INSERT IGNORE INTO {$table}
-                (order_id,order_item_id,product_id,user_id,entry_number,status,created_at)
-                VALUES(%d,%d,%d,%d,%d,%s,%s)",
-                $order_id,$item_id,$pid,$uid,$n,'active',current_time('mysql')
-            ));
-            if((int)$ok===1) $made[]=$n;
+        // Defense in depth for every caller, including any future path that
+        // reaches allocate() without passing through the order-hook guard.
+        if (!self::raffle_accepts_new_entries($pid)) {
+            $failure_reason = 'closed';
+            return $made;
         }
-        return $made;
+
+        if (!self::acquire_raffle_lock($pid)) {
+            $failure_reason = 'lock';
+            return $made;
+        }
+
+        try {
+            // The lock serializes the final state, idempotency, capacity, and
+            // entry-number decisions for this raffle across PHP requests.
+            if (!self::raffle_accepts_new_entries($pid)) {
+                $failure_reason = 'closed';
+                return $made;
+            }
+
+            $needed = max(0, absint($target_qty) - self::count_item_entries($item_id));
+            if (!$needed) return $made;
+
+            $total = absint(get_post_meta($pid, self::META_TOTAL, true));
+            $claimed = self::claimed($pid);
+            if (!$total || $claimed + $needed > $total) {
+                $failure_reason = 'capacity';
+                return $made;
+            }
+
+            // Entry records are immutable audit objects. A voided number remains
+            // visible as Void forever and is never reassigned to another order.
+            // Capacity is governed by the active-entry count, so allocate new,
+            // monotonically increasing ticket numbers when a void makes room.
+            $next_number = (int) $wpdb->get_var($wpdb->prepare(
+                "SELECT COALESCE(MAX(entry_number), 0) + 1 FROM {$table} WHERE product_id=%d",
+                $pid
+            ));
+
+            // The raffle lock removes same-raffle number/capacity races. Keep
+            // the bounded INSERT IGNORE retry as existing database defense.
+            $attempts = 0;
+            $max_attempts = max(10, $needed * 4);
+            while (count($made) < $needed && $attempts < $max_attempts) {
+                // Retain the 0.34.18.39 close check immediately before INSERT.
+                if (!self::raffle_accepts_new_entries($pid)) {
+                    $failure_reason = 'closed';
+                    break;
+                }
+                $attempts++;
+                $n = $next_number++;
+                $ok=$wpdb->query($wpdb->prepare(
+                    "INSERT IGNORE INTO {$table}
+                    (order_id,order_item_id,product_id,user_id,entry_number,status,created_at)
+                    VALUES(%d,%d,%d,%d,%d,%s,%s)",
+                    $order_id,$item_id,$pid,$uid,$n,'active',current_time('mysql')
+                ));
+                if((int)$ok===1) $made[]=$n;
+            }
+            return $made;
+        } finally {
+            self::release_raffle_lock($pid);
+        }
     }
 
     private static function cart_is_raffle_only() {
@@ -2375,38 +2477,58 @@ final class RaffleLB_Draw_Engine {
             exit;
         }
 
-        if (self::get_draw_result($pid) || get_post_meta($pid, self::META_DRAW_STATUS, true) === 'winner_selected') {
-            wp_safe_redirect(add_query_arg('rafflelb_draw', 'already_selected', $redirect));
+        if (!self::acquire_raffle_lock($pid)) {
+            wp_safe_redirect(add_query_arg('rafflelb_draw', 'early_lock_failed', $redirect));
             exit;
         }
 
-        $total = absint(get_post_meta($pid, self::META_TOTAL, true));
-        $claimed = self::claimed($pid);
-        $status = self::draw_status($pid);
+        $close_outcome = 'early_not_available';
+        $total = 0;
+        $claimed = 0;
+        $closed_at = '';
+        $admin_id = 0;
 
-        if ($status !== 'live' || $total < 1 || $claimed < 1 || $claimed >= $total) {
-            wp_safe_redirect(add_query_arg('rafflelb_draw', 'early_not_available', $redirect));
-            exit;
+        try {
+            // These are the authoritative checks and frozen-state writes. The
+            // same per-raffle lock covers paid allocation, so the active pool
+            // cannot change between this claimed count and the close snapshot.
+            if (self::get_draw_result($pid) || get_post_meta($pid, self::META_DRAW_STATUS, true) === 'winner_selected') {
+                $close_outcome = 'already_selected';
+            } else {
+                $total = absint(get_post_meta($pid, self::META_TOTAL, true));
+                $claimed = self::claimed($pid);
+                $status = self::draw_status($pid);
+
+                if ($status === 'live' && $total > 0 && $claimed > 0 && $claimed < $total) {
+                    $closed_at = current_time('mysql');
+                    $admin_id = get_current_user_id();
+
+                    update_post_meta($pid, self::META_DRAW_STATUS, 'ready_to_draw');
+                    update_post_meta($pid, self::META_CLOSED_AT, $closed_at);
+                    update_post_meta($pid, self::META_EARLY_CLOSED, 'yes');
+                    update_post_meta($pid, self::META_EARLY_CLOSE_REASON, $reason);
+                    update_post_meta($pid, self::META_EARLY_CLOSED_BY, $admin_id);
+                    update_post_meta($pid, self::META_EARLY_CLOSE_CLAIMED, $claimed);
+
+                    // Closing early must immediately remove every temporary
+                    // reservation while the frozen state is still locked.
+                    global $wpdb;
+                    $wpdb->delete(
+                        $wpdb->prefix . self::HOLD_TABLE,
+                        ['product_id' => $pid],
+                        ['%d']
+                    );
+                    $close_outcome = 'early_closed';
+                }
+            }
+        } finally {
+            self::release_raffle_lock($pid);
         }
 
-        $closed_at = current_time('mysql');
-        $admin_id = get_current_user_id();
-
-        update_post_meta($pid, self::META_DRAW_STATUS, 'ready_to_draw');
-        update_post_meta($pid, self::META_CLOSED_AT, $closed_at);
-        update_post_meta($pid, self::META_EARLY_CLOSED, 'yes');
-        update_post_meta($pid, self::META_EARLY_CLOSE_REASON, $reason);
-        update_post_meta($pid, self::META_EARLY_CLOSED_BY, $admin_id);
-        update_post_meta($pid, self::META_EARLY_CLOSE_CLAIMED, $claimed);
-
-        // Closing early must immediately remove every temporary reservation so
-        // no pending cart can consume another raffle slot after closure.
-        global $wpdb;
-        $wpdb->delete(
-            $wpdb->prefix . self::HOLD_TABLE,
-            ['product_id' => $pid],
-            ['%d']
-        );
+        if ($close_outcome !== 'early_closed') {
+            wp_safe_redirect(add_query_arg('rafflelb_draw', $close_outcome, $redirect));
+            exit;
+        }
 
         // Add the closure record to every currently eligible paid order so the
         // audit trail is visible from both the raffle admin and WooCommerce.
@@ -2898,6 +3020,7 @@ final class RaffleLB_Draw_Engine {
             'success'          => ['success', 'Winner selected and permanently recorded.'],
             'manual_success'   => ['success', 'Manual/external winner recorded and permanently audited.'],
             'early_closed'     => ['success', 'Raffle closed early. New raffle entries are now blocked and the current paid-entry pool is frozen for winner selection.'],
+            'early_lock_failed' => ['error', 'RaffleLB could not safely lock this raffle for early close. Nothing was changed; please try again.'],
             'early_reason_required' => ['error', 'Closing a raffle early requires an admin reason.'],
             'early_not_available' => ['error', 'This raffle cannot be closed early. It must be live, partially filled, and have at least one eligible paid entry.'],
             'already_selected' => ['warning', 'A winner has already been selected for this reward. A second draw was blocked.'],
@@ -4131,10 +4254,13 @@ final class RaffleLB_Draw_Engine {
                         <span class="rlwin-eyebrow">VERIFIED RAFFLELB RESULTS</span>
                         <h1>Our Winners</h1>
                         <p class="rlwin-lede">The full record of every completed draw — winner, prize, ticket and date.</p>
-                        <a class="rlwin-play" href="<?php echo esc_url('https://rafflelb.com/shop/?rl_view=raffle#rl-shop-controls'); ?>">RAFFLE NOW <span aria-hidden="true">→</span></a>
                         <?php if ($count): ?>
-                        <div class="rlwin-tally"><strong><?php echo esc_html($count); ?></strong><span>draw<?php echo $count === 1 ? '' : 's'; ?> completed and verified</span></div>
+                        <div class="rlwin-hero-stats" aria-label="Verified results summary">
+                            <div><strong><?php echo esc_html($count); ?></strong><span>Completed Draw<?php echo $count === 1 ? '' : 's'; ?></span></div>
+                            <div><strong>VERIFIED</strong><span>Published Results</span></div>
+                        </div>
                         <?php endif; ?>
+                        <a class="rlwin-play" href="<?php echo esc_url('https://rafflelb.com/shop/?rl_view=raffle#rl-shop-controls'); ?>">RAFFLE NOW <span aria-hidden="true">→</span></a>
                     </div>
 
                     <?php if ($count && isset($cards[0])): $latest = $cards[0]; ?>
@@ -4148,9 +4274,11 @@ final class RaffleLB_Draw_Engine {
                             <?php endif; ?>
                         </div>
                         <div class="rlwin-spotlight-body">
-                            <span class="rlwin-spotlight-date"><?php echo esc_html($latest['date']); ?></span>
-                            <h2><?php echo esc_html($latest['winner']); ?></h2>
-                            <p><?php echo esc_html($latest['title']); ?></p>
+                            <div class="rlwin-spotlight-facts">
+                                <div><span>Draw Date</span><strong><?php echo esc_html($latest['date']); ?></strong></div>
+                                <div><span>Winner</span><h2><?php echo esc_html($latest['winner']); ?></h2></div>
+                                <div><span>Prize</span><p><?php echo esc_html($latest['title']); ?></p></div>
+                            </div>
                             <div class="rlwin-spotlight-stub"><span>Winning Ticket</span><strong><?php echo esc_html($latest['entry']); ?></strong></div>
                         </div>
                     </a>
@@ -4224,11 +4352,11 @@ final class RaffleLB_Draw_Engine {
             </section>
         </main>
 
-        <style id="rafflelb-winners-premium-v0341835">
+        <style id="rafflelb-winners-premium-v0341838">
         body.rafflelb-winners-public-page .main-page-wrapper,body.rafflelb-winners-public-page .site-content,body.rafflelb-winners-public-page .wd-content-layout,body.rafflelb-winners-public-page .content-layout-wrapper{background:#070907!important}
         body.rafflelb-winners-public-page .main-page-wrapper,body.rafflelb-winners-public-page .site-content{padding-top:0!important;padding-bottom:0!important}
-        /* Uses the same Inter UI stack as the RaffleLB navigation, Shop and My Account. */
-        .rlwin,.rlwin *{box-sizing:border-box}.rlwin{--lime:#baff00;--bg:#070907;--panel:#0c100c;--line:#293128;--display:Inter,"Segoe UI",Arial,sans-serif;position:relative;left:50%;width:100vw;max-width:none;margin-left:-50vw;overflow-x:hidden;background:var(--bg);color:#fff;font-family:var(--display)!important;-webkit-font-smoothing:antialiased}.rlwin a{text-decoration:none!important}
+        /* Winners-owned layout uses the active RaffleLB Design System font token. */
+        .rlwin,.rlwin *{box-sizing:border-box}.rlwin{--lime:#baff00;--bg:#070907;--panel:#0c100c;--line:#293128;--display:var(--rl-font,"Manrope",sans-serif);position:relative;left:50%;width:100vw;max-width:none;margin-left:-50vw;overflow-x:hidden;background:var(--bg);color:#fff;font-family:var(--display)!important;-webkit-font-smoothing:antialiased}.rlwin a{text-decoration:none!important}
         .rlwin-hero{position:relative;overflow:hidden;border-bottom:1px solid rgba(255,255,255,.07);background:radial-gradient(circle at 76% 0,rgba(186,255,0,.075),transparent 31%),linear-gradient(135deg,#050705,#090c09)}
         .rlwin-hero-inner{position:relative;z-index:2;display:grid;grid-template-columns:minmax(400px,.86fr) minmax(400px,.9fr);align-items:center;gap:52px;max-width:1560px;margin:0 auto;padding:56px 34px 60px}
         .rlwin-hero-inner.is-empty{grid-template-columns:1fr;max-width:760px;text-align:center}.rlwin-hero-inner.is-empty .rlwin-eyebrow{justify-content:center}
@@ -4270,7 +4398,7 @@ final class RaffleLB_Draw_Engine {
         .rlwin-directory-head.is-empty{justify-content:center;max-width:640px;margin-left:auto;margin-right:auto;text-align:center}
         .rlwin-directory-head.is-empty>div:first-child>span{text-align:center}
         .rlwin-tools{display:grid;grid-template-columns:minmax(220px,1fr) minmax(168px,190px);gap:12px;width:min(100%,590px);flex:0 1 590px;min-width:0;align-items:center}.rlwin-search{position:relative;display:block;min-width:0}.rlwin-search>span{position:absolute;z-index:2;left:15px;top:50%;width:14px;height:14px;border:1.7px solid #aab2a8;border-radius:50%;transform:translateY(-55%)}.rlwin-search>span:after{content:"";position:absolute;width:6px;height:1.7px;right:-5px;bottom:-2px;background:#aab2a8;transform:rotate(45deg)}.rlwin-search input,.rlwin-sort select{height:43px!important;margin:0!important;border:1px solid #303830!important;border-radius:10px!important;background:#0d110d!important;color:#fff!important;-webkit-text-fill-color:#fff!important;font-family:var(--display)!important;font-size:12px!important;box-shadow:none!important}.rlwin-search input{width:100%!important;min-width:0!important;padding:0 15px 0 43px!important}.rlwin-search input::placeholder{color:#7f887d!important;opacity:1}.rlwin-sort{display:block;min-width:0}.rlwin-sort select{width:100%!important;min-width:168px!important;padding:0 36px 0 14px!important;cursor:pointer}.rlwin-search input:focus,.rlwin-sort select:focus{outline:2px solid rgba(186,255,0,.7)!important;outline-offset:2px;border-color:var(--lime)!important}
-        .rlwin-filters{display:flex;gap:0;margin:0 0 15px;overflow-x:auto;border-bottom:1px solid #252c25;scrollbar-width:none}.rlwin-filters::-webkit-scrollbar{display:none}.rlwin-filters button{position:relative;flex:0 0 auto;min-height:43px;padding:0 18px;border:0!important;background:transparent!important;color:#b9c0b7!important;font-family:Inter,"Segoe UI",Arial,sans-serif!important;font-size:12px!important;font-weight:650!important;white-space:nowrap;cursor:pointer}.rlwin-filters button span{margin-left:4px;color:inherit!important}.rlwin-filters button.is-active{color:var(--lime)!important}.rlwin-filters button.is-active:after{content:"";position:absolute;left:8px;right:8px;bottom:0;height:3px;border-radius:3px 3px 0 0;background:var(--lime)}
+        .rlwin-filters{display:flex;gap:0;margin:0 0 15px;overflow-x:auto;border-bottom:1px solid #252c25;scrollbar-width:none}.rlwin-filters::-webkit-scrollbar{display:none}.rlwin-filters button{position:relative;flex:0 0 auto;min-height:43px;padding:0 18px;border:0!important;background:transparent!important;color:#b9c0b7!important;font-family:var(--display)!important;font-size:12px!important;font-weight:650!important;white-space:nowrap;cursor:pointer}.rlwin-filters button span{margin-left:4px;color:inherit!important}.rlwin-filters button.is-active{color:var(--lime)!important}.rlwin-filters button.is-active:after{content:"";position:absolute;left:8px;right:8px;bottom:0;height:3px;border-radius:3px 3px 0 0;background:var(--lime)}
         .rlwin-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px}.rlwin-card{min-width:0;overflow:hidden;border:1px solid var(--line);border-radius:12px;background:linear-gradient(180deg,#101410,#0b0e0b);box-shadow:0 12px 30px rgba(0,0,0,.2);transition:transform .2s,border-color .2s,box-shadow .2s}.rlwin-card:hover{transform:translateY(-3px);border-color:rgba(186,255,0,.46);box-shadow:0 18px 38px rgba(0,0,0,.31)}.rlwin-card[hidden]{display:none!important}
         .rlwin-media{position:relative;display:flex!important;height:185px;align-items:center;justify-content:center;overflow:hidden;border-bottom:1px solid #242b24;background:#070a07}.rlwin-media:after{content:"";position:absolute;inset:55% 0 0;background:linear-gradient(transparent,rgba(0,0,0,.42));pointer-events:none}.rlwin-media img{display:block!important;width:100%!important;height:100%!important;object-fit:contain!important;object-position:center!important;transition:transform .25s}.rlwin-card:hover .rlwin-media img{transform:none}.rlwin-placeholder{color:var(--lime)!important;font-size:56px!important;font-weight:900!important}.rlwin-verified{position:absolute;z-index:3;top:10px;right:10px;display:inline-flex;min-height:27px;align-items:center;gap:5px;padding:0 9px;border:1px solid rgba(186,255,0,.45);border-radius:999px;background:rgba(7,10,7,.92);color:var(--lime)!important;font-size:10px!important;font-weight:750!important}.rlwin-verified b{display:inline-flex;width:15px;height:15px;align-items:center;justify-content:center;border-radius:50%;background:var(--lime);color:#050705!important;font-size:9px!important}
         .rlwin-card-body{padding:12px}.rlwin-card h3{min-height:39px;margin:0 0 10px!important;color:#fff!important;font-size:15px!important;line-height:1.3!important;font-weight:750!important;letter-spacing:-.01em!important}.rlwin-card h3 a{color:#fff!important}.rlwin-person{display:flex;align-items:center;gap:9px;margin-bottom:9px}.rlwin-avatar{display:flex;width:37px;height:37px;flex:0 0 37px;align-items:center;justify-content:center;border:1px solid #414841;border-radius:50%;background:linear-gradient(145deg,#444a44,#252a25);color:#fff!important;font-size:11px!important;font-weight:750!important}.rlwin-person>div{min-width:0}.rlwin-person strong{display:block;overflow:hidden;color:#fff!important;font-size:12px!important;line-height:1.2!important;font-weight:700!important;text-overflow:ellipsis;white-space:nowrap}.rlwin-person small{display:block;margin-top:4px;overflow:hidden;color:#9da69b!important;font-size:10px!important;line-height:1.2!important;text-overflow:ellipsis;white-space:nowrap}.rlwin-person small i{color:var(--lime)!important;font-style:normal}
@@ -4328,6 +4456,23 @@ final class RaffleLB_Draw_Engine {
             .rlwin-card-body{grid-column:2;grid-row:1;padding:34px 12px 8px!important;min-width:0}.rlwin-card h3{margin:0 0 6px!important;font-size:16px!important;line-height:1.2!important;max-width:none!important;overflow:visible!important;text-overflow:clip!important;white-space:normal!important;overflow-wrap:anywhere;word-break:normal}.rlwin-person{gap:7px;margin-bottom:6px!important}.rlwin-avatar{width:28px;height:28px;flex-basis:28px;font-size:10px!important}.rlwin-person strong{font-size:14px!important}.rlwin-person small{margin-top:1px;font-size:11px!important}
             .rlwin-result-meta{display:flex;flex-direction:column;gap:2px;margin:0;padding-top:6px}.rlwin-result-meta span{display:flex;font-size:11px!important;line-height:1.25!important}.rlwin-result-meta strong{display:inline;margin:0;white-space:nowrap}.rlwin-details{position:absolute;right:10px;bottom:0;left:10px;width:auto!important;min-height:42px;font-size:13px!important;white-space:nowrap}
         }
+        /* v0.34.18.38: premium hero balance and pure-black featured product stage. */
+        .rlwin-hero-inner{grid-template-columns:minmax(380px,.92fr) minmax(520px,1.08fr);gap:64px;max-width:1540px;padding-top:54px;padding-bottom:54px}
+        .rlwin-intro{max-width:540px}.rlwin-intro h1{font-size:clamp(48px,4.1vw,68px)!important;font-weight:800!important;letter-spacing:-.035em!important}.rlwin-lede{max-width:500px;margin:18px 0 0!important;color:#b8c0b5!important;line-height:1.65!important}
+        .rlwin-hero-stats{display:flex;align-items:stretch;gap:0;width:min(100%,470px);margin:28px 0 24px;padding:16px 0;border-top:1px solid rgba(255,255,255,.11);border-bottom:1px solid rgba(255,255,255,.11)}
+        .rlwin-hero-stats>div{display:flex;min-width:0;flex:1;flex-direction:column;gap:5px;padding:0 20px}.rlwin-hero-stats>div:first-child{padding-left:0}.rlwin-hero-stats>div+div{border-left:1px solid rgba(255,255,255,.11)}
+        .rlwin-hero-stats strong{color:var(--lime)!important;font-size:21px!important;font-weight:800!important;line-height:1!important;letter-spacing:-.01em!important}.rlwin-hero-stats span{color:#aeb7ab!important;font-size:11px!important;font-weight:700!important;line-height:1.3!important;letter-spacing:.075em!important;text-transform:uppercase}
+        .rlwin-play{min-height:48px;border-radius:10px;font-size:13px!important;letter-spacing:.025em!important}
+        .rlwin-spotlight{display:grid;grid-template-columns:minmax(240px,.88fr) minmax(300px,1.12fr);min-height:360px;border-radius:18px;background:#0c100c}
+        .rlwin-spotlight-media{height:auto;min-height:360px;padding:30px!important;background:#000!important}
+        .rlwin-spotlight-media img{width:100%!important;height:100%!important;max-width:360px!important;max-height:300px!important;padding:0!important;object-fit:contain!important;object-position:center center!important}
+        .rlwin-spotlight-body{display:flex;min-width:0;flex-direction:column;justify-content:center;padding:58px 34px 30px!important}
+        .rlwin-spotlight-facts{display:grid;gap:17px}.rlwin-spotlight-facts>div>span{display:block;margin-bottom:5px;color:#929b90!important;font-size:10px!important;font-weight:800!important;line-height:1.2!important;letter-spacing:.1em!important;text-transform:uppercase}
+        .rlwin-spotlight-facts strong{color:#d8ded5!important;font-size:13px!important;font-weight:700!important;line-height:1.3!important}.rlwin-spotlight-facts h2{overflow-wrap:anywhere}.rlwin-spotlight-facts p{margin:0!important;color:#c0c7bd!important;font-size:15px!important;font-weight:600!important;line-height:1.4!important;overflow-wrap:anywhere}
+        .rlwin-spotlight-stub{margin-top:20px}.rlwin-spotlight-stub:before,.rlwin-spotlight-stub:after{display:none}
+        @media(max-width:1080px){.rlwin-hero-inner{grid-template-columns:1fr;max-width:720px;gap:34px}.rlwin-intro{max-width:620px}.rlwin-spotlight{max-width:none}}
+        @media(max-width:767px){.rlwin-hero-inner{gap:28px;padding:34px 15px 32px}.rlwin-intro h1{font-size:clamp(38px,11vw,44px)!important;line-height:1.02!important}.rlwin-lede{font-size:14px!important}.rlwin-hero-stats{margin:24px 0 20px}.rlwin-hero-stats>div{padding:0 13px}.rlwin-hero-stats strong{font-size:18px!important}.rlwin-hero-stats span{font-size:9px!important}.rlwin-play{min-height:48px}.rlwin-spotlight{display:grid;grid-template-columns:38% minmax(0,62%);grid-template-rows:1fr;width:100%;height:auto;min-height:218px}.rlwin-spotlight-media{grid-column:1;grid-row:1;min-height:218px;padding:18px 10px!important;background:#000!important}.rlwin-spotlight-media img{width:100%!important;height:100%!important;max-width:150px!important;max-height:170px!important}.rlwin-spotlight-tag{top:14px;left:calc(38% + 14px);font-size:9px!important}.rlwin-spotlight-body{grid-column:2;grid-row:1;padding:50px 14px 14px!important}.rlwin-spotlight-facts{gap:10px}.rlwin-spotlight-facts>div>span{margin-bottom:3px;font-size:8px!important}.rlwin-spotlight-facts strong{font-size:11px!important}.rlwin-spotlight-facts h2{font-size:20px!important;line-height:1.12!important}.rlwin-spotlight-facts p{font-size:12px!important;line-height:1.3!important}.rlwin-spotlight-stub{margin-top:11px;padding-top:10px}.rlwin-spotlight-stub span{font-size:9px!important}.rlwin-spotlight-stub strong{font-size:15px!important}}
+        @media(max-width:390px){.rlwin-hero-stats span{letter-spacing:.045em!important}.rlwin-spotlight{grid-template-columns:36% minmax(0,64%)}.rlwin-spotlight-tag{left:calc(36% + 12px)}.rlwin-spotlight-body{padding-right:12px!important;padding-left:12px!important}}
         </style>
 
         <?php if ($count): ?>

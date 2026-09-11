@@ -2,14 +2,14 @@
 /**
  * Plugin Name: RaffleLB Shop
  * Description: Existing RaffleLB catalog and product presentation with reversible Draw Engine delegation.
- * Version: 0.1.94
+ * Version: 0.1.99
  * Author: RaffleLB
  * Requires PHP: 7.4
  */
 if (!defined('ABSPATH')) { exit; }
 require_once plugin_dir_path(__FILE__) . 'includes/class-rafflelb-store-only-renderer.php';
 final class RaffleLB_Shop {
-    const VERSION = '0.1.94';
+    const VERSION = '0.1.99';
     public static function ready() {
         return class_exists('RaffleLB\\Core\\Contracts')
             && version_compare(\RaffleLB\Core\Contracts::VERSION, '0.1.0', '>=')
@@ -1628,19 +1628,8 @@ final class RaffleLB_Shop {
     }
 
     public static function shop_enqueue_inter_font() {
-        if (is_admin()) return;
-
-        // Load Inter sitewide: dozens of premium UI blocks across the shop,
-        // homepage, checkout, and account pages already declare
-        // font-family:Inter as their primary face, but the stylesheet was
-        // never fetched outside the Shop catalogue, so those pages silently
-        // fell back to the browser's plain system font.
-        wp_enqueue_style(
-            'rafflelb-shop-inter',
-            'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap',
-            [],
-            null
-        );
+        // Retained as a no-op for hook compatibility. Typography is supplied
+        // by RaffleLB Design System via var(--rl-font).
     }
 
     public static function raffle_archive_styles() {
@@ -1828,7 +1817,7 @@ final class RaffleLB_Shop {
                 justify-content:center!important;
                 padding:0 1px!important;
                 color:#6d766a!important;
-                font-family:Inter,"Segoe UI",Arial,sans-serif!important;
+                font-family:var(--rl-font,"Manrope",sans-serif)!important;
                 font-size:9px!important;
                 font-weight:800!important;
                 letter-spacing:.1em!important;
@@ -1954,7 +1943,7 @@ final class RaffleLB_Shop {
             border-radius:10px!important;
             background:#080b08!important;
             color:#fff!important;
-            font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif!important;
+            font-family:var(--rl-font,"Manrope",sans-serif)!important;
             font-size:14px!important;
             font-weight:650!important;
             line-height:44px!important;
@@ -2110,7 +2099,7 @@ final class RaffleLB_Shop {
         body.rafflelb-raffle-archive .shop-filters *,
         body.rafflelb-raffle-archive .wd-shop-filters,
         body.rafflelb-raffle-archive .wd-shop-filters *{
-            font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif!important;
+            font-family:var(--rl-font,"Manrope",sans-serif)!important;
             -webkit-font-smoothing:antialiased;
             text-rendering:optimizeLegibility;
         }
@@ -2125,7 +2114,7 @@ final class RaffleLB_Shop {
         body.rafflelb-raffle-archive .rl-shop-toolbar *,
         body.rafflelb-raffle-archive .rl-raffle-card .product-information,
         body.rafflelb-raffle-archive .rl-raffle-card .product-information *{
-            font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif!important;
+            font-family:var(--rl-font,"Manrope",sans-serif)!important;
             -webkit-font-smoothing:antialiased!important;
             text-rendering:optimizeLegibility!important;
         }
@@ -2140,7 +2129,7 @@ final class RaffleLB_Shop {
         }
         body.rafflelb-raffle-archive .rl-shop-title-row h1{
             margin-bottom:10px!important;
-            font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif!important;
+            font-family:var(--rl-font,"Manrope",sans-serif)!important;
             font-size:clamp(44px,4.1vw,58px)!important;
             line-height:.98!important;
             font-weight:800!important;
@@ -2211,7 +2200,7 @@ final class RaffleLB_Shop {
         body.rafflelb-raffle-archive .wd-shop-filters .widget-title{
             margin:0 0 17px!important;
             color:#f4f7f2!important;
-            font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif!important;
+            font-family:var(--rl-font,"Manrope",sans-serif)!important;
             font-size:15px!important;
             line-height:1.25!important;
             font-weight:700!important;
@@ -2450,7 +2439,7 @@ final class RaffleLB_Shop {
         body.rafflelb-raffle-archive .rl-shop-title-row h1{
             margin:0!important;
             color:#f6f8f4!important;
-            font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif!important;
+            font-family:var(--rl-font,"Manrope",sans-serif)!important;
             font-size:clamp(40px,3.2vw,50px)!important;
             line-height:1.03!important;
             font-weight:650!important;
@@ -2532,7 +2521,7 @@ final class RaffleLB_Shop {
         body.rafflelb-raffle-archive .rl-shop-title-row h1{
             margin:0!important;
             color:#f7faf5!important;
-            font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif!important;
+            font-family:var(--rl-font,"Manrope",sans-serif)!important;
             font-size:clamp(52px,4.3vw,68px)!important;
             line-height:.95!important;
             font-weight:720!important;
@@ -2589,7 +2578,7 @@ final class RaffleLB_Shop {
             border-radius:10px!important;
             background:#0b0f0b!important;
             color:#dce3d9!important;
-            font-family:Inter,"Segoe UI",Arial,sans-serif!important;
+            font-family:var(--rl-font,"Manrope",sans-serif)!important;
             font-size:13px!important;
             line-height:1!important;
             font-weight:700!important;
@@ -2709,7 +2698,7 @@ final class RaffleLB_Shop {
            contextual nested WooCommerce categories. Presentation only. */
         body.rafflelb-raffle-archive .rl-shop-hero,
         body.rafflelb-raffle-archive .rl-shop-hero *{
-            font-family:Inter,"Segoe UI",Arial,Helvetica,sans-serif!important;
+            font-family:var(--rl-font,"Manrope",sans-serif)!important;
             -webkit-font-smoothing:antialiased!important;
             text-rendering:optimizeLegibility!important;
         }
@@ -2728,7 +2717,7 @@ final class RaffleLB_Shop {
         body.rafflelb-raffle-archive .rl-shop-title-row h1{
             margin:0!important;
             color:#f7f9f5!important;
-            font-family:Inter,"Segoe UI",Arial,Helvetica,sans-serif!important;
+            font-family:var(--rl-font,"Manrope",sans-serif)!important;
             font-size:clamp(42px,4vw,54px)!important;
             line-height:1.04!important;
             font-weight:700!important;
@@ -2741,7 +2730,7 @@ final class RaffleLB_Shop {
             max-width:760px!important;
             margin:0!important;
             color:#b9c2b6!important;
-            font-family:Inter,"Segoe UI",Arial,Helvetica,sans-serif!important;
+            font-family:var(--rl-font,"Manrope",sans-serif)!important;
             font-size:16px!important;
             line-height:1.55!important;
             font-weight:400!important;
@@ -2764,7 +2753,7 @@ final class RaffleLB_Shop {
             border-radius:0!important;
             background:transparent!important;
             color:#e1e6df!important;
-            font-family:Inter,"Segoe UI",Arial,Helvetica,sans-serif!important;
+            font-family:var(--rl-font,"Manrope",sans-serif)!important;
             font-size:13px!important;
             line-height:1.3!important;
             font-weight:600!important;
@@ -2851,7 +2840,7 @@ final class RaffleLB_Shop {
         body.rafflelb-raffle-archive .rl-subcategory-heading{
             margin:0!important;
             color:#f4f7f2!important;
-            font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif!important;
+            font-family:var(--rl-font,"Manrope",sans-serif)!important;
             font-size:16px!important;
             line-height:1.3!important;
             font-weight:700!important;
@@ -2859,7 +2848,7 @@ final class RaffleLB_Shop {
         }
         body.rafflelb-raffle-archive .rl-subcategory-context{
             color:#899486!important;
-            font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif!important;
+            font-family:var(--rl-font,"Manrope",sans-serif)!important;
             font-size:13px!important;
             line-height:1.35!important;
             font-weight:600!important;
@@ -2880,7 +2869,7 @@ final class RaffleLB_Shop {
             border-radius:11px!important;
             background:#090d09!important;
             color:#dce2d9!important;
-            font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif!important;
+            font-family:var(--rl-font,"Manrope",sans-serif)!important;
             font-size:14px!important;
             line-height:1.25!important;
             font-weight:650!important;
@@ -2929,7 +2918,7 @@ final class RaffleLB_Shop {
             border-radius:999px!important;
             background:rgba(186,255,0,.055)!important;
             color:#baff00!important;
-            font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif!important;
+            font-family:var(--rl-font,"Manrope",sans-serif)!important;
             font-size:13px!important;
             line-height:1!important;
             font-weight:750!important;
@@ -2950,7 +2939,7 @@ final class RaffleLB_Shop {
             display:none!important;
             margin:12px 0 0!important;
             color:#8f998c!important;
-            font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif!important;
+            font-family:var(--rl-font,"Manrope",sans-serif)!important;
             font-size:14px!important;
             line-height:1.45!important;
         }
@@ -3004,7 +2993,7 @@ final class RaffleLB_Shop {
         body.rafflelb-raffle-archive .rl-shop-mode-copy strong{
             margin:0!important;
             color:#f4f7f2!important;
-            font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif!important;
+            font-family:var(--rl-font,"Manrope",sans-serif)!important;
             font-size:17px!important;
             line-height:1.25!important;
             font-weight:700!important;
@@ -3012,7 +3001,7 @@ final class RaffleLB_Shop {
         }
         body.rafflelb-raffle-archive .rl-shop-mode-copy span{
             color:rgba(235,241,232,.70)!important;
-            font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif!important;
+            font-family:var(--rl-font,"Manrope",sans-serif)!important;
             font-size:14px!important;
             line-height:1.35!important;
             font-weight:450!important;
@@ -3035,7 +3024,7 @@ final class RaffleLB_Shop {
             border-radius:10px!important;
             background:rgba(186,255,0,.10)!important;
             color:#dfff91!important;
-            font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif!important;
+            font-family:var(--rl-font,"Manrope",sans-serif)!important;
             font-size:14px!important;
             line-height:1.2!important;
             font-weight:700!important;
@@ -3125,7 +3114,7 @@ final class RaffleLB_Shop {
         }
         body.rafflelb-raffle-archive .rl-shop-mode-copy strong{
             color:#ffffff!important;
-            font-family:Inter,"Segoe UI Variable","Segoe UI",Roboto,Arial,sans-serif!important;
+            font-family:var(--rl-font,"Manrope",sans-serif)!important;
             font-size:19px!important;
             line-height:1.2!important;
             font-weight:700!important;
@@ -3135,7 +3124,7 @@ final class RaffleLB_Shop {
         }
         body.rafflelb-raffle-archive .rl-shop-mode-copy span{
             color:rgba(244,247,242,.82)!important;
-            font-family:Inter,"Segoe UI Variable","Segoe UI",Roboto,Arial,sans-serif!important;
+            font-family:var(--rl-font,"Manrope",sans-serif)!important;
             font-size:15.5px!important;
             line-height:1.35!important;
             font-weight:500!important;
@@ -3333,7 +3322,7 @@ final class RaffleLB_Shop {
                 background:rgba(186,255,0,.10)!important;
                 border:1px solid rgba(186,255,0,.45)!important;
                 color:#baff00!important;
-                font-family:Inter,"Segoe UI Variable","Segoe UI",Roboto,Arial,sans-serif!important;
+                font-family:var(--rl-font,"Manrope",sans-serif)!important;
                 font-size:11px!important;
                 font-weight:800!important;
                 letter-spacing:.14em!important;
@@ -3380,7 +3369,7 @@ final class RaffleLB_Shop {
             background:#0d110d!important;
             border:1px solid #262e25!important;
             color:#e7ece3!important;
-            font-family:Inter,"Segoe UI Variable","Segoe UI",Roboto,Arial,sans-serif!important;
+            font-family:var(--rl-font,"Manrope",sans-serif)!important;
             text-decoration:none!important;
             padding:0 16px!important;
             border-radius:12px!important;
@@ -3481,7 +3470,7 @@ final class RaffleLB_Shop {
         }
         #rl-shop-nav-overlay .rl-shop-nav-overlay-text{
             color:rgba(240,245,237,.72)!important;
-            font-family:Inter,"Segoe UI",Arial,sans-serif!important;
+            font-family:var(--rl-font,"Manrope",sans-serif)!important;
             font-size:12px!important;
             font-weight:700!important;
             letter-spacing:.14em!important;
@@ -3621,7 +3610,7 @@ final class RaffleLB_Shop {
                 margin:1px 0!important;
                 text-align:center!important;
                 color:#6d766a!important;
-                font-family:Inter,"Segoe UI",Arial,sans-serif!important;
+                font-family:var(--rl-font,"Manrope",sans-serif)!important;
                 font-size:8px!important;
                 font-weight:800!important;
                 letter-spacing:.12em!important;
@@ -6858,6 +6847,106 @@ final class RaffleLB_Shop {
             margin-top:auto!important;
         }
     }
+    /* 0.1.95 — typography/readability only. Geometry and behavior are frozen. */
+    body.rafflelb-raffle-archive :is(.rl-shop-hero,#rl-shop-controls,.rl-raffle-card),
+    body.rafflelb-raffle-archive :is(.rl-shop-hero,#rl-shop-controls,.rl-raffle-card) *{
+        font-family:var(--rl-font,"Manrope",sans-serif)!important;
+        text-rendering:optimizeLegibility;
+        -webkit-font-smoothing:antialiased;
+    }
+    body.rafflelb-raffle-archive .rl-shop-heading::before{
+        font-size:var(--rl-text-xs,10px)!important;
+        font-weight:var(--rl-weight-bold,700)!important;
+        line-height:var(--rl-line-heading,1.2)!important;
+    }
+    body.rafflelb-raffle-archive .rl-shop-title-row h1{
+        font-size:48px!important;
+        font-weight:var(--rl-weight-heavy,800)!important;
+        line-height:var(--rl-line-heading,1.08)!important;
+        letter-spacing:var(--rl-tracking-tight,-.025em)!important;
+    }
+    body.rafflelb-raffle-archive .rl-shop-title-row p{
+        font-size:var(--rl-text-base,15px)!important;
+        font-weight:var(--rl-weight-medium,500)!important;
+        line-height:var(--rl-line-body,1.55)!important;
+    }
+    #rl-shop-controls .rl-shop-points-label{font-size:13px!important;font-weight:var(--rl-weight-semibold,600)!important}
+    #rl-shop-controls .rl-shop-points-value{font-size:22px!important;font-weight:var(--rl-weight-heavy,800)!important}
+    #rl-shop-controls .rl-shop-mode-eyebrow{font-size:11px!important;font-weight:var(--rl-weight-bold,700)!important}
+    #rl-shop-controls .rl-shop-view-mode,
+    #rl-shop-controls .rl-shop-toolbar-actions>.rl-shop-filter-toggle:not(.rl-shop-sort-trigger),
+    #rl-shop-controls .rl-shop-sort-trigger{
+        font-size:12px!important;
+        font-weight:var(--rl-weight-bold,700)!important;
+        line-height:var(--rl-line-heading,1.2)!important;
+        letter-spacing:0!important;
+    }
+    body.rafflelb-raffle-archive .rl-raffle-card :is(.wd-product-cats,.product-categories),
+    body.rafflelb-raffle-archive .rl-raffle-card :is(.wd-product-cats,.product-categories) a{
+        font-size:10px!important;
+        font-weight:var(--rl-weight-semibold,600)!important;
+        line-height:1.35!important;
+    }
+    body.rafflelb-raffle-archive .rl-raffle-card :is(.wd-entities-title,.product-title,h3),
+    body.rafflelb-raffle-archive .rl-raffle-card :is(.wd-entities-title,.product-title,h3) a{
+        font-size:17px!important;
+        font-weight:var(--rl-weight-bold,700)!important;
+        line-height:1.35!important;
+        letter-spacing:var(--rl-tracking-tight,-.015em)!important;
+    }
+    body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices small{
+        font-size:10px!important;
+        font-weight:var(--rl-weight-semibold,600)!important;
+        line-height:1.3!important;
+    }
+    body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices strong,
+    body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices strong *{
+        font-size:20px!important;
+        font-weight:var(--rl-weight-heavy,800)!important;
+        line-height:1.15!important;
+    }
+    body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices.is-retail-only strong,
+    body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices.is-retail-only strong *{font-size:22px!important}
+    body.rafflelb-raffle-archive .rl-shop-price-raffle .rl-shop-entry-value em{
+        font-size:11px!important;
+        font-weight:var(--rl-weight-medium,500)!important;
+    }
+    body.rafflelb-raffle-archive .rl-shop-raffle-live,
+    body.rafflelb-raffle-archive .rl-shop-raffle-line strong,
+    body.rafflelb-raffle-archive .rl-shop-raffle-line strong *,
+    body.rafflelb-raffle-archive .rl-shop-raffle-meta,
+    body.rafflelb-raffle-archive .rl-shop-raffle-meta *{
+        font-size:11px!important;
+        font-weight:var(--rl-weight-semibold,600)!important;
+        line-height:1.35!important;
+    }
+    body.rafflelb-raffle-archive .rl-shop-buy,
+    body.rafflelb-raffle-archive .rl-shop-buy-label,
+    body.rafflelb-raffle-archive .rl-shop-enter-label,
+    body.rafflelb-raffle-archive .rl-shop-enter-price,
+    body.rafflelb-raffle-archive .rl-shop-enter-price *{
+        font-size:12px!important;
+        font-weight:var(--rl-weight-bold,700)!important;
+        letter-spacing:0!important;
+    }
+    body.rafflelb-raffle-archive .rl-shop-card-actions-or{font-size:11px!important;font-weight:var(--rl-weight-medium,500)!important}
+    @media(max-width:767px){
+        body.rafflelb-raffle-archive .rl-shop-title-row h1{font-size:44px!important}
+        body.rafflelb-raffle-archive .rl-shop-title-row p{font-size:15px!important}
+        #rl-shop-controls .rl-shop-view-mode,
+        #rl-shop-controls .rl-shop-toolbar-actions>.rl-shop-filter-toggle:not(.rl-shop-sort-trigger),
+        #rl-shop-controls .rl-shop-sort-trigger{font-size:12px!important}
+        body.rafflelb-raffle-archive .rl-raffle-card :is(.wd-entities-title,.product-title,h3),
+        body.rafflelb-raffle-archive .rl-raffle-card :is(.wd-entities-title,.product-title,h3) a{font-size:16px!important;line-height:1.35!important}
+        body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices strong,
+        body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices strong *{font-size:18px!important}
+        body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices small{font-size:10px!important}
+        body.rafflelb-raffle-archive .rl-shop-raffle-live,
+        body.rafflelb-raffle-archive .rl-shop-raffle-line strong,
+        body.rafflelb-raffle-archive .rl-shop-raffle-line strong *,
+        body.rafflelb-raffle-archive .rl-shop-raffle-meta,
+        body.rafflelb-raffle-archive .rl-shop-raffle-meta *{font-size:11px!important}
+    }
     </style>
     <?php
 }
@@ -7174,7 +7263,7 @@ final class RaffleLB_Shop {
         body.rafflelb-raffle-archive .rl-raffle-card *,
         body.rafflelb-raffle-archive #rl-shop-controls,
         body.rafflelb-raffle-archive #rl-shop-controls *{
-            font-family:Inter,"Segoe UI",Arial,sans-serif!important;
+            font-family:var(--rl-font,"Manrope",sans-serif)!important;
             text-shadow:none!important;
             -webkit-text-stroke:0!important;
             filter:none!important;
@@ -7685,6 +7774,22 @@ final class RaffleLB_Shop {
             color:#f4f6f2!important;
         }
     }
+    /* Keep the 0.1.95 type layer authoritative over historical presentation rules. */
+    body.rafflelb-raffle-archive :is(.rl-shop-hero,#rl-shop-controls,.rl-raffle-card),
+    body.rafflelb-raffle-archive :is(.rl-shop-hero,#rl-shop-controls,.rl-raffle-card) *{font-family:var(--rl-font,"Manrope",sans-serif)!important}
+    body.rafflelb-raffle-archive .rl-shop-title-row h1{font-size:48px!important;font-weight:var(--rl-weight-heavy,800)!important;line-height:var(--rl-line-heading,1.08)!important;letter-spacing:var(--rl-tracking-tight,-.025em)!important}
+    body.rafflelb-raffle-archive .rl-shop-title-row p{font-size:var(--rl-text-base,15px)!important;font-weight:var(--rl-weight-medium,500)!important;line-height:var(--rl-line-body,1.55)!important}
+    #rl-shop-controls .rl-shop-points-label{font-size:13px!important;font-weight:var(--rl-weight-semibold,600)!important}
+    #rl-shop-controls .rl-shop-points-value{font-size:22px!important;font-weight:var(--rl-weight-heavy,800)!important}
+    #rl-shop-controls .rl-shop-mode-eyebrow{font-size:11px!important;font-weight:var(--rl-weight-bold,700)!important}
+    #rl-shop-controls .rl-shop-view-mode,#rl-shop-controls .rl-shop-toolbar-actions>.rl-shop-filter-toggle:not(.rl-shop-sort-trigger),#rl-shop-controls .rl-shop-sort-trigger{font-size:12px!important;font-weight:var(--rl-weight-bold,700)!important;letter-spacing:0!important}
+    body.rafflelb-raffle-archive .rl-raffle-card :is(.wd-entities-title,.product-title,h3),body.rafflelb-raffle-archive .rl-raffle-card :is(.wd-entities-title,.product-title,h3) a{font-size:17px!important;font-weight:var(--rl-weight-bold,700)!important;line-height:1.35!important}
+    body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices small{font-size:10px!important;font-weight:var(--rl-weight-semibold,600)!important}
+    body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices strong,body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices strong *{font-size:20px!important;font-weight:var(--rl-weight-heavy,800)!important}
+    body.rafflelb-raffle-archive .rl-shop-price-raffle .rl-shop-entry-value em{font-size:11px!important}
+    body.rafflelb-raffle-archive .rl-shop-raffle-live,body.rafflelb-raffle-archive .rl-shop-raffle-line strong,body.rafflelb-raffle-archive .rl-shop-raffle-line strong *,body.rafflelb-raffle-archive .rl-shop-raffle-meta,body.rafflelb-raffle-archive .rl-shop-raffle-meta *{font-size:11px!important;font-weight:var(--rl-weight-semibold,600)!important}
+    body.rafflelb-raffle-archive .rl-shop-buy,body.rafflelb-raffle-archive .rl-shop-buy-label,body.rafflelb-raffle-archive .rl-shop-enter-label,body.rafflelb-raffle-archive .rl-shop-enter-price,body.rafflelb-raffle-archive .rl-shop-enter-price *{font-size:12px!important;font-weight:var(--rl-weight-bold,700)!important;letter-spacing:0!important}
+    @media(max-width:767px){body.rafflelb-raffle-archive .rl-shop-title-row h1{font-size:44px!important}body.rafflelb-raffle-archive .rl-raffle-card :is(.wd-entities-title,.product-title,h3),body.rafflelb-raffle-archive .rl-raffle-card :is(.wd-entities-title,.product-title,h3) a{font-size:16px!important}body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices strong,body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices strong *{font-size:18px!important}}
     </style>
     <?php
 }

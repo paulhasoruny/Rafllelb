@@ -2,11 +2,11 @@
 /**
  * Plugin Name: RaffleLB Custom Checkout
  * Description: Native custom WooCommerce checkout template for RaffleLB. Keeps WooCommerce order/payment processing while replacing the checkout presentation.
- * Version: 4.8.9
+ * Version: 4.8.13
  * Author: RaffleLB
  */
 if ( ! defined( 'ABSPATH' ) ) exit;
-define('RLCC_VERSION','4.8.9');
+define('RLCC_VERSION','4.8.13');
 define('RLCC_PATH',plugin_dir_path(__FILE__));
 
 
@@ -2606,22 +2606,18 @@ add_action('wp_footer', function(){
  if(!function_exists('is_checkout') || !is_checkout() || is_order_received_page()) return;
  ?>
  <script>
- (function(){
-   function syncDetails(){
-     var d=document.getElementById('rlcc-entry-details');
-     if(!d) return;
-     var req=d.querySelectorAll('.validate-required input,.validate-required select,.validate-required textarea');
-     var incomplete=false;
-     req.forEach(function(el){
-       if(el.offsetParent!==null && !String(el.value||'').trim()) incomplete=true;
-     });
-     if(incomplete) d.setAttribute('open','open');
-     else d.removeAttribute('open');
+ (function($){
+   function openContactDetails(){
+     var details=document.getElementById('rlcc-entry-details');
+     if(details) details.open=true;
    }
-   document.addEventListener('DOMContentLoaded',syncDetails);
-   document.body.addEventListener('updated_checkout',function(){setTimeout(syncDetails,20);});
-   setTimeout(syncDetails,350);
- })();
+   if(document.readyState==='loading'){
+     document.addEventListener('DOMContentLoaded',openContactDetails,{once:true});
+   }else{
+     openContactDetails();
+   }
+   $(document.body).on('checkout_error.rlccContactDetails',openContactDetails);
+ })(jQuery);
  </script>
  <?php
 }, 1000);
@@ -2889,6 +2885,239 @@ add_action('wp_head', function(){
 </style>
 <?php
 }, 1002);
+
+/* v4.8.13 — checkout Country / Region SelectWoo presentation only. */
+add_action('wp_head', function(){
+ if(!function_exists('is_checkout') || !is_checkout() || is_order_received_page()) return;
+ ?>
+<style id="rlcc-v4813-country-selectwoo">
+body.rlcc-v3 #billing_country_field .select2-container{
+ display:block!important;width:100%!important;
+ font-family:var(--rl-font, "Manrope", sans-serif)!important;
+}
+body.rlcc-v3 #billing_country_field .select2-container--default .select2-selection--single{
+ display:block!important;width:100%!important;height:46px!important;min-height:46px!important;
+ border:1px solid #303930!important;border-radius:10px!important;
+ background:#0a0e0a!important;color:#fff!important;box-shadow:none!important;
+}
+body.rlcc-v3 #billing_country_field .select2-container--default .select2-selection--single .select2-selection__rendered{
+ display:flex!important;align-items:center!important;
+ height:44px!important;min-height:44px!important;margin:0!important;padding:0 42px 0 13px!important;
+ color:#fff!important;-webkit-text-fill-color:#fff!important;
+ font-family:var(--rl-font, "Manrope", sans-serif)!important;
+ font-size:16px!important;font-weight:500!important;line-height:1.3!important;
+}
+body.rlcc-v3 #billing_country_field .select2-container--default .select2-selection--single .select2-selection__placeholder{
+ color:#9ea89b!important;-webkit-text-fill-color:#9ea89b!important;
+}
+body.rlcc-v3 #billing_country_field .select2-container--default .select2-selection--single .select2-selection__arrow{
+ top:0!important;right:4px!important;width:34px!important;height:44px!important;
+}
+body.rlcc-v3 #billing_country_field .select2-container--default.select2-container--focus .select2-selection--single,
+body.rlcc-v3 #billing_country_field .select2-container--default.select2-container--open .select2-selection--single{
+ border-color:#baff00!important;box-shadow:0 0 0 1px rgba(186,255,0,.10)!important;
+}
+
+/* SelectWoo appends this panel beneath body, outside the checkout card. */
+body.rlcc-v3 .select2-container--open .select2-dropdown{
+ overflow:hidden!important;border:1px solid #394438!important;border-radius:10px!important;
+ background:#0a0e0a!important;color:#f7f8f5!important;
+ box-shadow:0 18px 44px rgba(0,0,0,.46)!important;
+ font-family:var(--rl-font, "Manrope", sans-serif)!important;
+}
+body.rlcc-v3 .select2-container--open .select2-search--dropdown{
+ padding:10px!important;border:0!important;border-bottom:1px solid #303930!important;
+ background:#0d120d!important;
+}
+body.rlcc-v3 .select2-container--open .select2-search--dropdown .select2-search__field{
+ width:100%!important;height:42px!important;margin:0!important;padding:0 12px!important;
+ border:1px solid #394438!important;border-radius:8px!important;
+ background:#070a07!important;color:#fff!important;-webkit-text-fill-color:#fff!important;
+ caret-color:#baff00!important;box-shadow:none!important;outline:none!important;
+ font-family:var(--rl-font, "Manrope", sans-serif)!important;
+ font-size:16px!important;font-weight:500!important;line-height:1.3!important;
+}
+body.rlcc-v3 .select2-container--open .select2-search--dropdown .select2-search__field:focus{
+ border-color:#baff00!important;box-shadow:0 0 0 1px rgba(186,255,0,.12)!important;
+}
+body.rlcc-v3 .select2-container--open :is(.select2-results,.select2-results__options){
+ background:#0a0e0a!important;color:#f7f8f5!important;
+}
+body.rlcc-v3 .select2-container--open .select2-results__options{
+ scrollbar-color:#596456 #0a0e0a!important;scrollbar-width:thin!important;
+}
+body.rlcc-v3 .select2-container--open .select2-results__option{
+ min-height:40px!important;padding:10px 13px!important;
+ background:#0a0e0a!important;color:#e8ece5!important;-webkit-text-fill-color:#e8ece5!important;
+ font-family:var(--rl-font, "Manrope", sans-serif)!important;
+ font-size:15px!important;font-weight:500!important;line-height:1.35!important;
+}
+body.rlcc-v3 .select2-container--open .select2-results__option[aria-selected="true"],
+body.rlcc-v3 .select2-container--open .select2-results__option[data-selected="true"]{
+ background:#17200d!important;color:#baff00!important;-webkit-text-fill-color:#baff00!important;
+ font-weight:700!important;
+}
+body.rlcc-v3 .select2-container--open .select2-results__option--highlighted[aria-selected],
+body.rlcc-v3 .select2-container--open .select2-results__option--highlighted[data-selected]{
+ background:#baff00!important;color:#071000!important;-webkit-text-fill-color:#071000!important;
+ font-weight:700!important;
+}
+body.rlcc-v3 .select2-container--open .select2-results__message{
+ background:#0a0e0a!important;color:#b7c0b4!important;-webkit-text-fill-color:#b7c0b4!important;
+}
+</style>
+<?php
+}, 2200);
+
+/* v4.8.10 — checkout-owned typography/readability only. */
+add_action('wp_head', function(){
+ if(!function_exists('is_checkout') || !is_checkout() || is_order_received_page()) return;
+ ?>
+<style id="rlcc-v4810-typography">
+body.rlcc-v3 .rlcc-app,
+body.rlcc-v3 .rlcc-hero,
+body.rlcc-v3 .rlcc-coupon,
+body.rlcc-v3 .rlcc-details,
+body.rlcc-v3 .rlcc-contact-intro,
+body.rlcc-v3 .rlcc-pay,
+body.rlcc-v3 .rlcc-order,
+body.rlcc-v3 #payment,
+body.rlcc-v3 #order_review,
+body.rlcc-v3 .woocommerce-form-coupon,
+body.rlcc-v3 :is(.woocommerce-error,.woocommerce-info,.woocommerce-message){
+ font-family:var(--rl-font, "Manrope", sans-serif)!important;
+}
+body.rlcc-v3 .rlcc-hero h1{
+ font-family:var(--rl-font, "Manrope", sans-serif)!important;
+ font-size:38px!important;font-weight:800!important;line-height:1.08!important;letter-spacing:-.035em!important;
+}
+body.rlcc-v3 .rlcc-kicker{
+ font-family:var(--rl-font, "Manrope", sans-serif)!important;
+ font-size:11px!important;font-weight:800!important;line-height:1.35!important;letter-spacing:.12em!important;
+}
+body.rlcc-v3 .rlcc-hero p{
+ font-family:var(--rl-font, "Manrope", sans-serif)!important;
+ font-size:15px!important;font-weight:450!important;line-height:1.6!important;
+}
+body.rlcc-v3 .rlcc-trust,
+body.rlcc-v3 .rlcc-trust span{
+ font-family:var(--rl-font, "Manrope", sans-serif)!important;
+ font-size:12px!important;font-weight:550!important;line-height:1.5!important;letter-spacing:.035em!important;
+}
+body.rlcc-v3 .rlcc-heading,
+body.rlcc-v3 .rlcc-details summary,
+body.rlcc-v3 :is(.woocommerce-billing-fields,.woocommerce-shipping-fields,.woocommerce-additional-fields)>h3{
+ font-family:var(--rl-font, "Manrope", sans-serif)!important;
+ font-size:23px!important;font-weight:800!important;line-height:1.18!important;letter-spacing:-.02em!important;
+}
+body.rlcc-v3 .rlcc-muted{
+ font-family:var(--rl-font, "Manrope", sans-serif)!important;
+ font-size:14px!important;font-weight:450!important;line-height:1.55!important;
+}
+body.rlcc-v3 .rlcc-contact-intro strong{
+ font-family:var(--rl-font, "Manrope", sans-serif)!important;
+ font-size:16px!important;font-weight:750!important;line-height:1.35!important;
+}
+body.rlcc-v3 .rlcc-contact-intro span{
+ font-family:var(--rl-font, "Manrope", sans-serif)!important;
+ font-size:13px!important;font-weight:450!important;line-height:1.5!important;
+}
+body.rlcc-v3 .rlcc-details .form-row label,
+body.rlcc-v3 .rlcc-pay .form-row label,
+body.rlcc-v3 .woocommerce-form-coupon .form-row label{
+ font-family:var(--rl-font, "Manrope", sans-serif)!important;
+ font-size:13px!important;font-weight:700!important;line-height:1.4!important;letter-spacing:0!important;
+}
+body.rlcc-v3 .rlcc-details :is(input.input-text,textarea,select),
+body.rlcc-v3 .rlcc-pay :is(input.input-text,input[type="text"],input[type="email"],input[type="tel"],textarea,select),
+body.rlcc-v3 .woocommerce-form-coupon :is(input.input-text,input[type="text"]),
+body.rlcc-v3 .select2-container .select2-selection__rendered{
+ font-family:var(--rl-font, "Manrope", sans-serif)!important;
+ font-size:16px!important;font-weight:500!important;line-height:1.45!important;
+}
+body.rlcc-v3 .rlcc-details :is(input,textarea)::placeholder,
+body.rlcc-v3 .rlcc-pay :is(input,textarea)::placeholder,
+body.rlcc-v3 .woocommerce-form-coupon :is(input,textarea)::placeholder{
+ font-family:var(--rl-font, "Manrope", sans-serif)!important;
+ font-size:15px!important;font-weight:450!important;
+}
+body.rlcc-v3 .rlcc-pay #payment ul.payment_methods>li>label{
+ font-family:var(--rl-font, "Manrope", sans-serif)!important;
+ font-size:16px!important;font-weight:700!important;line-height:1.35!important;letter-spacing:0!important;
+}
+body.rlcc-v3 .rlcc-pay #payment .payment_box,
+body.rlcc-v3 .rlcc-pay #payment .payment_box p,
+body.rlcc-v3 .rlcc-pay :is(.rl-points-label,.rl-points-status,.rl-points-note,.rl-whish-box p,.rl-omt-pay-box p){
+ font-family:var(--rl-font, "Manrope", sans-serif)!important;
+ font-size:13px!important;font-weight:450!important;line-height:1.55!important;
+}
+body.rlcc-v3 .rlcc-pay .rafflelb-points-payment-box .rl-points-value{
+ font-family:var(--rl-font, "Manrope", sans-serif)!important;
+ font-size:16px!important;font-weight:750!important;line-height:1.35!important;
+}
+body.rlcc-v3 .rlcc-item-name{
+ font-family:var(--rl-font, "Manrope", sans-serif)!important;
+ font-size:16px!important;font-weight:700!important;line-height:1.35!important;letter-spacing:-.01em!important;
+}
+body.rlcc-v3 :is(.rlcc-order-kicker,.rlcc-entry-badge,.rlcc-qty,.rlcc-entry-pill,.rlcc-item-price>span){
+ font-family:var(--rl-font, "Manrope", sans-serif)!important;
+ font-size:11px!important;font-weight:700!important;line-height:1.35!important;letter-spacing:.055em!important;
+}
+body.rlcc-v3 .rlcc-item-price,
+body.rlcc-v3 .rlcc-item-price strong,
+body.rlcc-v3 .rlcc-item-price strong *{
+ font-family:var(--rl-font, "Manrope", sans-serif)!important;
+ font-size:15px!important;font-weight:650!important;line-height:1.4!important;
+}
+body.rlcc-v3 .rlcc-total-row.grand span{
+ font-family:var(--rl-font, "Manrope", sans-serif)!important;
+ font-size:12px!important;font-weight:750!important;line-height:1.35!important;letter-spacing:.08em!important;
+}
+body.rlcc-v3 .rlcc-total-row.grand strong,
+body.rlcc-v3 .rlcc-total-row.grand strong *,
+body.rlcc-v3 .rlcc-total-row.grand .woocommerce-Price-amount,
+body.rlcc-v3 .rlcc-total-row.grand .woocommerce-Price-currencySymbol{
+ font-family:var(--rl-font, "Manrope", sans-serif)!important;
+ font-size:26px!important;font-weight:800!important;line-height:1!important;letter-spacing:-.025em!important;
+}
+body.rlcc-v3 .rlcc-order-security strong{
+ font-family:var(--rl-font, "Manrope", sans-serif)!important;
+ font-size:12px!important;font-weight:700!important;line-height:1.4!important;
+}
+body.rlcc-v3 .rlcc-order-security small{
+ font-family:var(--rl-font, "Manrope", sans-serif)!important;
+ font-size:11px!important;font-weight:450!important;line-height:1.5!important;
+}
+body.rlcc-v3 #place_order{
+ font-family:var(--rl-font, "Manrope", sans-serif)!important;
+ font-size:15px!important;font-weight:800!important;line-height:1.35!important;letter-spacing:.055em!important;
+ color:#071000!important;-webkit-text-fill-color:#071000!important;
+}
+body.rlcc-v3 .rlcc-coupon :is(.woocommerce-info,a,input,button),
+body.rlcc-v3 .woocommerce-form-coupon :is(input,button),
+body.rlcc-v3 :is(.woocommerce-error,.woocommerce-info,.woocommerce-message){
+ font-family:var(--rl-font, "Manrope", sans-serif)!important;
+ font-size:14px!important;font-weight:600!important;line-height:1.5!important;
+}
+body.rlcc-v3 .rlcc-payment-verification{
+ font-family:var(--rl-font, "Manrope", sans-serif)!important;
+ font-size:13px!important;font-weight:550!important;line-height:1.45!important;
+}
+@media(max-width:767px){
+ body.rlcc-v3 .rlcc-hero h1{font-size:clamp(28px,8vw,32px)!important;line-height:1.1!important;letter-spacing:-.032em!important;overflow-wrap:anywhere!important}
+ body.rlcc-v3 .rlcc-heading,
+ body.rlcc-v3 .rlcc-details summary,
+ body.rlcc-v3 :is(.woocommerce-billing-fields,.woocommerce-shipping-fields,.woocommerce-additional-fields)>h3{font-size:20px!important;line-height:1.2!important}
+ body.rlcc-v3 .rlcc-item-name{font-size:15px!important}
+ body.rlcc-v3 .rlcc-total-row.grand strong,
+ body.rlcc-v3 .rlcc-total-row.grand strong *,
+ body.rlcc-v3 .rlcc-total-row.grand .woocommerce-Price-amount,
+ body.rlcc-v3 .rlcc-total-row.grand .woocommerce-Price-currencySymbol{font-size:25px!important}
+ body.rlcc-v3 #place_order{font-size:14px!important}
+}
+</style>
+<?php
+}, 2000);
 
 add_action('wp_footer', function(){
  if(!function_exists('is_checkout') || !is_checkout() || is_order_received_page()) return;

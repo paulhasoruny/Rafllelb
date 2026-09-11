@@ -63,6 +63,7 @@
     transform:translateX(-104%) !important;
     transition:transform .36s cubic-bezier(.22,.8,.22,1);
     -webkit-font-smoothing:antialiased;
+    font-family:var(--rl-font, "Manrope", sans-serif);
   }
 
   .rlmm-drawer:after{
@@ -132,6 +133,7 @@
       linear-gradient(155deg,#0b0e0b 0%,#070907 55%,#0a0c09 100%) !important;
     border-right:1px solid rgba(186,255,0,.22) !important;
     box-shadow:30px 0 80px rgba(0,0,0,.62) !important;
+    font-family:var(--rl-font, "Manrope", sans-serif) !important;
   }
 
   .mobile-nav .rlmm-native-list{
@@ -284,7 +286,7 @@
     border-radius:12px;
     color:#f2f4ef !important;
     background:transparent;
-    font-family:Inter,"Segoe UI",Arial,sans-serif !important;
+    font-family:var(--rl-font, "Manrope", sans-serif) !important;
     text-decoration:none !important;
     transition:color .2s ease,background .2s ease,border-color .2s ease,transform .2s ease;
   }
@@ -342,10 +344,10 @@
   .rlmm-nav-label{
     min-width:0;
     color:inherit;
-    font-size:15.5px;
-    font-weight:800;
-    line-height:1.2;
-    letter-spacing:-.15px;
+    font-size:16px;
+    font-weight:700;
+    line-height:1.25;
+    letter-spacing:-.01em;
   }
 
   .rlmm-nav-arrow{
@@ -353,7 +355,7 @@
     align-items:center;
     justify-content:center;
     color:#a7ada4;
-    font-family:Arial,sans-serif;
+    font-family:var(--rl-font, "Manrope", sans-serif);
     font-size:27px;
     font-weight:300;
     line-height:1;
@@ -439,36 +441,37 @@
 
   .rlmm-refer-copy small{
     margin-bottom:3px;
-    color:#8f968c;
-    font-family:Inter,"Segoe UI",Arial,sans-serif;
-    font-size:9px;
+    color:#aeb5aa;
+    font-family:var(--rl-font, "Manrope", sans-serif);
+    font-size:11px;
     font-weight:700;
-    line-height:1.2;
-    letter-spacing:1.4px;
+    line-height:1.3;
+    letter-spacing:.09em;
   }
 
   .rlmm-refer-copy strong{
     color:#fff;
-    font-family:Inter,"Segoe UI",Arial,sans-serif;
+    font-family:var(--rl-font, "Manrope", sans-serif);
     font-size:18px;
-    font-weight:900;
-    line-height:1.12;
-    letter-spacing:-.35px;
+    font-weight:800;
+    line-height:1.18;
+    letter-spacing:-.02em;
   }
 
   .rlmm-refer-copy > span{
     margin-top:4px;
     color:#b2b7af;
-    font-family:Inter,"Segoe UI",Arial,sans-serif;
+    font-family:var(--rl-font, "Manrope", sans-serif);
     font-size:12px;
-    line-height:1.3;
+    font-weight:500;
+    line-height:1.4;
   }
 
   .rlmm-refer-arrow{
     position:relative;
     z-index:1;
     color:var(--rlmm-lime);
-    font-family:Arial,sans-serif;
+    font-family:var(--rl-font, "Manrope", sans-serif);
     font-size:29px;
     font-weight:300;
     line-height:1;

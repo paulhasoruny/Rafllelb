@@ -4,7 +4,7 @@ body.rafflelb-account-page.rl-glass-login .rl-glass-stage {
     display:block!important; grid-template-columns:none!important; width:100%!important; max-width:none!important;
     box-sizing:border-box; margin:0!important; padding:64px 20px 80px!important; min-height:740px;
     background:radial-gradient(ellipse at 68% 78%,rgba(186,255,0,.22),transparent 43%),radial-gradient(ellipse at 29% 20%,rgba(70,128,61,.25),transparent 45%),linear-gradient(145deg,#080d09,#111c13 58%,#1c2913);
-    color:var(--rl-text); font-family:Arial,Helvetica,sans-serif;
+    color:var(--rl-text); font-family:var(--rl-font, "Manrope", sans-serif);
 }
 body.rafflelb-account-page.rl-glass-login #customer_login { display:flex!important; flex-direction:column!important; align-items:center!important; gap:24px!important; width:100%!important; max-width:480px!important; margin:0 auto!important; padding:0!important; }
 body.rafflelb-account-page.rl-glass-login #customer_login::before,body.rafflelb-account-page.rl-glass-login #customer_login::after { display:none!important; }
@@ -29,7 +29,7 @@ body.rafflelb-account-page.rl-glass-login #customer_login .rl-glass-field::befor
 body.rafflelb-account-page.rl-glass-login #customer_login .rl-glass-identity::after { content:''; position:absolute; left:5px; top:15px; width:9px; height:9px; border-right:1px solid #d4dfcb; border-bottom:1px solid #d4dfcb; transform:rotate(45deg); pointer-events:none; }
 body.rafflelb-account-page.rl-glass-login #customer_login .rl-glass-password::before { top:21px; height:12px; width:15px; }
 body.rafflelb-account-page.rl-glass-login #customer_login .rl-glass-password::after { content:''; position:absolute; left:4px; top:12px; width:9px; height:12px; border:1.5px solid #d4dfcb; border-radius:7px 7px 0 0; box-sizing:border-box; pointer-events:none; }
-body.rafflelb-account-page.rl-glass-login #customer_login input.input-text { display:block!important; width:100%!important; height:50px!important; padding:0 38px 0 32px!important; margin:0!important; border:0!important; border-bottom:1px solid rgba(232,244,222,.65)!important; border-radius:0!important; background:transparent!important; box-shadow:none!important; color:#f4f7f0!important; -webkit-text-fill-color:#f4f7f0!important; font:400 16px/1.5 Arial,Helvetica,sans-serif!important; box-sizing:border-box!important; caret-color:var(--rl-lime); }
+body.rafflelb-account-page.rl-glass-login #customer_login input.input-text { display:block!important; width:100%!important; height:50px!important; padding:0 38px 0 32px!important; margin:0!important; border:0!important; border-bottom:1px solid rgba(232,244,222,.65)!important; border-radius:0!important; background:transparent!important; box-shadow:none!important; color:#f4f7f0!important; -webkit-text-fill-color:#f4f7f0!important; font:400 16px/1.5 var(--rl-font, "Manrope", sans-serif)!important; box-sizing:border-box!important; caret-color:var(--rl-lime); }
 body.rafflelb-account-page.rl-glass-login #customer_login input.input-text::placeholder { color:#d5dfce!important; opacity:1; -webkit-text-fill-color:#d5dfce!important; }
 body.rafflelb-account-page.rl-glass-login #customer_login input.input-text:focus { outline:2px solid var(--rl-lime)!important; outline-offset:4px; border-bottom-color:var(--rl-lime)!important; }
 body.rafflelb-account-page.rl-glass-login #customer_login input.input-text:-webkit-autofill { -webkit-box-shadow:0 0 0 100px #253321 inset!important; -webkit-text-fill-color:#f4f7f0!important; }
@@ -41,11 +41,11 @@ body.rafflelb-account-page.rl-glass-login #customer_login input[type=checkbox] {
 body.rafflelb-account-page.rl-glass-login #customer_login .lost_password { margin:0!important; font-size:12px!important; line-height:1.6; }
 body.rafflelb-account-page.rl-glass-login #customer_login a { color:#e0edcf!important; text-decoration:none; }
 body.rafflelb-account-page.rl-glass-login #customer_login a:hover { color:var(--rl-lime)!important; text-decoration:underline; }
-body.rafflelb-account-page.rl-glass-login #customer_login button.button { display:flex!important; align-items:center; justify-content:center; width:100%!important; min-height:52px; padding:14px 20px!important; margin:0!important; border:1px solid rgba(221,255,160,.4)!important; border-radius:16px!important; background:linear-gradient(110deg,#9acc00,#caff4d)!important; color:#101805!important; -webkit-text-fill-color:#101805!important; font:700 14px/1.5 Arial,Helvetica,sans-serif!important; letter-spacing:1.8px!important; text-transform:uppercase; box-shadow:0 8px 24px rgba(154,204,0,.12); cursor:pointer; transition:filter .2s,transform .2s; }
+body.rafflelb-account-page.rl-glass-login #customer_login button.button { display:flex!important; align-items:center; justify-content:center; width:100%!important; min-height:52px; padding:14px 20px!important; margin:0!important; border:1px solid rgba(221,255,160,.4)!important; border-radius:16px!important; background:linear-gradient(110deg,#9acc00,#caff4d)!important; color:#101805!important; -webkit-text-fill-color:#101805!important; font:700 14px/1.5 var(--rl-font, "Manrope", sans-serif)!important; letter-spacing:.02em!important; text-transform:uppercase; box-shadow:0 8px 24px rgba(154,204,0,.12); cursor:pointer; transition:filter .2s,transform .2s; }
 body.rafflelb-account-page.rl-glass-login #customer_login button.button:hover { filter:brightness(1.08); transform:translateY(-1px); }
 body.rafflelb-account-page.rl-glass-login #customer_login button.button:disabled { opacity:.5; cursor:not-allowed; transform:none; }
 body.rafflelb-account-page.rl-glass-login #customer_login .rl-glass-switch { margin:2px 0 0!important; text-align:center; font-size:12px; line-height:1.8; color:var(--rl-muted); }
-body.rafflelb-account-page.rl-glass-login #customer_login .rl-glass-switch button { padding:4px 0; min-height:32px; border:0; border-radius:0; background:none; color:var(--rl-lime); font:600 12px Arial,Helvetica,sans-serif; text-transform:none; cursor:pointer; box-shadow:none; }
+body.rafflelb-account-page.rl-glass-login #customer_login .rl-glass-switch button { padding:4px 0; min-height:32px; border:0; border-radius:0; background:none; color:var(--rl-lime); font:600 12px var(--rl-font, "Manrope", sans-serif); text-transform:none; cursor:pointer; box-shadow:none; }
 body.rafflelb-account-page.rl-glass-login #customer_login :is(a,button,input[type=checkbox]):focus-visible { outline:2px solid var(--rl-lime)!important; outline-offset:4px; }
 body.rafflelb-account-page.rl-glass-login #customer_login .woocommerce-privacy-policy-text,body.rafflelb-account-page.rl-glass-login #customer_login .woocommerce-form-register > p:not(.form-row) { color:var(--rl-muted)!important; font-size:13px!important; line-height:1.7!important; }
 body.rafflelb-account-page.rl-glass-login .woocommerce-notices-wrapper { max-width:640px; margin:0 auto 24px; }
@@ -61,7 +61,7 @@ body.rafflelb-account-page.rl-glass-login #customer_login > .wd-login-divider { 
 
 body.rafflelb-account-page.rl-glass-login #customer_login .rl-glass-card:not([hidden]) { display:block!important; }
 body.rafflelb-account-page.rl-glass-login #customer_login :is(h2,p,label,span,a,button) { -webkit-text-fill-color:currentColor!important; }
-body.rafflelb-account-page.rl-glass-login #customer_login .rl-glass-switch button { font:600 12px Arial,Helvetica,sans-serif!important; text-transform:none!important; letter-spacing:0!important; background:transparent!important; color:var(--rl-lime)!important; }
+body.rafflelb-account-page.rl-glass-login #customer_login .rl-glass-switch button { font:600 12px var(--rl-font, "Manrope", sans-serif)!important; text-transform:none!important; letter-spacing:0!important; background:transparent!important; color:var(--rl-lime)!important; }
 /* Full-screen account backdrop, outside the theme's boxed content width. */
 body.rafflelb-account-page.rl-glass-login {
  background:radial-gradient(ellipse at 68% 78%,rgba(186,255,0,.22),transparent 43%),radial-gradient(ellipse at 29% 20%,rgba(70,128,61,.25),transparent 45%),linear-gradient(145deg,#080d09,#111c13 58%,#1c2913)!important;
@@ -99,7 +99,7 @@ body.rafflelb-account-page.rl-glass-login #customer_login .rl-glass-register-but
  display:flex!important; align-items:center!important; justify-content:center!important;
  width:100%!important; min-height:52px!important; margin:12px 0 0!important; padding:14px 20px!important;
  border:1px solid #baff00!important; border-radius:16px!important; background:rgba(186,255,0,.06)!important;
- color:#baff00!important; font:700 14px/1.5 Arial,Helvetica,sans-serif!important;
+ color:#baff00!important; font:700 14px/1.5 var(--rl-font, "Manrope", sans-serif)!important;
  letter-spacing:1.8px!important; text-transform:uppercase!important; cursor:pointer; box-shadow:none!important;
 }
 body.rafflelb-account-page.rl-glass-login #customer_login .rl-glass-register-button:hover { background:rgba(186,255,0,.16)!important; }

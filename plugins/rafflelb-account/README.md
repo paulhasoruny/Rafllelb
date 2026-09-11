@@ -1,3 +1,9 @@
+# RaffleLB Account 0.1.6 — typography and readability
+
+- Account-owned typography now uses `var(--rl-font, "Manrope", sans-serif)`.
+- Page titles, summary identity, metrics, navigation, raffle/order metadata, addresses, and forms use a clearer responsive hierarchy.
+- Layout structure, dimensions, responsive ordering, icons, endpoints, queries, and account/business logic are unchanged.
+
 # RaffleLB Account 0.1.5 — prize fulfillment visibility
 
 - My Raffles now reads the existing Draw Engine fulfillment fields for winning raffles.
