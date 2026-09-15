@@ -1,13 +1,13 @@
 <?php
 /** Plugin Name: RaffleLB Products
  * Description: Product Studio for WooCommerce and RaffleLB operations.
- * Version: 0.2.13
+ * Version: 0.2.15
  * Author: RaffleLB
  * Requires Plugins: woocommerce */
 defined('ABSPATH') || exit;
 
 final class RaffleLB_Products {
-    const VERSION = '0.2.13';
+    const VERSION = '0.2.15';
     const SLUG = 'rafflelb-products';
     const CAPABILITY = 'manage_woocommerce';
     const ENABLED = '_rafflelb_draw_enabled';
@@ -17,6 +17,7 @@ final class RaffleLB_Products {
     const ITEM = '_rafflelb_item_type';
     const TAG_TAXONOMY = 'product_tag';
     const TAG_NONCE = 'rafflelb_products_tags';
+    const BRAND_NONCE = 'rafflelb_products_brands';
 
     public static function init() {
         add_action('admin_menu', [__CLASS__, 'menu'], 20);
@@ -24,6 +25,9 @@ final class RaffleLB_Products {
         add_action('admin_post_rafflelb_products_save', [__CLASS__, 'save']);
         add_action('admin_post_rafflelb_products_publish_state', [__CLASS__, 'publish_state']);
         add_action('wp_ajax_rafflelb_products_tag_search', [__CLASS__, 'ajax_tag_search']);
+        add_action('wp_ajax_rafflelb_products_brand_search', [__CLASS__, 'ajax_brand_search']);
+        add_action('wp_ajax_rafflelb_products_brand_create', [__CLASS__, 'ajax_brand_create']);
+        add_action('init', [__CLASS__, 'ensure_brand_taxonomy'], 99);
         add_filter('posts_clauses', [__CLASS__, 'search'], 10, 2);
     }
 
@@ -77,6 +81,113 @@ final class RaffleLB_Products {
         if (!self::ok()) wp_send_json_error([], 403);
         $search = isset($_GET['q']) ? sanitize_text_field(wp_unslash($_GET['q'])) : '';
         $terms = get_terms(['taxonomy' => self::TAG_TAXONOMY, 'hide_empty' => false, 'number' => 20, 'name__like' => $search]);
+        $out = [];
+        if (!is_wp_error($terms)) {
+            foreach ($terms as $t) $out[] = ['id' => $t->term_id, 'text' => $t->name];
+        }
+        wp_send_json($out);
+    }
+
+    /**
+     * Find the product brand taxonomy already used by WooCommerce/the site.
+     * If no brand taxonomy exists, Product Studio registers a small native
+     * product_brand fallback so RaffleLB has one consistent source of truth.
+     */
+    private static function brand_taxonomy() {
+        $preferred = [
+            'product_brand',
+            'pa_brands',
+            'pa_brand',
+            'pwb-brand',
+            'yith_product_brand',
+            'berocket_brand',
+            'brand',
+        ];
+        foreach ($preferred as $taxonomy) {
+            if (taxonomy_exists($taxonomy) && is_object_in_taxonomy('product', $taxonomy)) return $taxonomy;
+        }
+        $taxonomies = get_object_taxonomies('product', 'objects');
+        foreach ($taxonomies as $name => $object) {
+            $label = isset($object->labels->name) ? strtolower((string) $object->labels->name) : '';
+            $singular = isset($object->labels->singular_name) ? strtolower((string) $object->labels->singular_name) : '';
+            if (strpos(strtolower($name), 'brand') !== false || strpos($label, 'brand') !== false || strpos($singular, 'brand') !== false) return $name;
+        }
+        return '';
+    }
+
+    /**
+     * Fallback only: if WooCommerce or another plugin has not provided a brand
+     * taxonomy, register product_brand. This keeps brands native WP terms and
+     * makes them immediately usable by the RaffleLB Store's dynamic filter.
+     */
+    public static function ensure_brand_taxonomy() {
+        if (!class_exists('WooCommerce') || self::brand_taxonomy() !== '') return;
+        register_taxonomy('product_brand', ['product'], [
+            'hierarchical' => false,
+            'labels' => [
+                'name' => 'Brands',
+                'singular_name' => 'Brand',
+                'search_items' => 'Search Brands',
+                'all_items' => 'All Brands',
+                'edit_item' => 'Edit Brand',
+                'update_item' => 'Update Brand',
+                'add_new_item' => 'Add New Brand',
+                'new_item_name' => 'New Brand Name',
+                'menu_name' => 'Brands',
+            ],
+            'public' => false,
+            'show_ui' => true,
+            'show_admin_column' => true,
+            'show_in_rest' => true,
+            'query_var' => true,
+            'rewrite' => false,
+            'capabilities' => [
+                'manage_terms' => 'manage_woocommerce',
+                'edit_terms' => 'manage_woocommerce',
+                'delete_terms' => 'manage_woocommerce',
+                'assign_terms' => 'edit_products',
+            ],
+        ]);
+    }
+
+    /** Create a brand directly from Product Studio and return the term id/name. */
+    public static function ajax_brand_create() {
+        check_ajax_referer(self::BRAND_NONCE, 'nonce');
+        if (!self::ok()) wp_send_json_error(['message' => 'You do not have permission to manage brands.'], 403);
+
+        $taxonomy = self::brand_taxonomy();
+        if ($taxonomy === '') wp_send_json_error(['message' => 'Brand taxonomy is unavailable.'], 400);
+
+        $name = isset($_POST['name']) ? sanitize_text_field(wp_unslash($_POST['name'])) : '';
+        $name = trim($name);
+        if ($name === '') wp_send_json_error(['message' => 'Enter a brand name.'], 400);
+
+        $existing = term_exists($name, $taxonomy);
+        if ($existing) {
+            $term_id = is_array($existing) ? (int) $existing['term_id'] : (int) $existing;
+            $term = get_term($term_id, $taxonomy);
+            if ($term && !is_wp_error($term)) {
+                wp_send_json_success(['id' => $term->term_id, 'text' => $term->name, 'existing' => true]);
+            }
+        }
+
+        $created = wp_insert_term($name, $taxonomy);
+        if (is_wp_error($created)) wp_send_json_error(['message' => $created->get_error_message()], 400);
+
+        $term = get_term((int) $created['term_id'], $taxonomy);
+        if (!$term || is_wp_error($term)) wp_send_json_error(['message' => 'Brand was created but could not be loaded.'], 500);
+
+        wp_send_json_success(['id' => $term->term_id, 'text' => $term->name, 'existing' => false]);
+    }
+
+    /** Brand search for the Product Studio SelectWoo field. */
+    public static function ajax_brand_search() {
+        check_ajax_referer(self::BRAND_NONCE, 'nonce');
+        if (!self::ok()) wp_send_json_error([], 403);
+        $taxonomy = self::brand_taxonomy();
+        if ($taxonomy === '') wp_send_json([]);
+        $search = isset($_GET['q']) ? sanitize_text_field(wp_unslash($_GET['q'])) : '';
+        $terms = get_terms(['taxonomy' => $taxonomy, 'hide_empty' => false, 'number' => 30, 'name__like' => $search]);
         $out = [];
         if (!is_wp_error($terms)) {
             foreach ($terms as $t) $out[] = ['id' => $t->term_id, 'text' => $t->name];
@@ -346,6 +457,20 @@ final class RaffleLB_Products {
         $cat_html .= '</div>';
         self::section('Categories', $cat_html);
 
+        $brand_taxonomy = self::brand_taxonomy();
+        $brand_options = '';
+        if ($brand_taxonomy !== '') {
+            $existing_brands = wp_get_post_terms($id, $brand_taxonomy, ['fields' => 'all']);
+            if (is_wp_error($existing_brands)) $existing_brands = [];
+            foreach ($existing_brands as $t) {
+                $brand_options .= '<option value="' . esc_attr($t->term_id) . '" selected>' . esc_html($t->name) . '</option>';
+                break; // Product Studio intentionally keeps one primary brand per product.
+            }
+            self::section('Brand', '<div class="rlp-brand-field"><select class="rlp-brand-select" name="brand" data-placeholder="Search brands…" style="width:100%"><option value=""></option>' . $brand_options . '</select><button type="button" class="button rlp-brand-add-toggle">+ Add New Brand</button></div><div class="rlp-brand-create" hidden><input type="text" class="rlp-brand-new-name" placeholder="New brand name" autocomplete="off"><button type="button" class="button button-primary rlp-brand-create-btn">Add Brand</button><button type="button" class="button rlp-brand-cancel-btn">Cancel</button><span class="rlp-brand-create-status" aria-live="polite"></span></div><p class="rlp-help">Choose an existing brand, or click <strong>+ Add New Brand</strong>. The new brand is created immediately and selected for this product.</p>');
+        } else {
+            self::section('Brand', '<p class="rlp-help">Brand taxonomy is unavailable. Reload Product Studio once WooCommerce is active.</p>');
+        }
+
         $existing_tags = wp_get_post_terms($id, self::TAG_TAXONOMY, ['fields' => 'all']);
         if (is_wp_error($existing_tags)) $existing_tags = [];
         $tag_options = '';
@@ -356,6 +481,7 @@ final class RaffleLB_Products {
         echo '</aside></div></form></main></div>';
         self::media($p->get_image_id(), $p->get_gallery_image_ids());
         self::tag_assets();
+        self::brand_assets();
     }
 
     private static function opts($a, $selected) {
@@ -373,6 +499,72 @@ final class RaffleLB_Products {
         $nonce = wp_create_nonce(self::TAG_NONCE);
         $ajax_url = admin_url('admin-ajax.php');
         ?><script>jQuery(function($){var $select=$('.rlp-tag-select');if(!$select.length)return;var enhancer=null;if(typeof $.fn.selectWoo==='function'){enhancer='selectWoo';}else if(typeof $.fn.select2==='function'){enhancer='select2';}if(!enhancer)return;$select[enhancer]({width:'100%',tags:true,tokenSeparators:[',','\n'],placeholder:$select.data('placeholder')||'Search or add a tag…',ajax:{url:<?php echo wp_json_encode($ajax_url); ?>,dataType:'json',delay:250,data:function(params){return {action:'rafflelb_products_tag_search',nonce:<?php echo wp_json_encode($nonce); ?>,q:params.term||''};},processResults:function(data){return {results:(data||[]).map(function(t){return {id:t.id,text:t.text};})};}},createTag:function(params){var term=$.trim(params.term);if(term==='')return null;return {id:term,text:term,newTag:true};}});});</script><?php
+    }
+
+    /** Single Brand SelectWoo field. Existing terms are searched by AJAX;
+     *  tags:true lets an administrator type a new brand, but the term is only
+     *  created when the product form is saved. */
+    private static function brand_assets() {
+        $taxonomy = self::brand_taxonomy();
+        if ($taxonomy === '') return;
+        $nonce = wp_create_nonce(self::BRAND_NONCE);
+        $ajax_url = admin_url('admin-ajax.php');
+        ?><script>jQuery(function($){
+            var $select=$('.rlp-brand-select');
+            if(!$select.length)return;
+            var enhancer=null;
+            if(typeof $.fn.selectWoo==='function'){enhancer='selectWoo';}
+            else if(typeof $.fn.select2==='function'){enhancer='select2';}
+            if(enhancer){
+                $select[enhancer]({
+                    width:'100%',
+                    allowClear:true,
+                    placeholder:$select.data('placeholder')||'Search brands…',
+                    ajax:{
+                        url:<?php echo wp_json_encode($ajax_url); ?>,
+                        dataType:'json',
+                        delay:250,
+                        data:function(params){return {action:'rafflelb_products_brand_search',nonce:<?php echo wp_json_encode($nonce); ?>,q:params.term||''};},
+                        processResults:function(data){return {results:(data||[]).map(function(t){return {id:t.id,text:t.text};})};}
+                    }
+                });
+            }
+
+            var $box=$('.rlp-brand-create'),$name=$('.rlp-brand-new-name'),$status=$('.rlp-brand-create-status');
+            $('.rlp-brand-add-toggle').on('click',function(){
+                $box.prop('hidden',false);
+                $status.text('');
+                setTimeout(function(){$name.trigger('focus');},0);
+            });
+            $('.rlp-brand-cancel-btn').on('click',function(){
+                $box.prop('hidden',true);$name.val('');$status.text('');
+            });
+            function createBrand(){
+                var name=$.trim($name.val()||'');
+                if(!name){$status.text('Enter a brand name.');$name.trigger('focus');return;}
+                var $btn=$('.rlp-brand-create-btn');
+                $btn.prop('disabled',true);$status.text('Adding…');
+                $.ajax({
+                    url:<?php echo wp_json_encode($ajax_url); ?>,
+                    method:'POST',dataType:'json',
+                    data:{action:'rafflelb_products_brand_create',nonce:<?php echo wp_json_encode($nonce); ?>,name:name}
+                }).done(function(resp){
+                    if(!resp||!resp.success||!resp.data){$status.text((resp&&resp.data&&resp.data.message)?resp.data.message:'Could not add brand.');return;}
+                    var d=resp.data;
+                    var option=new Option(d.text,d.id,true,true);
+                    $select.empty().append(option).trigger('change');
+                    $name.val('');
+                    $status.text(d.existing?'Brand already existed and is now selected.':'Brand added and selected.');
+                    setTimeout(function(){$box.prop('hidden',true);$status.text('');},900);
+                }).fail(function(xhr){
+                    var msg='Could not add brand.';
+                    if(xhr.responseJSON&&xhr.responseJSON.data&&xhr.responseJSON.data.message)msg=xhr.responseJSON.data.message;
+                    $status.text(msg);
+                }).always(function(){$btn.prop('disabled',false);});
+            }
+            $('.rlp-brand-create-btn').on('click',createBrand);
+            $name.on('keydown',function(e){if(e.key==='Enter'){e.preventDefault();createBrand();}});
+        });</script><?php
     }
 
     public static function publish_state() {
@@ -448,6 +640,19 @@ final class RaffleLB_Products {
         $gallery = isset($_POST['gallery']) ? array_values(array_filter(array_map('absint', explode(',', sanitize_text_field(wp_unslash($_POST['gallery'])))), function ($attachment) { return $attachment && wp_attachment_is_image($attachment); })) : [];
         $cats = isset($_POST['categories']) ? array_map('absint', (array) wp_unslash($_POST['categories'])) : [];
 
+        /* Brand: one primary term in the detected product brand taxonomy.
+         * Numeric input attaches an existing term; a typed name is sanitized
+         * and created by wp_set_object_terms() on save. */
+        $brand_taxonomy = self::brand_taxonomy();
+        $brand = '';
+        if ($brand_taxonomy !== '' && isset($_POST['brand'])) {
+            $raw_brand = trim((string) wp_unslash($_POST['brand']));
+            if ($raw_brand !== '') {
+                $existing_brand = ctype_digit($raw_brand) ? get_term((int) $raw_brand, $brand_taxonomy) : null;
+                $brand = ($existing_brand && !is_wp_error($existing_brand)) ? (int) $raw_brand : sanitize_text_field($raw_brand);
+            }
+        }
+
         /* Product Tags: native product_tag only. Numeric values that resolve to
          * a real term are attached by id; anything else is a plain name and
          * wp_set_object_terms() creates that term natively if it doesn't
@@ -499,6 +704,10 @@ final class RaffleLB_Products {
         $saved = $p->save();
         if (!$saved) self::error($id, 'Product could not be saved.');
         wp_set_object_terms($saved, $cats, 'product_cat');
+        if ($brand_taxonomy !== '') {
+            $brand_result = wp_set_object_terms($saved, $brand === '' ? [] : [$brand], $brand_taxonomy);
+            if (is_wp_error($brand_result)) self::error($saved, 'Brand could not be saved.');
+        }
         $tags_result = wp_set_object_terms($saved, $tags, self::TAG_TAXONOMY);
         if (is_wp_error($tags_result)) self::error($saved, 'Product Tags could not be saved.');
 

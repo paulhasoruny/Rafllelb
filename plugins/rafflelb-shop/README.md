@@ -1,3 +1,15 @@
+## 0.2.33
+- Fixes the Brands filter disappearing when WoodMart maintains separate desktop/mobile or logged-in filter DOM copies. Brands now mount in every active category filter area instead of only the first matching DOM node.
+- Brand discovery now reads persisted product/category/brand relationships directly and avoids session-sensitive WooCommerce visibility checks.
+- Uses a fresh brand-cache generation and a no-cache AJAX fallback so newly assigned brands appear consistently for logged-in and logged-out shoppers.
+
+# RaffleLB Shop 0.2.30
+- Finalizes the dynamic Brands filter for Store category archives. Brands remain hidden on the main Shop until a category is selected.
+- After category selection, the filter shows only brands represented by visible products in that category and the active Shopping Mode (STORE & RAFFLE / STORE ONLY / RAFFLE ONLY).
+- Uses the detected product brand taxonomy and a RaffleLB-owned `rl_brand` catalogue query, so filtering is independent of WoodMart/WooCommerce layered-navigation URL formats.
+- Adds **All Brands**, resets stale/incompatible brand choices automatically after category/mode changes, and keeps the filter responsive with horizontal scrolling on mobile.
+- Preserves existing category, subcategory, price, sort, Store/Raffle mode, checkout, reservation, points, referral, and Selection logic.
+
 # RaffleLB Shop 0.2.28
 - Rebalances desktop Store + Raffle cards to a 38.5/61.5 image-to-information split while retaining a large, centered product image.
 - Gives the dual-price row a clearly differentiated 38/62 Retail-to-Raffle split, with equal box geometry and aligned labels and values.

@@ -301,3 +301,6 @@
 .rafflelb-products .rlp-mode-options input[type=radio]:hover,
 .rafflelb-products input[type=checkbox]:hover { border-color: #baff00; }
 
+
+/* Brand selector / inline brand creation */
+.rlp-brand-field{display:flex;gap:10px;align-items:center}.rlp-brand-field .select2-container,.rlp-brand-field .selectWoo-container{flex:1;min-width:0}.rlp-brand-add-toggle{white-space:nowrap}.rlp-brand-create{display:flex;gap:8px;align-items:center;margin-top:10px;flex-wrap:wrap}.rlp-brand-create[hidden]{display:none!important}.rlp-brand-new-name{min-width:220px;flex:1}.rlp-brand-create-status{font-size:12px;opacity:.8}@media(max-width:782px){.rlp-brand-field{align-items:stretch;flex-direction:column}.rlp-brand-add-toggle{width:100%}.rlp-brand-create{align-items:stretch;flex-direction:column}.rlp-brand-new-name,.rlp-brand-create .button{width:100%}}
