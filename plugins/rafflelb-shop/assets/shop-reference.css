@@ -734,6 +734,13 @@ body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices.is-dual-price>di
   text-align:left!important;
   overflow:hidden!important;
 }
+/* The raffle box is one of two equal (minmax(0,1fr)) grid columns, so it
+   has noticeably less width than the whole card to fit "PRICE $ / entry"
+   into. Trim its own horizontal padding slightly (retail's box is
+   untouched) to reclaim a few px for that content. */
+body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices.is-dual-price .rl-shop-price-raffle{
+  padding:10px 7px!important;
+}
 body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices.is-dual-price small{
   display:block!important;
   margin:0 0 4px!important;
@@ -767,40 +774,59 @@ body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices.is-dual-price .w
   line-height:inherit!important;
   white-space:nowrap!important;
 }
+/* v0.2.43 — was `display:flex` with the price as `flex:0 1 auto;
+   min-width:0`. flex-shrink can shrink a flex item's BOX, but with
+   white-space:nowrap the price's rendered TEXT never gets narrower than
+   its own min-content width, and only the outer .rl-shop-entry-value row
+   had overflow:hidden — the price <strong> itself did not — so once the
+   box shrank below the text's actual width, the text kept painting past
+   its box edge, straight over "/ entry" sitting right after it. That is
+   exactly the "10.00 $"/"15.00 $" overlap in the V2 screenshot (short
+   values like "1.37 $"/"1.00 $" never hit that shrunk width, hence
+   "acceptable").
+   Fix: CSS grid with an explicit max-content suffix column. Column 2 is
+   always sized to "/ entry"'s own natural width and never encroached on;
+   column 1 gets whatever remains (minmax(0,1fr)) and clips on its own
+   box (overflow:hidden right on the price element, not just the row) if
+   a price is ever wider than that remainder — so the worst case is a
+   contained clip at the box edge, never text painted over the suffix.
+   Slightly smaller raffle typography (16px/9px, from 18px/11px) plus the
+   trimmed box padding above are what actually keep real prices (up to
+   100.00) comfortably inside column 1 without ever reaching that
+   fallback in practice. */
 body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices.is-dual-price .rl-shop-price-raffle .rl-shop-entry-value{
-  display:flex!important;
+  display:grid!important;
+  grid-template-columns:minmax(0,1fr) max-content!important;
   align-items:baseline!important;
-  justify-content:flex-start!important;
-  flex-wrap:nowrap!important;
-  gap:4px!important;
+  column-gap:3px!important;
   width:100%!important;
   min-width:0!important;
   max-width:100%!important;
   margin:0!important;
-  overflow:hidden!important;
-  white-space:nowrap!important;
   direction:ltr!important;
 }
 body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices.is-dual-price .rl-shop-price-raffle .rl-shop-entry-value strong,
 body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices.is-dual-price .rl-shop-price-raffle .rl-shop-entry-value strong *{
-  flex:0 1 auto!important;
+  display:inline!important;
   min-width:0!important;
   margin:0!important;
   padding:0!important;
   color:#baff00!important;
-  font-size:18px!important;
+  font-size:16px!important;
   font-weight:800!important;
   line-height:1.2!important;
-  letter-spacing:-.025em!important;
+  letter-spacing:-.02em!important;
   white-space:nowrap!important;
 }
+body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices.is-dual-price .rl-shop-price-raffle .rl-shop-entry-value strong{
+  overflow:hidden!important;
+}
 body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices.is-dual-price .rl-shop-price-raffle .rl-shop-entry-value em{
-  flex:0 0 auto!important;
-  display:inline!important;
+  min-width:0!important;
   margin:0!important;
   padding:0!important;
   color:#c5cebf!important;
-  font-size:11px!important;
+  font-size:9px!important;
   font-weight:400!important;
   line-height:1.1!important;
   font-style:normal!important;
