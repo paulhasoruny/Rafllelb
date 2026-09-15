@@ -1,3 +1,15 @@
+## 0.2.41
+- Stabilizes the Filters discovery hint by anchoring it in document space instead of continuously recalculating its fixed position while the page scrolls. The hint now scrolls naturally with the Filters button without visible jumping.
+- Replaces the simple down-arrow badge with a cleaner animated Filters/sliders icon while keeping the pointer aimed at the real Filters control.
+- Keeps viewport clamping and responsive behavior for narrow screens, and only recalculates on resize/orientation changes.
+- No Store, raffle, category, brand, price, checkout, reservation, points, or Selection logic changed.
+
+## 0.2.40
+- Fixes the one-time Filters discovery hint positioning on mobile so the pill is clamped fully inside the viewport instead of being cut off at the left edge.
+- Repositions the hint using its measured width/height and keeps the pointer aimed at the real Filters button on desktop and mobile.
+- Uses a shorter mobile label while retaining the full desktop message, plus safer resize/orientation handling.
+- No Store, raffle, category, brand, price, checkout, reservation, points, or Selection logic changed.
+
 ## 0.2.33
 - Fixes the Brands filter disappearing when WoodMart maintains separate desktop/mobile or logged-in filter DOM copies. Brands now mount in every active category filter area instead of only the first matching DOM node.
 - Brand discovery now reads persisted product/category/brand relationships directly and avoids session-sensitive WooCommerce visibility checks.

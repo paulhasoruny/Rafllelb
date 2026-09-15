@@ -2,14 +2,14 @@
 /**
  * Plugin Name: RaffleLB Shop
  * Description: Existing RaffleLB catalog and product presentation with reversible Draw Engine delegation.
- * Version: 0.2.37
+ * Version: 0.2.42
  * Author: RaffleLB
  * Requires PHP: 7.4
  */
 if (!defined('ABSPATH')) { exit; }
 require_once plugin_dir_path(__FILE__) . 'includes/class-rafflelb-store-only-renderer.php';
 final class RaffleLB_Shop {
-    const VERSION = '0.2.37';
+    const VERSION = '0.2.42';
     private static $selection_entry_form_context = false;
     private static $public_banners_rendered = false;
     public static function ready() {
@@ -1850,6 +1850,251 @@ final class RaffleLB_Shop {
                 echo '</div>';
             echo '</div>';
         echo '</section>';
+    }
+
+    /**
+     * v0.2.41 — one-time discovery hint for the Store Filters control.
+     * Rendered as a body-level fixed "portal" so no WoodMart/theme toolbar
+     * overflow rule can clip the message. The hint follows the real Filters
+     * button on resize/scroll and disappears when Filters is opened.
+     */
+    public static function shop_filter_hint_assets() {
+        if (!self::shop_query_is_catalog()) return;
+        ?>
+        <style id="rafflelb-shop-filter-hint-v0241" data-no-optimize="1" data-noptimize="1" data-no-minify="1" data-wpr-nooptimize="1">
+            #rl-filter-discovery-hint{
+                position:absolute!important;
+                left:0;
+                top:0;
+                display:flex!important;
+                align-items:center!important;
+                justify-content:center!important;
+                gap:9px!important;
+                width:max-content!important;
+                max-width:calc(100vw - 24px)!important;
+                min-height:40px!important;
+                padding:8px 13px!important;
+                border:1px solid rgba(186,255,0,.72)!important;
+                border-radius:999px!important;
+                background:#071008!important;
+                color:#f7ffed!important;
+                box-shadow:0 10px 30px rgba(0,0,0,.55),0 0 20px rgba(186,255,0,.20),inset 0 0 0 1px rgba(186,255,0,.06)!important;
+                opacity:0;
+                visibility:hidden;
+                pointer-events:none!important;
+                transform:scale(.96)!important;
+                transform-origin:center bottom!important;
+                transition:opacity .2s ease,transform .25s cubic-bezier(.2,.8,.2,1),visibility .2s ease!important;
+                z-index:2147483000!important;
+                box-sizing:border-box!important;
+                white-space:nowrap!important;
+                font-family:var(--rl-font,"Manrope",Arial,sans-serif)!important;
+                font-size:12px!important;
+                line-height:1.2!important;
+                font-weight:800!important;
+                letter-spacing:.01em!important;
+                text-transform:none!important;
+            }
+            #rl-filter-discovery-hint.is-visible{
+                opacity:1!important;
+                visibility:visible!important;
+                transform:scale(1)!important;
+                animation:rlFilterPortalGlow 1.55s ease-in-out .28s infinite!important;
+            }
+            #rl-filter-discovery-hint.is-below{
+                transform-origin:center top!important;
+            }
+            #rl-filter-discovery-hint .rl-filter-discovery-copy{
+                display:block!important;
+                color:#f7ffed!important;
+                font:inherit!important;
+                line-height:inherit!important;
+                letter-spacing:inherit!important;
+                text-transform:none!important;
+            }
+            #rl-filter-discovery-hint .rl-filter-discovery-copy-mobile{display:none!important}
+            #rl-filter-discovery-hint .rl-filter-discovery-arrow{
+                display:inline-flex!important;
+                align-items:center!important;
+                justify-content:center!important;
+                width:26px!important;
+                height:26px!important;
+                flex:0 0 26px!important;
+                border-radius:50%!important;
+                background:#baff00!important;
+                color:#061004!important;
+                animation:rlFilterPortalIcon 1.35s ease-in-out infinite!important;
+            }
+            #rl-filter-discovery-hint .rl-filter-discovery-arrow svg{
+                display:block!important;
+                width:14px!important;
+                height:14px!important;
+                stroke:currentColor!important;
+                fill:none!important;
+                stroke-width:2!important;
+                stroke-linecap:round!important;
+                stroke-linejoin:round!important;
+            }
+            #rl-filter-discovery-hint:after{
+                content:"";
+                position:absolute!important;
+                left:var(--rl-hint-arrow-x,50%)!important;
+                bottom:-6px!important;
+                width:11px!important;
+                height:11px!important;
+                margin-left:-6px!important;
+                border-right:1px solid rgba(186,255,0,.72)!important;
+                border-bottom:1px solid rgba(186,255,0,.72)!important;
+                background:#071008!important;
+                transform:rotate(45deg)!important;
+            }
+            #rl-filter-discovery-hint.is-below:after{
+                top:-6px!important;
+                bottom:auto!important;
+                border:0!important;
+                border-left:1px solid rgba(186,255,0,.72)!important;
+                border-top:1px solid rgba(186,255,0,.72)!important;
+            }
+            @keyframes rlFilterPortalGlow{
+                0%,100%{box-shadow:0 10px 30px rgba(0,0,0,.55),0 0 12px rgba(186,255,0,.14),inset 0 0 0 1px rgba(186,255,0,.06)}
+                50%{box-shadow:0 10px 30px rgba(0,0,0,.55),0 0 27px rgba(186,255,0,.34),inset 0 0 0 1px rgba(186,255,0,.14)}
+            }
+            @keyframes rlFilterPortalIcon{
+                0%,100%{transform:scale(1);box-shadow:0 0 0 0 rgba(186,255,0,.18)}
+                50%{transform:scale(1.06);box-shadow:0 0 0 5px rgba(186,255,0,0)}
+            }
+            @media(max-width:767px){
+                #rl-filter-discovery-hint{
+                    max-width:calc(100vw - 20px)!important;
+                    min-height:38px!important;
+                    padding:8px 11px!important;
+                    gap:8px!important;
+                    white-space:nowrap!important;
+                    text-align:center!important;
+                    font-size:11px!important;
+                }
+                #rl-filter-discovery-hint .rl-filter-discovery-copy-desktop{display:none!important}
+                #rl-filter-discovery-hint .rl-filter-discovery-copy-mobile{display:block!important}
+                #rl-filter-discovery-hint .rl-filter-discovery-arrow{
+                    width:23px!important;
+                    height:23px!important;
+                    flex-basis:23px!important;
+                }
+                #rl-filter-discovery-hint .rl-filter-discovery-arrow svg{width:13px!important;height:13px!important}
+            }
+            @media(max-width:390px){
+                #rl-filter-discovery-hint{font-size:10.5px!important;padding:7px 10px!important}
+            }
+            @media(prefers-reduced-motion:reduce){
+                #rl-filter-discovery-hint.is-visible,
+                #rl-filter-discovery-hint .rl-filter-discovery-arrow{animation:none!important}
+            }
+        </style>
+        <script id="rafflelb-shop-filter-hint-js-v0241" data-no-optimize="1" data-noptimize="1" data-no-minify="1" data-wpr-nooptimize="1">
+        (function RaffleLBFilterHint(){
+            'use strict';
+            var storageKey = 'rafflelb_filter_hint_seen_v4';
+            var revealTimer = null;
+            var autoHideTimer = null;
+            var hint = null;
+
+            function hasSeen(){
+                try { return window.localStorage.getItem(storageKey) === '1'; }
+                catch (e) { return false; }
+            }
+            function markSeen(){
+                try { window.localStorage.setItem(storageKey, '1'); }
+                catch (e) {}
+            }
+            function filterButton(){
+                return document.querySelector('#rl-shop-controls .rl-shop-toolbar-actions > .rl-shop-filter-toggle:not(.rl-shop-sort-trigger)') ||
+                       document.querySelector('#rl-shop-controls .rl-shop-filter-toggle:not(.rl-shop-sort-trigger)');
+            }
+            function ensureHint(){
+                if (hint && document.body.contains(hint)) return hint;
+                hint = document.createElement('div');
+                hint.id = 'rl-filter-discovery-hint';
+                hint.setAttribute('role','status');
+                hint.setAttribute('aria-live','polite');
+                hint.innerHTML = '<span class="rl-filter-discovery-copy rl-filter-discovery-copy-desktop">Open Filters for Brands &amp; Categories</span><span class="rl-filter-discovery-copy rl-filter-discovery-copy-mobile">Brands &amp; Categories are in Filters</span><span class="rl-filter-discovery-arrow" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 7h10"></path><circle cx="17" cy="7" r="2"></circle><path d="M20 17H10"></path><circle cx="7" cy="17" r="2"></circle><path d="M4 12h4"></path><path d="M12 12h8"></path></svg></span>';
+                document.body.appendChild(hint);
+                return hint;
+            }
+            function positionHint(){
+                var btn = filterButton();
+                var el = ensureHint();
+                if (!btn || !el) return false;
+
+                var r = btn.getBoundingClientRect();
+                var viewportW = Math.max(document.documentElement.clientWidth || 0, window.innerWidth || 0);
+                var viewportH = Math.max(document.documentElement.clientHeight || 0, window.innerHeight || 0);
+                var scrollX = window.pageXOffset || document.documentElement.scrollLeft || 0;
+                var scrollY = window.pageYOffset || document.documentElement.scrollTop || 0;
+                var margin = 10;
+
+                /* Body-level absolute positioning: calculate once in document space so
+                   the hint scrolls naturally with the Filters button and never jitters. */
+                el.style.left = (scrollX + margin) + 'px';
+                el.style.top = (scrollY + margin) + 'px';
+                var hintW = Math.min(el.offsetWidth || 260, Math.max(120, viewportW - (margin * 2)));
+                var hintH = el.offsetHeight || 40;
+                var centerViewport = r.left + (r.width / 2);
+                var leftViewport = centerViewport - (hintW / 2);
+                leftViewport = Math.max(margin, Math.min(viewportW - hintW - margin, leftViewport));
+
+                var roomAbove = r.top - margin;
+                var roomBelow = viewportH - r.bottom - margin;
+                var placeBelow = roomAbove < (hintH + 14) && roomBelow > roomAbove;
+                var topViewport = placeBelow ? (r.bottom + 12) : (r.top - hintH - 12);
+                topViewport = Math.max(margin, Math.min(viewportH - hintH - margin, topViewport));
+
+                el.classList.toggle('is-below', placeBelow);
+                el.style.left = Math.round(scrollX + leftViewport) + 'px';
+                el.style.top = Math.round(scrollY + topViewport) + 'px';
+
+                /* Keep the pointer aimed at the real Filters button. */
+                var arrowX = centerViewport - leftViewport;
+                arrowX = Math.max(18, Math.min(hintW - 18, arrowX));
+                el.style.setProperty('--rl-hint-arrow-x', Math.round(arrowX) + 'px');
+                return true;
+            }
+            function hide(permanent){
+                if (revealTimer) { clearTimeout(revealTimer); revealTimer = null; }
+                if (autoHideTimer) { clearTimeout(autoHideTimer); autoHideTimer = null; }
+                if (hint) hint.classList.remove('is-visible');
+                if (permanent) markSeen();
+            }
+            function reveal(){
+                if (hasSeen()) { hide(false); return; }
+                if (!filterButton()) return;
+                ensureHint();
+                revealTimer = setTimeout(function(){
+                    if (hasSeen() || !positionHint()) return;
+                    hint.classList.add('is-visible');
+                    autoHideTimer = setTimeout(function(){ hide(false); }, 12000);
+                }, 650);
+            }
+            function onFilterClick(e){
+                var target = e.target && e.target.closest ? e.target.closest('#rl-shop-controls .rl-shop-filter-toggle:not(.rl-shop-sort-trigger)') : null;
+                if (!target) return;
+                hide(true);
+            }
+            function reposition(){
+                if (hint && hint.classList.contains('is-visible')) positionHint();
+            }
+
+            document.addEventListener('click', onFilterClick, true);
+            window.addEventListener('resize', reposition, {passive:true});
+            window.addEventListener('orientationchange', function(){ setTimeout(reposition, 120); }, {passive:true});
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', reveal, {once:true});
+            } else {
+                reveal();
+            }
+            window.addEventListener('pageshow', function(){ if (!hasSeen()) reveal(); });
+        })();
+        </script>
+        <?php
     }
 
     public static function shop_orderby_options($options) {
@@ -7930,6 +8175,43 @@ final class RaffleLB_Shop {
         filter:none!important;
     }
 
+    /* v0.2.42 — RAFFLE ENTRY price/suffix overlap fix.
+       .rl-shop-entry-value (the <strong> price + <em>/ entry</em> suffix
+       inside .rl-shop-price-raffle) only ever got a flex/baseline/gap
+       layout inside the max-width:767px media query below, and inside the
+       :not(.is-dual-price) scope used for raffle-only cards. Neither one
+       covers the default desktop STORE & RAFFLE card, where the raffle
+       price box is the narrower .85fr column of the dual-price grid
+       (.rl-shop-prices.is-dual-price) and the price carries a large
+       font-size (21-27px depending on breakpoint, see .rl-shop-price-raffle
+       strong above). With no flex/gap/nowrap control at that scope,
+       .rl-shop-entry-value stayed a plain inline <span>, so a wider price
+       (15.00 vs 1.37) had no reserved space and could run into the " /
+       entry" suffix right beside it. This applies the same flex layout the
+       mobile rule below already proves correct, unconditionally, so every
+       raffle price box gets it regardless of viewport or dual-price/
+       raffle-only variant; the media query below still layers its own
+       mobile-specific spacing on top via normal cascade order. */
+    body.rafflelb-raffle-archive .rl-shop-price-raffle .rl-shop-entry-value{
+        display:flex!important;
+        flex-direction:row!important;
+        align-items:baseline!important;
+        flex-wrap:nowrap!important;
+        gap:4px!important;
+        min-width:0!important;
+        max-width:100%!important;
+    }
+    body.rafflelb-raffle-archive .rl-shop-price-raffle .rl-shop-entry-value strong{
+        flex:0 1 auto!important;
+        min-width:0!important;
+        white-space:nowrap!important;
+        margin:0!important;
+    }
+    body.rafflelb-raffle-archive .rl-shop-price-raffle .rl-shop-entry-value em{
+        flex:0 0 auto!important;
+        white-space:nowrap!important;
+    }
+
     @media (max-width:767px){
         /* Lock the amount first and the " / entry" suffix second. Explicit LTR
            isolation prevents the WooCommerce price markup from visually
@@ -9885,6 +10167,7 @@ add_action('woocommerce_product_query', ['RaffleLB_Shop', 'apply_brand_filter_to
 add_action('template_redirect', ['RaffleLB_Shop', 'validate_brand_filter_request']);
 add_action('wp_ajax_rafflelb_category_brands', ['RaffleLB_Shop', 'ajax_category_brands']);
 add_action('wp_ajax_nopriv_rafflelb_category_brands', ['RaffleLB_Shop', 'ajax_category_brands']);
+add_action('wp_footer', ['RaffleLB_Shop', 'shop_filter_hint_assets'], 4);
 add_action('save_post_product', ['RaffleLB_Shop', 'bump_brand_cache_version']);
 add_action('created_term', ['RaffleLB_Shop', 'bump_brand_cache_version']);
 add_action('edited_term', ['RaffleLB_Shop', 'bump_brand_cache_version']);
@@ -9937,6 +10220,7 @@ add_filter('rocket_rucss_inline_content_exclusions', function ($exclusions) {
     if (!is_array($exclusions)) return $exclusions;
     $exclusions[] = 'rafflelb-product-first-paint';
     $exclusions[] = 'rl-product-guard';
+    $exclusions[] = 'rafflelb-shop-filter-hint-v0241';
     return $exclusions;
 });
 
@@ -9944,10 +10228,12 @@ add_filter('rocket_rucss_inline_content_exclusions', function ($exclusions) {
 add_filter('rocket_delay_js_exclusions', function ($exclusions) {
     $exclusions[] = 'RaffleLBProductBootstrap';
     $exclusions[] = 'RaffleLBStoreSearch';
+    $exclusions[] = 'RaffleLBFilterHint';
     return $exclusions;
 });
 add_filter('rocket_defer_js_exclusions', function ($exclusions) {
     $exclusions[] = 'RaffleLBProductBootstrap';
     $exclusions[] = 'RaffleLBStoreSearch';
+    $exclusions[] = 'RaffleLBFilterHint';
     return $exclusions;
 });
