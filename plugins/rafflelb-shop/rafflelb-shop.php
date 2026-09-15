@@ -2,14 +2,14 @@
 /**
  * Plugin Name: RaffleLB Shop
  * Description: Existing RaffleLB catalog and product presentation with reversible Draw Engine delegation.
- * Version: 0.2.45
+ * Version: 0.2.46
  * Author: RaffleLB
  * Requires PHP: 7.4
  */
 if (!defined('ABSPATH')) { exit; }
 require_once plugin_dir_path(__FILE__) . 'includes/class-rafflelb-store-only-renderer.php';
 final class RaffleLB_Shop {
-    const VERSION = '0.2.45';
+    const VERSION = '0.2.46';
     private static $selection_entry_form_context = false;
     private static $public_banners_rendered = false;
     public static function ready() {
@@ -4787,6 +4787,12 @@ final class RaffleLB_Shop {
                 font-family:var(--rl-font,"Manrope",sans-serif)!important;
                 font-size:12px!important;
                 font-style:italic!important;
+            }
+            /* display:block!important above otherwise wins over the native
+               [hidden]{display:none} UA rule, so toggling the `hidden`
+               property from JS (empty.hidden = ...) had no visible effect. */
+            body.rafflelb-raffle-archive .rl-brand-filter-empty[hidden]{
+                display:none!important;
             }
             body.rafflelb-raffle-archive .rl-brand-filter-link{
                 min-width:0!important;

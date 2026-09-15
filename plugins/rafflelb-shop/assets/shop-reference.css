@@ -880,17 +880,23 @@ body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices.is-dual-price .r
    The image area is capped with an explicit max-height instead of relying
    on the earlier aspect-ratio rule alone, since aspect-ratio only
    constrains height relative to the image's own (edge-to-edge, card-width)
-   box — a hard cap is what actually guarantees the requested ~300-330px. */
+   box.
+   v0.2.46 — 310px landed above the aspect-ratio:16/10 rule's own
+   computed height on normal 360-430px phones (~220-250px), so it never
+   actually capped anything there and the card stayed just as tall.
+   Lowered to 195px, which does bind on those widths, and tightened the
+   surrounding gaps/padding a little further to match. object-fit:contain
+   is kept, so this only ever letterboxes further — it never crops. */
 @media(max-width:767px){
   body.rafflelb-raffle-archive.rl-store-reference .rl-raffle-card .product-wrapper{
-    gap:7px!important;
-    padding:9px!important;
+    gap:6px!important;
+    padding:8px!important;
   }
   body.rafflelb-raffle-archive.rl-store-reference .rl-raffle-card .product-element-top{
-    max-height:310px!important;
+    max-height:195px!important;
   }
   body.rafflelb-raffle-archive.rl-store-reference .rl-raffle-card .product-element-top img{
-    max-height:310px!important;
+    max-height:195px!important;
     object-fit:contain!important;
   }
   body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices:not(.is-dual-price)>div,
@@ -901,7 +907,7 @@ body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices.is-dual-price .r
     padding:8px 6px!important;
   }
   body.rafflelb-raffle-archive.rl-store-reference .rl-shop-raffle-box{
-    padding:8px!important;
+    padding:7px 8px!important;
   }
   body.rafflelb-raffle-archive.rl-store-reference .rl-shop-card-actions{
     gap:6px!important;
