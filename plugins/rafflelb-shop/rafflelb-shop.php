@@ -2,14 +2,14 @@
 /**
  * Plugin Name: RaffleLB Shop
  * Description: Existing RaffleLB catalog and product presentation with reversible Draw Engine delegation.
- * Version: 0.2.47
+ * Version: 0.2.48
  * Author: RaffleLB
  * Requires PHP: 7.4
  */
 if (!defined('ABSPATH')) { exit; }
 require_once plugin_dir_path(__FILE__) . 'includes/class-rafflelb-store-only-renderer.php';
 final class RaffleLB_Shop {
-    const VERSION = '0.2.47';
+    const VERSION = '0.2.48';
     private static $selection_entry_form_context = false;
     private static $public_banners_rendered = false;
     public static function ready() {
@@ -9903,6 +9903,62 @@ final class RaffleLB_Shop {
         <?php
     }
 
+    /**
+     * v0.2.48 — On mobile, the site-wide "Refer & Earn" pill (owned by
+     * RaffleLB Referral Points) and the floating AI Assistant launcher
+     * (owned by RaffleLB AI Assistant) sit bottom-left/bottom-right and
+     * visually cover the lower part of the last visible product card on
+     * the Shop archive. Neither plugin's own file is touched: this is a
+     * CSS-only, mobile-only, Shop-archive-only override (their normal
+     * site-wide appearance elsewhere is unaffected) that modestly shrinks
+     * each widget and keeps it closer to the screen edge. Their markup,
+     * links, and click behaviour are untouched, so functionality is
+     * unaffected.
+     */
+    public static function mobile_floating_widgets_css() {
+        if (!self::shop_query_is_catalog()) return;
+        ?>
+        <style id="rafflelb-mobile-floating-widgets-v0248">
+        @media(max-width:767px){
+            body.rafflelb-raffle-archive .rl-ref-float{
+                width:112px!important;
+                min-width:112px!important;
+                max-width:112px!important;
+                height:40px!important;
+                min-height:40px!important;
+                max-height:40px!important;
+                left:max(10px,env(safe-area-inset-left))!important;
+                bottom:calc(12px + env(safe-area-inset-bottom))!important;
+                padding:3px 9px 3px 3px!important;
+                gap:6px!important;
+            }
+            body.rafflelb-raffle-archive .rl-ref-float-icon{
+                width:30px!important;
+                height:30px!important;
+                flex:0 0 30px!important;
+                font-size:13px!important;
+            }
+            body.rafflelb-raffle-archive .rl-ref-float-label{
+                font-size:9px!important;
+            }
+            body.rafflelb-raffle-archive #rlb-ai.rlb-ai .rlb-ai__launcher{
+                width:56px!important;
+                height:56px!important;
+                border-radius:16px!important;
+            }
+            body.rafflelb-raffle-archive #rlb-ai.rlb-ai .rlb-ai__launcher-image{
+                width:37px!important;
+                height:34px!important;
+            }
+            body.rafflelb-raffle-archive #rlb-ai.rlb-ai{
+                right:max(14px,env(safe-area-inset-right))!important;
+                bottom:calc(12px + env(safe-area-inset-bottom))!important;
+            }
+        }
+        </style>
+        <?php
+    }
+
     public static function legacy_callback_18802($classes) {
     if ((function_exists('is_shop') && is_shop()) || (function_exists('is_product_category') && is_product_category())) $classes[] = 'rl-store-reference';
     return $classes;
@@ -10225,6 +10281,7 @@ add_action('admin_menu', ['RaffleLB_Shop', 'register_shop_banner_menu'], 9999);
 add_action('update_option_rafflelb_shop_banners', ['RaffleLB_Shop', 'banner_settings_updated'], 10, 2);
 add_action('wp_head', ['RaffleLB_Shop', 'public_banner_css'], 998);
 add_action('wp_head', ['RaffleLB_Shop', 'shop_archive_black_media_css'], 1000);
+add_action('wp_head', ['RaffleLB_Shop', 'mobile_floating_widgets_css'], 1000);
 add_action('wp_footer', ['RaffleLB_Shop', 'public_banner_stack'], 2);
 
 /* v0.2.14 — Store-wide instant search by product, SKU, category and brand. */

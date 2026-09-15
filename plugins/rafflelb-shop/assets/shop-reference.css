@@ -914,3 +914,48 @@ body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices.is-dual-price .r
     margin-top:0!important;
   }
 }
+
+/* v0.2.48 — mobile card, second compact pass. Mobile-only
+   (max-width:767px), presentation only, desktop untouched. Image cap
+   stays at 195px (unchanged, per this round's brief — do not shrink the
+   image again); every rule here only tightens spacing/padding around
+   content that already exists (title, price boxes, availability box,
+   action buttons), nothing is removed. Placed last so it wins over every
+   earlier layer for these same selectors. */
+@media(max-width:767px){
+  body.rafflelb-raffle-archive.rl-store-reference .rl-raffle-card .product-wrapper{
+    gap:5px!important;
+    padding:7px!important;
+  }
+  body.rafflelb-raffle-archive.rl-store-reference .rl-raffle-card :is(.wd-entities-title,.product-title,h3){
+    margin:0 1px!important;
+    line-height:1.18!important;
+  }
+  body.rafflelb-raffle-archive.rl-store-reference .rl-raffle-card :is(.wd-entities-title,.product-title,h3) a{
+    line-height:1.18!important;
+  }
+  body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices:not(.is-dual-price)>div,
+  body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices.is-dual-price>div{
+    padding:6px!important;
+  }
+  body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices.is-dual-price .rl-shop-price-raffle{
+    padding:6px 5px!important;
+  }
+  body.rafflelb-raffle-archive.rl-store-reference .rl-shop-raffle-box{
+    margin:0 0 6px!important;
+    padding:5px 7px!important;
+  }
+  body.rafflelb-raffle-archive.rl-store-reference .rl-shop-raffle-progress{
+    margin:4px 0 3px!important;
+  }
+  body.rafflelb-raffle-archive.rl-store-reference .rl-shop-card-actions{
+    gap:5px!important;
+    margin-top:0!important;
+  }
+  body.rafflelb-raffle-archive.rl-store-reference .rl-shop-buy,
+  body.rafflelb-raffle-archive.rl-store-reference .rl-shop-enter{
+    height:48px!important;
+    min-height:48px!important;
+    padding:4px 6px!important;
+  }
+}
