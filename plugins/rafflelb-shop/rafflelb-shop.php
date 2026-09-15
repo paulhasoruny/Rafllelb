@@ -2,14 +2,14 @@
 /**
  * Plugin Name: RaffleLB Shop
  * Description: Existing RaffleLB catalog and product presentation with reversible Draw Engine delegation.
- * Version: 0.2.44
+ * Version: 0.2.45
  * Author: RaffleLB
  * Requires PHP: 7.4
  */
 if (!defined('ABSPATH')) { exit; }
 require_once plugin_dir_path(__FILE__) . 'includes/class-rafflelb-store-only-renderer.php';
 final class RaffleLB_Shop {
-    const VERSION = '0.2.44';
+    const VERSION = '0.2.45';
     private static $selection_entry_form_context = false;
     private static $public_banners_rendered = false;
     public static function ready() {
@@ -4740,21 +4740,57 @@ final class RaffleLB_Shop {
             color:#fff!important;
         }
         body.rafflelb-raffle-archive .rl-brand-filter-link.rl-brand-all{font-weight:700!important}
+        body.rafflelb-raffle-archive .rl-brand-filter-search-wrap{display:none}
+        body.rafflelb-raffle-archive .rl-brand-filter-empty{display:none}
+        /* v0.2.45 — mobile Brand UX. The list used to become a horizontal
+           swipe row on phones (display:flex; overflow-x:auto), which hid
+           most brands off-screen. Replaced with the same 2-column grid
+           style already used for mobile Category/Subcategory, plus a
+           client-side search field (filters the already-loaded buttons in
+           the DOM only — no new request, no taxonomy/query change; brand
+           filtering of products is unchanged and still goes through the
+           existing rl_brand link on each button). */
         @media(max-width:767px){
-            body.rafflelb-raffle-archive .rl-brand-filter-grid{
-                display:flex!important;
-                flex-wrap:nowrap!important;
-                gap:8px!important;
-                overflow-x:auto!important;
-                -webkit-overflow-scrolling:touch!important;
-                scrollbar-width:none!important;
-                padding:0 0 4px!important;
+            body.rafflelb-raffle-archive .rl-brand-filter-search-wrap{
+                display:block!important;
+                margin:0 0 10px!important;
             }
-            body.rafflelb-raffle-archive .rl-brand-filter-grid::-webkit-scrollbar{display:none!important}
-            body.rafflelb-raffle-archive .rl-brand-filter-link{
-                flex:0 0 auto!important;
-                min-width:132px!important;
+            body.rafflelb-raffle-archive .rl-brand-filter-search{
+                width:100%!important;
                 min-height:42px!important;
+                padding:0 14px!important;
+                border:1px solid #303a2f!important;
+                border-radius:10px!important;
+                background:#090d09!important;
+                color:#f4f7f2!important;
+                font-family:var(--rl-font,"Manrope",sans-serif)!important;
+                font-size:13px!important;
+                box-sizing:border-box!important;
+                -webkit-appearance:none!important;
+                appearance:none!important;
+            }
+            body.rafflelb-raffle-archive .rl-brand-filter-search::placeholder{color:#7f8a7b!important}
+            body.rafflelb-raffle-archive .rl-brand-filter-search:focus{outline:none!important;border-color:#baff00!important}
+            body.rafflelb-raffle-archive .rl-brand-filter-grid{
+                display:grid!important;
+                grid-template-columns:repeat(2,minmax(0,1fr))!important;
+                gap:8px!important;
+                max-height:296px!important;
+                overflow-y:auto!important;
+                overflow-x:hidden!important;
+                padding:0 0 2px!important;
+            }
+            body.rafflelb-raffle-archive .rl-brand-filter-empty{
+                display:block!important;
+                margin:8px 0 0!important;
+                color:#7f8a7b!important;
+                font-family:var(--rl-font,"Manrope",sans-serif)!important;
+                font-size:12px!important;
+                font-style:italic!important;
+            }
+            body.rafflelb-raffle-archive .rl-brand-filter-link{
+                min-width:0!important;
+                min-height:44px!important;
                 font-size:13px!important;
             }
         }
@@ -5457,6 +5493,21 @@ final class RaffleLB_Shop {
                     header.appendChild(context);
                     block.appendChild(header);
 
+                    // Mobile brand search — client-side only. It filters the
+                    // brand buttons already loaded above (no server request,
+                    // no taxonomy/query change); brand FILTERING of products
+                    // still goes through the existing rl_brand link below.
+                    var searchWrap = document.createElement('div');
+                    searchWrap.className = 'rl-brand-filter-search-wrap';
+                    var search = document.createElement('input');
+                    search.type = 'search';
+                    search.className = 'rl-brand-filter-search';
+                    search.placeholder = 'Search brands…';
+                    search.setAttribute('autocomplete', 'off');
+                    search.setAttribute('aria-label', 'Search brands');
+                    searchWrap.appendChild(search);
+                    block.appendChild(searchWrap);
+
                     var list = document.createElement('div');
                     list.className = 'rl-brand-filter-grid';
 
@@ -5490,6 +5541,25 @@ final class RaffleLB_Shop {
                     });
 
                     block.appendChild(list);
+
+                    var empty = document.createElement('p');
+                    empty.className = 'rl-brand-filter-empty';
+                    empty.textContent = 'No brands found';
+                    empty.hidden = true;
+                    block.appendChild(empty);
+
+                    var brandLinks = Array.prototype.slice.call(list.querySelectorAll('.rl-brand-filter-link:not(.rl-brand-all)'));
+                    search.addEventListener('input', function(){
+                        var q = (search.value || '').trim().toLowerCase();
+                        var visible = 0;
+                        brandLinks.forEach(function(link){
+                            var match = !q || (link.textContent || '').toLowerCase().indexOf(q) !== -1;
+                            link.hidden = !match;
+                            if (match) visible++;
+                        });
+                        empty.hidden = visible !== 0;
+                    });
+
                     // setupSubcategoryFilter() appends its full-width section first;
                     // appending here therefore places Brand directly underneath it.
                     grid.appendChild(block);

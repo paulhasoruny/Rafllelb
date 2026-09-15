@@ -870,3 +870,41 @@ body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices.is-dual-price .r
     font-size:9px!important;
   }
 }
+
+/* v0.2.45 — mobile product-card density. Presentation only, mobile-only
+   (max-width:767px); no markup, no business/pricing logic, desktop
+   untouched. Card structure (image / category / title / retail+raffle
+   price / availability / claimed-left / Buy+Enter Raffle) is unchanged —
+   only vertical size/padding on that same structure. Placed after every
+   earlier mobile rule for these selectors so it wins as the final word.
+   The image area is capped with an explicit max-height instead of relying
+   on the earlier aspect-ratio rule alone, since aspect-ratio only
+   constrains height relative to the image's own (edge-to-edge, card-width)
+   box — a hard cap is what actually guarantees the requested ~300-330px. */
+@media(max-width:767px){
+  body.rafflelb-raffle-archive.rl-store-reference .rl-raffle-card .product-wrapper{
+    gap:7px!important;
+    padding:9px!important;
+  }
+  body.rafflelb-raffle-archive.rl-store-reference .rl-raffle-card .product-element-top{
+    max-height:310px!important;
+  }
+  body.rafflelb-raffle-archive.rl-store-reference .rl-raffle-card .product-element-top img{
+    max-height:310px!important;
+    object-fit:contain!important;
+  }
+  body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices:not(.is-dual-price)>div,
+  body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices.is-dual-price>div{
+    padding:8px!important;
+  }
+  body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices.is-dual-price .rl-shop-price-raffle{
+    padding:8px 6px!important;
+  }
+  body.rafflelb-raffle-archive.rl-store-reference .rl-shop-raffle-box{
+    padding:8px!important;
+  }
+  body.rafflelb-raffle-archive.rl-store-reference .rl-shop-card-actions{
+    gap:6px!important;
+    margin-top:0!important;
+  }
+}
