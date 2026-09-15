@@ -2,14 +2,14 @@
 /**
  * Plugin Name: RaffleLB Shop
  * Description: Existing RaffleLB catalog and product presentation with reversible Draw Engine delegation.
- * Version: 0.2.34
+ * Version: 0.2.36
  * Author: RaffleLB
  * Requires PHP: 7.4
  */
 if (!defined('ABSPATH')) { exit; }
 require_once plugin_dir_path(__FILE__) . 'includes/class-rafflelb-store-only-renderer.php';
 final class RaffleLB_Shop {
-    const VERSION = '0.2.34';
+    const VERSION = '0.2.36';
     private static $selection_entry_form_context = false;
     private static $public_banners_rendered = false;
     public static function ready() {
@@ -4401,7 +4401,113 @@ final class RaffleLB_Shop {
         $rl_shop_url = function_exists('wc_get_page_permalink') ? wc_get_page_permalink('shop') : home_url('/shop/');
         if (!$rl_shop_url) $rl_shop_url = home_url('/shop/');
         $rl_shop_mode = self::shop_view_mode();
+
+        /* v0.2.35 — Brands live inside the same filter UI that already builds
+         * Categories/Subcategories. Draw Engine delegates this method to Shop
+         * on wp_footer, so this is the one filter-rendering path we know is
+         * actually present on the live Store. Build the current category's
+         * brand list server-side and hand it to that existing UI instead of
+         * relying on woocommerce_before_shop_loop, which WoodMart does not
+         * render in this customised archive layout.
+         *
+         * v0.2.36 — category_brand_terms() picks its own taxonomy from
+         * evidence on the eligible products (see brand_taxonomy_candidates()
+         * for why), so it is no longer told which one to use. */
+        $rl_brand_terms = [];
+        if ($rl_current_category_id > 0) {
+            $rl_brand_result = self::category_brand_terms($rl_current_category_id, $rl_shop_mode);
+            $rl_brand_terms = $rl_brand_result['brands'];
+        }
+        $rl_selected_brand = self::shop_brand_slug();
         ?>
+        <style id="rafflelb-brand-filter-css-v0235">
+        body.rafflelb-raffle-archive .rl-brand-filter-widget{
+            grid-column:1 / -1!important;
+            width:100%!important;
+            min-width:0!important;
+            max-width:100%!important;
+            margin:0!important;
+            padding:20px 0 0!important;
+            border-top:1px solid #252e24!important;
+            box-sizing:border-box!important;
+        }
+        body.rafflelb-raffle-archive .rl-brand-filter-head{
+            display:flex!important;
+            align-items:baseline!important;
+            justify-content:flex-start!important;
+            flex-wrap:wrap!important;
+            gap:8px 12px!important;
+            margin:0 0 13px!important;
+        }
+        body.rafflelb-raffle-archive .rl-brand-filter-heading{
+            margin:0!important;
+            color:#f4f7f2!important;
+            font-family:var(--rl-font,"Manrope",sans-serif)!important;
+            font-size:16px!important;
+            line-height:1.3!important;
+            font-weight:700!important;
+            letter-spacing:-.01em!important;
+        }
+        body.rafflelb-raffle-archive .rl-brand-filter-context{
+            color:#899486!important;
+            font-family:var(--rl-font,"Manrope",sans-serif)!important;
+            font-size:13px!important;
+            line-height:1.35!important;
+            font-weight:600!important;
+        }
+        body.rafflelb-raffle-archive .rl-brand-filter-grid{
+            display:grid!important;
+            grid-template-columns:repeat(4,minmax(0,1fr))!important;
+            gap:10px!important;
+        }
+        body.rafflelb-raffle-archive .rl-brand-filter-link{
+            display:flex!important;
+            min-width:0!important;
+            min-height:46px!important;
+            align-items:center!important;
+            justify-content:flex-start!important;
+            padding:0 15px!important;
+            border:1px solid #303a2f!important;
+            border-radius:11px!important;
+            background:#090d09!important;
+            color:#dce2d9!important;
+            font-family:var(--rl-font,"Manrope",sans-serif)!important;
+            font-size:14px!important;
+            line-height:1.25!important;
+            font-weight:650!important;
+            letter-spacing:-.005em!important;
+            text-decoration:none!important;
+            overflow:hidden!important;
+            text-overflow:ellipsis!important;
+            white-space:nowrap!important;
+            transition:border-color .18s ease,background .18s ease,color .18s ease!important;
+        }
+        body.rafflelb-raffle-archive .rl-brand-filter-link:hover,
+        body.rafflelb-raffle-archive .rl-brand-filter-link.is-active{
+            border-color:#baff00!important;
+            background:rgba(186,255,0,.08)!important;
+            color:#fff!important;
+        }
+        body.rafflelb-raffle-archive .rl-brand-filter-link.rl-brand-all{font-weight:700!important}
+        @media(max-width:767px){
+            body.rafflelb-raffle-archive .rl-brand-filter-grid{
+                display:flex!important;
+                flex-wrap:nowrap!important;
+                gap:8px!important;
+                overflow-x:auto!important;
+                -webkit-overflow-scrolling:touch!important;
+                scrollbar-width:none!important;
+                padding:0 0 4px!important;
+            }
+            body.rafflelb-raffle-archive .rl-brand-filter-grid::-webkit-scrollbar{display:none!important}
+            body.rafflelb-raffle-archive .rl-brand-filter-link{
+                flex:0 0 auto!important;
+                min-width:132px!important;
+                min-height:42px!important;
+                font-size:13px!important;
+            }
+        }
+        </style>
         <script id="rafflelb-shop-native-filters-ui-v03324">
         (function(){
             var body = document.body;
@@ -4411,6 +4517,8 @@ final class RaffleLB_Shop {
             var rlInitialCategoryId = <?php echo (int) $rl_current_category_id; ?>;
             var rlShopUrl = <?php echo wp_json_encode((string) $rl_shop_url); ?> || '/shop/';
             var rlShopMode = <?php echo wp_json_encode((string) $rl_shop_mode); ?> || 'both';
+            var rlBrandTerms = <?php echo wp_json_encode($rl_brand_terms); ?> || [];
+            var rlSelectedBrand = <?php echo wp_json_encode((string) $rl_selected_brand); ?> || '';
             var rlReturnKey = 'rafflelb_shop_return_v03324';
 
             function showShopNavOverlay(){
@@ -4487,7 +4595,7 @@ final class RaffleLB_Shop {
                 // archives. Keep the shopper at the controls instead of jumping back
                 // to the page hero after each full-page request.
                 Array.prototype.slice.call(document.querySelectorAll(
-                    '.rl-shop-view-mode, .rl-shop-clear-filters, .rl-category-widget-enhanced a, .rl-subcategory-widget a'
+                    '.rl-shop-view-mode, .rl-shop-clear-filters, .rl-category-widget-enhanced a, .rl-subcategory-widget a, .rl-brand-filter-widget a'
                 )).forEach(function(link){
                     if (!link || !link.href || link.dataset.rlReturnBound === '1') return;
                     link.dataset.rlReturnBound = '1';
@@ -4998,6 +5106,78 @@ final class RaffleLB_Shop {
                 });
             }
 
+            function setupBrandFilter(){
+                areas().forEach(function(area){
+                    Array.prototype.slice.call(area.querySelectorAll('.rl-brand-filter-widget')).forEach(function(node){
+                        node.remove();
+                    });
+
+                    // Hidden until a real category archive is active, and hidden
+                    // when that category has no assigned brands.
+                    if (!rlInitialCategoryId || !Array.isArray(rlBrandTerms) || !rlBrandTerms.length) return;
+
+                    var grid = area.querySelector('.filters-inner-area, .widget-area') || area;
+                    var categoryWidget = area.querySelector('.rl-category-widget-enhanced');
+                    if (!grid || !categoryWidget) return;
+
+                    var current = currentCategoryTerm(categoryWidget);
+                    if (!current) return;
+
+                    var block = document.createElement('div');
+                    block.className = 'widget rl-brand-filter-widget';
+                    block.setAttribute('aria-label', 'Filter by brand');
+
+                    var header = document.createElement('div');
+                    header.className = 'rl-brand-filter-head';
+                    var heading = document.createElement('h5');
+                    heading.className = 'rl-brand-filter-heading';
+                    heading.textContent = 'Filter by brand';
+                    var context = document.createElement('span');
+                    context.className = 'rl-brand-filter-context';
+                    context.textContent = current.name || '';
+                    header.appendChild(heading);
+                    header.appendChild(context);
+                    block.appendChild(header);
+
+                    var list = document.createElement('div');
+                    list.className = 'rl-brand-filter-grid';
+
+                    function brandUrl(slug){
+                        try {
+                            var url = new URL(window.location.href);
+                            url.searchParams.delete('paged');
+                            url.searchParams.delete('product-page');
+                            if (slug) url.searchParams.set('rl_brand', slug);
+                            else url.searchParams.delete('rl_brand');
+                            url.hash = 'rl-shop-controls';
+                            return url.href;
+                        } catch (e) {
+                            return window.location.href;
+                        }
+                    }
+
+                    var all = document.createElement('a');
+                    all.className = 'rl-brand-filter-link rl-brand-all' + (!rlSelectedBrand ? ' is-active' : '');
+                    all.href = brandUrl('');
+                    all.textContent = 'All Brands';
+                    list.appendChild(all);
+
+                    rlBrandTerms.forEach(function(brand){
+                        if (!brand || !brand.slug || !brand.name) return;
+                        var link = document.createElement('a');
+                        link.className = 'rl-brand-filter-link' + (String(rlSelectedBrand) === String(brand.slug) ? ' is-active' : '');
+                        link.href = brandUrl(String(brand.slug));
+                        link.textContent = String(brand.name);
+                        list.appendChild(link);
+                    });
+
+                    block.appendChild(list);
+                    // setupSubcategoryFilter() appends its full-width section first;
+                    // appending here therefore places Brand directly underneath it.
+                    grid.appendChild(block);
+                });
+            }
+
             function setupRetailPriceInputs(){
                 var currency = <?php echo wp_json_encode(function_exists('get_woocommerce_currency_symbol') ? html_entity_decode(get_woocommerce_currency_symbol(), ENT_QUOTES, 'UTF-8') : '$'); ?>;
 
@@ -5149,6 +5329,7 @@ final class RaffleLB_Shop {
                 setupCategoryExpansion();
                 setupRetailPriceInputs();
                 setupSubcategoryFilter();
+                setupBrandFilter();
                 syncOrderingMode();
                 prepareArchiveNavigation();
                 if (!toggle) return;
@@ -9308,12 +9489,27 @@ final class RaffleLB_Shop {
      * layered-navigation query format.
      * --------------------------------------------------------------- */
 
-    /** The brand taxonomy actually registered on 'product', if any. */
-    private static function brand_taxonomy() {
+    /**
+     * Every taxonomy registered on 'product' that looks like a brand
+     * taxonomy, in the same preference order rafflelb-products uses to pick
+     * the one it saves to (product_brand first, since that is the taxonomy
+     * Product Studio's own ensure_brand_taxonomy() fallback registers).
+     *
+     * v0.2.36 — category_brand_terms() no longer commits to a single "best
+     * guess" taxonomy the way brand_taxonomy() used to. Across the several
+     * debug iterations on this feature, brand terms already saved on live
+     * products did not reliably end up in whichever taxonomy this static
+     * guess preferred that day, so the Brands row silently rendered empty
+     * (server-side $rl_brand_terms === [] short-circuits setupBrandFilter()
+     * in the JS) even though the product genuinely had a Brand assigned.
+     * Returning every candidate lets category_brand_terms() pick the one
+     * that actually has term relationships on the eligible products, i.e.
+     * the taxonomy Product Studio really saved to, not the one we assumed.
+     */
+    private static function brand_taxonomy_candidates() {
         static $resolved = null;
         if ($resolved !== null) return $resolved;
 
-        $resolved = '';
         $candidates = [
             'product_brand',       // WooCommerce Brands / modern WooCommerce.
             'pa_brands',
@@ -9324,32 +9520,38 @@ final class RaffleLB_Shop {
             'brand',
         ];
 
+        $found = [];
         foreach ($candidates as $taxonomy) {
             if (!taxonomy_exists($taxonomy)) continue;
             $object_types = get_taxonomy($taxonomy);
             $object_types = $object_types && !empty($object_types->object_type) ? (array) $object_types->object_type : [];
             if (empty($object_types) || in_array('product', $object_types, true)) {
-                $resolved = $taxonomy;
-                break;
+                $found[] = $taxonomy;
             }
         }
 
-        if ($resolved === '') {
-            $objects = get_object_taxonomies('product', 'objects');
-            if (is_array($objects)) {
-                foreach ($objects as $taxonomy => $object) {
-                    if (in_array($taxonomy, ['product_cat', 'product_tag', 'product_type', 'product_visibility', 'product_shipping_class'], true)) continue;
-                    $name = strtolower((string) $taxonomy);
-                    $label = isset($object->label) ? strtolower((string) $object->label) : '';
-                    $singular = isset($object->labels->singular_name) ? strtolower((string) $object->labels->singular_name) : '';
-                    if (strpos($name, 'brand') !== false || strpos($label, 'brand') !== false || strpos($singular, 'brand') !== false) {
-                        $resolved = $taxonomy;
-                        break;
-                    }
+        $objects = get_object_taxonomies('product', 'objects');
+        if (is_array($objects)) {
+            foreach ($objects as $taxonomy => $object) {
+                if (in_array($taxonomy, $found, true)) continue;
+                if (in_array($taxonomy, ['product_cat', 'product_tag', 'product_type', 'product_visibility', 'product_shipping_class'], true)) continue;
+                $name = strtolower((string) $taxonomy);
+                $label = isset($object->label) ? strtolower((string) $object->label) : '';
+                $singular = isset($object->labels->singular_name) ? strtolower((string) $object->labels->singular_name) : '';
+                if (strpos($name, 'brand') !== false || strpos($label, 'brand') !== false || strpos($singular, 'brand') !== false) {
+                    $found[] = $taxonomy;
                 }
             }
         }
+
+        $resolved = $found;
         return $resolved;
+    }
+
+    /** The single most-preferred brand taxonomy, if any (display/cache use only). */
+    private static function brand_taxonomy() {
+        $candidates = self::brand_taxonomy_candidates();
+        return $candidates ? $candidates[0] : '';
     }
 
     /** One selected brand at a time; empty means All Brands. */
@@ -9367,8 +9569,7 @@ final class RaffleLB_Shop {
     /** Invalidate category/brand caches after term relationships are assigned. */
     public static function brand_object_terms_changed($object_id, $terms, $tt_ids, $taxonomy, $append, $old_tt_ids) {
         if (get_post_type((int) $object_id) !== 'product') return;
-        $brand_taxonomy = self::brand_taxonomy();
-        if ($taxonomy === 'product_cat' || ($brand_taxonomy !== '' && $taxonomy === $brand_taxonomy)) {
+        if ($taxonomy === 'product_cat' || in_array($taxonomy, self::brand_taxonomy_candidates(), true)) {
             self::bump_brand_cache_version();
         }
     }
@@ -9377,16 +9578,23 @@ final class RaffleLB_Shop {
      * Brand terms actually represented by visible products in this category
      * and Shopping Mode. Tax-query include_children remains true, matching a
      * normal WooCommerce category archive.
+     *
+     * Returns ['taxonomy' => string, 'brands' => [['slug'=>,'name'=>], ...]].
+     * Every brand-like taxonomy candidate is tried against this exact set of
+     * eligible product IDs, and the first one with any term relationship on
+     * them wins — see brand_taxonomy_candidates() for why this is evidence-
+     * based instead of a single fixed guess.
      */
-    private static function category_brand_terms($category_term_id, $taxonomy, $mode = 'both') {
+    private static function category_brand_terms($category_term_id, $mode = 'both') {
         $category_term_id = (int) $category_term_id;
         $mode = in_array($mode, ['both', 'retail', 'raffle'], true) ? $mode : 'both';
-        if ($category_term_id <= 0 || $taxonomy === '') return [];
+        $candidates = self::brand_taxonomy_candidates();
+        if ($category_term_id <= 0 || !$candidates) return ['taxonomy' => '', 'brands' => []];
 
         $version = (int) get_option('rafflelb_brand_cache_version', 1);
-        $cache_key = 'rlb_cat_brands_v4_' . $category_term_id . '_' . $mode . '_' . md5($taxonomy) . '_' . $version;
+        $cache_key = 'rlb_cat_brands_v5_' . $category_term_id . '_' . $mode . '_' . md5(implode(',', $candidates)) . '_' . $version;
         $cached = get_transient($cache_key);
-        if (is_array($cached)) return $cached;
+        if (is_array($cached) && isset($cached['brands'])) return $cached;
 
         $product_ids = get_posts([
             'post_type'              => 'product',
@@ -9425,14 +9633,21 @@ final class RaffleLB_Shop {
             $eligible_ids[] = $product_id;
         }
 
-        $brands = [];
+        $result = ['taxonomy' => '', 'brands' => []];
         if ($eligible_ids) {
             /* wp_get_object_terms() is deliberately used here instead of a
              * Term_Query object_ids filter. It reads the actual relationships
              * assigned to these exact products and works for native Brands,
-             * WooCommerce attributes (pa_brand/pa_brands), and plugin brands. */
-            $terms = wp_get_object_terms($eligible_ids, $taxonomy, ['fields' => 'all']);
-            if (!is_wp_error($terms) && is_array($terms)) {
+             * WooCommerce attributes (pa_brand/pa_brands), and plugin brands.
+             * Try each candidate taxonomy in preference order and use the
+             * first one that actually has a term on at least one of these
+             * products — i.e. the taxonomy these products were really saved
+             * to, not just the one we'd guess first. */
+            foreach ($candidates as $taxonomy) {
+                $terms = wp_get_object_terms($eligible_ids, $taxonomy, ['fields' => 'all']);
+                if (is_wp_error($terms) || !is_array($terms) || !$terms) continue;
+
+                $brands = [];
                 $seen = [];
                 foreach ($terms as $term) {
                     if (!$term instanceof WP_Term || $term->slug === '') continue;
@@ -9443,17 +9658,21 @@ final class RaffleLB_Shop {
                         'name' => html_entity_decode((string) $term->name, ENT_QUOTES | ENT_HTML5, get_bloginfo('charset') ?: 'UTF-8'),
                     ];
                 }
+                if ($brands) {
+                    usort($brands, static function ($a, $b) { return strcasecmp($a['name'], $b['name']); });
+                    $result = ['taxonomy' => $taxonomy, 'brands' => $brands];
+                    break;
+                }
             }
         }
-        usort($brands, static function ($a, $b) { return strcasecmp($a['name'], $b['name']); });
 
         // Cache only a non-empty result. An empty list is intentionally
         // re-evaluated on the next request so a newly assigned first brand can
         // appear immediately even if another save path did not bump our cache.
-        if ($brands) {
-            set_transient($cache_key, $brands, HOUR_IN_SECONDS);
+        if ($result['brands']) {
+            set_transient($cache_key, $result, HOUR_IN_SECONDS);
         }
-        return $brands;
+        return $result;
     }
 
     /** Apply the selected brand to the real WooCommerce category catalogue. */
@@ -9465,8 +9684,15 @@ final class RaffleLB_Shop {
         $brand_slug = self::shop_brand_slug();
         if ($brand_slug === '') return;
 
-        $taxonomy = self::brand_taxonomy();
-        if ($taxonomy === '' || !term_exists($brand_slug, $taxonomy)) return;
+        // Try every brand-like taxonomy candidate rather than assuming the
+        // single most-preferred one; the slug only exists on whichever
+        // taxonomy the product was actually saved to (see
+        // brand_taxonomy_candidates()).
+        $taxonomy = '';
+        foreach (self::brand_taxonomy_candidates() as $candidate) {
+            if (term_exists($brand_slug, $candidate)) { $taxonomy = $candidate; break; }
+        }
+        if ($taxonomy === '') return;
 
         $tax_query = $query->get('tax_query');
         if (!is_array($tax_query)) $tax_query = [];
@@ -9499,97 +9725,17 @@ final class RaffleLB_Shop {
         $requested = self::shop_brand_slug();
         if ($requested === '') return;
 
-        $taxonomy = self::brand_taxonomy();
-        if ($taxonomy === '') return;
+        if (!self::brand_taxonomy_candidates()) return;
 
         $queried = get_queried_object();
         if (!$queried instanceof WP_Term || $queried->taxonomy !== 'product_cat') return;
 
-        $valid_slugs = wp_list_pluck(self::category_brand_terms($queried->term_id, $taxonomy, self::shop_view_mode()), 'slug');
+        $valid_slugs = wp_list_pluck(self::category_brand_terms($queried->term_id, self::shop_view_mode())['brands'], 'slug');
         if (in_array($requested, $valid_slugs, true)) return;
 
         $url = remove_query_arg(['rl_brand', 'paged', 'product-page']);
         wp_safe_redirect($url, 302);
         exit;
-    }
-
-    /**
-     * Brands filter markup, server-rendered directly into the real WooCommerce
-     * archive loop instead of being guessed into place by JavaScript.
-     *
-     * v0.2.34 root-cause fix: the previous implementation searched the DOM at
-     * runtime for `.rl-category-widget-enhanced` / `.rl-subcategory-widget`,
-     * elements that only `RaffleLB_Shop::shop_native_filters_ui()` creates —
-     * and that method is not registered on any WordPress hook anywhere in
-     * this plugin (verified: its name does not appear in a single add_action
-     * call), so those elements never exist on the live page and the mount
-     * script's host search always came back empty. The remaining fallback,
-     * `.widget_product_categories`, only exists if that exact native
-     * WooCommerce widget happens to be placed in the theme's filters sidebar,
-     * which this store does not rely on. No amount of extra fallback
-     * selectors or MutationObservers fixes a host that is never created, so
-     * this rebuild removes that entire JS mounting layer (and the now-unused
-     * AJAX brand endpoint it depended on) and instead hooks the Brands row
-     * onto `woocommerce_before_shop_loop` — the same core WooCommerce action
-     * every theme (including WoodMart) fires on every shop/category archive,
-     * right above the product grid and below category/subcategory
-     * navigation. This is plain PHP output: it cannot vary between logged-in
-     * and logged-out requests, and it needs no AJAX round trip because the
-     * category is already known server-side.
-     */
-    public static function brand_filter_markup() {
-        if (!self::shop_query_is_catalog()) return;
-        if (!function_exists('is_product_category') || !is_product_category()) return; // Hidden until a category is selected.
-
-        $taxonomy = self::brand_taxonomy();
-        if ($taxonomy === '') return;
-
-        $queried = get_queried_object();
-        if (!$queried instanceof WP_Term || $queried->taxonomy !== 'product_cat') return;
-
-        $mode = self::shop_view_mode();
-        $brands = self::category_brand_terms($queried->term_id, $taxonomy, $mode);
-        if (!$brands) return;
-
-        $selected = self::shop_brand_slug();
-        $category_name = html_entity_decode((string) $queried->name, ENT_QUOTES | ENT_HTML5, get_bloginfo('charset') ?: 'UTF-8');
-
-        $base_url = remove_query_arg(['rl_brand', 'paged', 'product-page']);
-        ?>
-        <style id="rafflelb-brand-filter-css-v0234">
-        .rl-brand-filter{grid-column:1/-1;margin:12px 0 2px;padding:14px 0 0;border-top:1px solid #2a3329;min-width:0}
-        .rl-brand-filter[hidden]{display:none!important}
-        .rl-brand-filter-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0 0 10px}
-        .rl-brand-filter-label{display:block;font-size:12px;font-weight:900;letter-spacing:.075em;text-transform:uppercase;color:#fff}
-        .rl-brand-filter-context{font-size:10px;font-weight:750;letter-spacing:.025em;color:#778174;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-        .rl-brand-filter-row{display:flex;flex-wrap:wrap;gap:8px;min-width:0}
-        .rl-brand-chip{display:inline-flex;align-items:center;justify-content:center;min-height:38px;padding:0 14px;border:1px solid #303a2f;border-radius:999px;background:#090d09;color:#c5cdc1!important;font-size:11px;font-weight:850;letter-spacing:.015em;white-space:nowrap;text-decoration:none!important;transition:border-color .16s ease,color .16s ease,background .16s ease}
-        .rl-brand-chip:hover{border-color:#baff00;color:#baff00!important}
-        .rl-brand-chip.is-active{border-color:#baff00;background:#baff00;color:#050705!important}
-        @media (max-width:768px){
-            .rl-brand-filter{padding-top:12px}
-            .rl-brand-filter-head{margin-bottom:8px}
-            .rl-brand-filter-label{font-size:11px}
-            .rl-brand-filter-context{display:none}
-            .rl-brand-filter-row{flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;padding:0 0 4px;scrollbar-width:none}
-            .rl-brand-filter-row::-webkit-scrollbar{display:none}
-            .rl-brand-chip{flex:0 0 auto;min-height:36px;padding:0 13px;font-size:10px}
-        }
-        </style>
-        <section class="rl-brand-filter" data-rl-brand-filter="1" aria-label="Filter by brand">
-            <div class="rl-brand-filter-head">
-                <span class="rl-brand-filter-label">Brands</span>
-                <span class="rl-brand-filter-context"><?php echo esc_html($category_name); ?></span>
-            </div>
-            <div class="rl-brand-filter-row">
-                <a class="rl-brand-chip<?php echo $selected === '' ? ' is-active' : ''; ?>" href="<?php echo esc_url($base_url); ?>">All Brands</a>
-                <?php foreach ($brands as $brand): ?>
-                    <?php $active = $selected === $brand['slug']; ?>
-                    <a class="rl-brand-chip<?php echo $active ? ' is-active' : ''; ?>" href="<?php echo esc_url(add_query_arg('rl_brand', rawurlencode($brand['slug']), $base_url)); ?>"><?php echo esc_html($brand['name']); ?></a>
-                <?php endforeach; ?>
-            </div>
-        </section>
-        <?php
     }
 
 }
@@ -9628,12 +9774,14 @@ add_action('created_term', ['RaffleLB_Shop', 'clear_store_search_lexicon_cache']
 add_action('edited_term', ['RaffleLB_Shop', 'clear_store_search_lexicon_cache']);
 add_action('delete_term', ['RaffleLB_Shop', 'clear_store_search_lexicon_cache']);
 
-/* Dynamic category-scoped Brands filter. Rendered server-side directly into
- * the real WooCommerce archive loop (see brand_filter_markup() for why). */
+/* Dynamic category-scoped Brands filter. The row itself is rendered by
+ * shop_native_filters_ui() (see that method) — the filter UI Draw Engine
+ * actually delegates to on wp_footer, and the only one confirmed live on
+ * this theme's customised archive layout. These hooks apply/validate the
+ * selection against the real WooCommerce query. */
 add_action('pre_get_posts', ['RaffleLB_Shop', 'apply_brand_filter_to_catalog'], 9);
 add_action('woocommerce_product_query', ['RaffleLB_Shop', 'apply_brand_filter_to_catalog'], 98);
 add_action('template_redirect', ['RaffleLB_Shop', 'validate_brand_filter_request']);
-add_action('woocommerce_before_shop_loop', ['RaffleLB_Shop', 'brand_filter_markup'], 25);
 add_action('save_post_product', ['RaffleLB_Shop', 'bump_brand_cache_version']);
 add_action('created_term', ['RaffleLB_Shop', 'bump_brand_cache_version']);
 add_action('edited_term', ['RaffleLB_Shop', 'bump_brand_cache_version']);
