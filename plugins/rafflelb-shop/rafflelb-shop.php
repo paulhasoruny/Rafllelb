@@ -2,14 +2,14 @@
 /**
  * Plugin Name: RaffleLB Shop
  * Description: Existing RaffleLB catalog and product presentation with reversible Draw Engine delegation.
- * Version: 0.2.28
+ * Version: 0.2.29
  * Author: RaffleLB
  * Requires PHP: 7.4
  */
 if (!defined('ABSPATH')) { exit; }
 require_once plugin_dir_path(__FILE__) . 'includes/class-rafflelb-store-only-renderer.php';
 final class RaffleLB_Shop {
-    const VERSION = '0.2.28';
+    const VERSION = '0.2.29';
     private static $selection_entry_form_context = false;
     private static $public_banners_rendered = false;
     public static function ready() {
@@ -9291,6 +9291,248 @@ final class RaffleLB_Shop {
         wp_enqueue_style('rafflelb-store-reference', plugins_url('assets/shop-reference.css', __FILE__), [], self::VERSION);
     }
 }
+
+    /* -----------------------------------------------------------------
+     * Dynamic category-scoped Brands filter (v0.2.29).
+     *
+     * Brands stay hidden until a category is selected. The taxonomy is
+     * auto-detected (never hard-coded) so this keeps working whatever the
+     * store's brand plugin/attribute happens to be.
+     * --------------------------------------------------------------- */
+
+    /** The brand taxonomy actually registered on 'product', if any. */
+    private static function brand_taxonomy() {
+        static $resolved = null;
+        if ($resolved !== null) return $resolved;
+
+        $resolved = '';
+        $candidates = ['pa_brands', 'pa_brand', 'brand'];
+        foreach ($candidates as $taxonomy) {
+            if (taxonomy_exists($taxonomy)) { $resolved = $taxonomy; break; }
+        }
+        if ($resolved === '') {
+            $objects = get_object_taxonomies('product', 'objects');
+            if (is_array($objects)) {
+                foreach ($objects as $taxonomy => $object) {
+                    $name = strtolower((string) $taxonomy);
+                    $label = isset($object->label) ? strtolower((string) $object->label) : '';
+                    if (strpos($name, 'brand') !== false || strpos($label, 'brand') !== false) {
+                        $resolved = $taxonomy;
+                        break;
+                    }
+                }
+            }
+        }
+        return $resolved;
+    }
+
+    /** WooCommerce's own layered-nav query var name for a taxonomy (e.g. pa_brands -> brands). */
+    private static function brand_filter_query_var($taxonomy) {
+        if (function_exists('wc_attribute_taxonomy_slug')) {
+            return sanitize_title(wc_attribute_taxonomy_slug($taxonomy));
+        }
+        return sanitize_title(preg_replace('/^pa_/', '', $taxonomy));
+    }
+
+    /** Bump the cache-busting version whenever products or brand terms change. */
+    public static function bump_brand_cache_version() {
+        $version = (int) get_option('rafflelb_brand_cache_version', 1);
+        update_option('rafflelb_brand_cache_version', $version + 1, false);
+    }
+
+    /** Brand terms (slug + name) actually used by published products in a category, cached. */
+    private static function category_brand_terms($category_term_id, $taxonomy) {
+        $category_term_id = (int) $category_term_id;
+        if ($category_term_id <= 0 || $taxonomy === '') return [];
+
+        $version = (int) get_option('rafflelb_brand_cache_version', 1);
+        $cache_key = 'rlb_cat_brands_' . $category_term_id . '_' . md5($taxonomy) . '_' . $version;
+        $cached = get_transient($cache_key);
+        if (is_array($cached)) return $cached;
+
+        $product_ids = get_posts([
+            'post_type'              => 'product',
+            'post_status'            => 'publish',
+            'posts_per_page'         => -1,
+            'fields'                 => 'ids',
+            'no_found_rows'          => true,
+            'update_post_meta_cache' => false,
+            'update_post_term_cache' => false,
+            'tax_query'              => [[
+                'taxonomy' => 'product_cat',
+                'field'    => 'term_id',
+                'terms'    => [$category_term_id],
+            ]],
+        ]);
+
+        $brands = [];
+        if (!empty($product_ids)) {
+            $terms = get_terms([
+                'taxonomy'   => $taxonomy,
+                'object_ids' => $product_ids,
+                'hide_empty' => false,
+            ]);
+            if (!is_wp_error($terms) && is_array($terms)) {
+                foreach ($terms as $term) {
+                    if (!is_object($term) || $term->slug === '') continue;
+                    $brands[] = [
+                        'slug' => $term->slug,
+                        'name' => html_entity_decode((string) $term->name, ENT_QUOTES, get_bloginfo('charset')),
+                    ];
+                }
+            }
+        }
+        usort($brands, static function ($a, $b) { return strcasecmp($a['name'], $b['name']); });
+
+        set_transient($cache_key, $brands, HOUR_IN_SECONDS);
+        return $brands;
+    }
+
+    /** Public read-only endpoint: brands present in a given category. */
+    public static function ajax_get_category_brands() {
+        $taxonomy = self::brand_taxonomy();
+        if ($taxonomy === '') wp_send_json_success(['brands' => [], 'filter_key' => '']);
+
+        $slug = isset($_GET['category']) ? sanitize_title(wp_unslash($_GET['category'])) : '';
+        $term = $slug !== '' ? get_term_by('slug', $slug, 'product_cat') : false;
+        if (!$term || is_wp_error($term)) wp_send_json_success(['brands' => [], 'filter_key' => '']);
+
+        $brands = self::category_brand_terms($term->term_id, $taxonomy);
+        wp_send_json_success([
+            'brands'     => $brands,
+            'filter_key' => self::brand_filter_query_var($taxonomy),
+        ]);
+    }
+
+    /**
+     * If the URL carries a brand filter that isn't valid for the category
+     * being viewed (stale bookmark, category switch, etc.), drop it instead
+     * of silently returning an empty catalogue.
+     */
+    public static function validate_brand_filter_request() {
+        if (is_admin() || !function_exists('is_product_category') || !is_product_category()) return;
+
+        $taxonomy = self::brand_taxonomy();
+        if ($taxonomy === '') return;
+
+        $filter_key = self::brand_filter_query_var($taxonomy);
+        $param = 'filter_' . $filter_key;
+        if (!isset($_GET[$param]) || $_GET[$param] === '') return;
+
+        $queried = get_queried_object();
+        if (!$queried instanceof WP_Term) return;
+
+        $requested = array_filter(array_map('sanitize_title', explode(',', wp_unslash($_GET[$param]))));
+        $valid_slugs = wp_list_pluck(self::category_brand_terms($queried->term_id, $taxonomy), 'slug');
+        $kept = array_values(array_intersect($requested, $valid_slugs));
+
+        if ($kept === $requested) return;
+
+        $url = remove_query_arg([$param, 'query_type_' . $filter_key]);
+        if (!empty($kept)) $url = add_query_arg($param, implode(',', $kept), $url);
+        wp_safe_redirect($url, 302);
+        exit;
+    }
+
+    /** Brands filter markup + behaviour, mounted directly under the category controls. */
+    public static function brand_filter_assets() {
+        if (!self::shop_query_is_catalog()) return;
+        $taxonomy = self::brand_taxonomy();
+        if ($taxonomy === '') return;
+
+        $is_category = function_exists('is_product_category') && is_product_category();
+        $current_category = '';
+        if ($is_category) {
+            $queried = get_queried_object();
+            if ($queried instanceof WP_Term) $current_category = $queried->slug;
+        }
+        $filter_key = self::brand_filter_query_var($taxonomy);
+        $selected = isset($_GET['filter_' . $filter_key])
+            ? array_filter(array_map('sanitize_title', explode(',', wp_unslash($_GET['filter_' . $filter_key]))))
+            : [];
+        ?>
+        <style id="rafflelb-brand-filter-css-v0229">
+        .rl-brand-filter{margin:10px 0 4px;padding-top:10px;border-top:1px solid #2a3329}
+        .rl-brand-filter[hidden]{display:none!important}
+        .rl-brand-filter-label{display:block;margin:0 0 8px;font-size:10px;font-weight:850;letter-spacing:.08em;text-transform:uppercase;color:#8a948a}
+        .rl-brand-filter-row{display:flex;flex-wrap:wrap;gap:7px}
+        .rl-brand-chip{display:inline-flex;align-items:center;min-height:34px;padding:0 12px;border:1px solid #2a3329;border-radius:999px;background:#090d09;color:#bdc6b9;font-size:11px;font-weight:800;letter-spacing:.02em;white-space:nowrap;text-decoration:none;cursor:pointer}
+        .rl-brand-chip:hover{border-color:#baff00;color:#baff00}
+        .rl-brand-chip.is-active{border-color:#baff00;background:#baff00;color:#0a0f0a}
+        @media (max-width:768px){
+            .rl-brand-filter-row{flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:4px;scrollbar-width:none}
+            .rl-brand-filter-row::-webkit-scrollbar{display:none}
+            .rl-brand-chip{flex:0 0 auto}
+        }
+        </style>
+        <script id="rafflelb-brand-filter-js-v0229">
+        (function(){
+            var CFG = {
+                ajaxUrl: <?php echo wp_json_encode(admin_url('admin-ajax.php')); ?>,
+                category: <?php echo wp_json_encode($current_category); ?>,
+                selected: <?php echo wp_json_encode(array_values($selected)); ?>
+            };
+            if (!CFG.category) return;
+
+            function buildUrl(filterKey, slug){
+                var url = new URL(window.location.href);
+                if (slug) url.searchParams.set('filter_' + filterKey, slug);
+                else { url.searchParams.delete('filter_' + filterKey); url.searchParams.delete('query_type_' + filterKey); }
+                url.searchParams.delete('paged');
+                return url.toString();
+            }
+
+            function render(container, data){
+                var brands = (data && data.brands) || [];
+                if (!brands.length) { container.hidden = true; container.innerHTML = ''; return; }
+                var filterKey = data.filter_key;
+                var html = '<span class="rl-brand-filter-label">Brands</span><div class="rl-brand-filter-row">';
+                var hasActive = false;
+                var allActive = CFG.selected.length === 0;
+                html += '<a class="rl-brand-chip' + (allActive ? ' is-active' : '') + '" href="' + buildUrl(filterKey, '') + '">All Brands</a>';
+                brands.forEach(function(b){
+                    var active = CFG.selected.indexOf(b.slug) !== -1;
+                    if (active) hasActive = true;
+                    html += '<a class="rl-brand-chip' + (active ? ' is-active' : '') + '" href="' + buildUrl(filterKey, b.slug) + '">' + b.name.replace(/</g, '&lt;') + '</a>';
+                });
+                container.innerHTML = html;
+                container.hidden = false;
+            }
+
+            function mount(){
+                if (document.getElementById('rl-brand-filter')) return;
+                var host = document.querySelector('.filters-area .rl-category-widget-enhanced, .wd-filters-area .rl-category-widget-enhanced, .filters-area .widget_product_categories, .wd-filters-area .widget_product_categories');
+                if (!host) return false;
+                var container = document.createElement('div');
+                container.className = 'rl-brand-filter';
+                container.id = 'rl-brand-filter';
+                container.hidden = true;
+                host.parentNode.insertBefore(container, host.nextSibling);
+
+                var xhr = new XMLHttpRequest();
+                xhr.open('GET', CFG.ajaxUrl + '?action=rafflelb_get_category_brands&category=' + encodeURIComponent(CFG.category), true);
+                xhr.onload = function(){
+                    if (xhr.status !== 200) return;
+                    try {
+                        var res = JSON.parse(xhr.responseText);
+                        if (res && res.success) render(container, res.data);
+                    } catch (e) {}
+                };
+                xhr.send();
+                return true;
+            }
+
+            if (!mount()) {
+                var tries = 0;
+                var timer = setInterval(function(){
+                    tries++;
+                    if (mount() || tries > 40) clearInterval(timer);
+                }, 150);
+            }
+        })();
+        </script>
+        <?php
+    }
 }
 
 /* v0.2.18 — generated product SEO descriptions for The SEO Framework.
@@ -9326,6 +9568,16 @@ add_action('save_post_product', ['RaffleLB_Shop', 'clear_store_search_lexicon_ca
 add_action('created_term', ['RaffleLB_Shop', 'clear_store_search_lexicon_cache']);
 add_action('edited_term', ['RaffleLB_Shop', 'clear_store_search_lexicon_cache']);
 add_action('delete_term', ['RaffleLB_Shop', 'clear_store_search_lexicon_cache']);
+
+/* Dynamic category-scoped Brands filter. */
+add_action('wp_ajax_rafflelb_get_category_brands', ['RaffleLB_Shop', 'ajax_get_category_brands']);
+add_action('wp_ajax_nopriv_rafflelb_get_category_brands', ['RaffleLB_Shop', 'ajax_get_category_brands']);
+add_action('template_redirect', ['RaffleLB_Shop', 'validate_brand_filter_request']);
+add_action('wp_footer', ['RaffleLB_Shop', 'brand_filter_assets'], 4);
+add_action('save_post_product', ['RaffleLB_Shop', 'bump_brand_cache_version']);
+add_action('created_term', ['RaffleLB_Shop', 'bump_brand_cache_version']);
+add_action('edited_term', ['RaffleLB_Shop', 'bump_brand_cache_version']);
+add_action('delete_term', ['RaffleLB_Shop', 'bump_brand_cache_version']);
 
 /* Install first-paint product mounting before the browser parses product markup. */
 add_action('wp_head', ['RaffleLB_Shop', 'product_layout_bootstrap'], 1);
