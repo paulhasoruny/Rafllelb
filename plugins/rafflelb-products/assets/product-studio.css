@@ -56,17 +56,42 @@
 .rafflelb-products input[type=search],
 .rafflelb-products input[type=text],
 .rafflelb-products input[type=number],
+.rafflelb-products input[type=file],
 .rafflelb-products textarea,
 .rafflelb-products select {
     box-sizing: border-box;
     width: 100%;
     padding: 9px 11px;
-    border: 1px solid var(--line);
+    border: 1px solid var(--line) !important;
     border-radius: 7px;
-    background: var(--surface3);
-    color: #fff;
+    background: var(--surface3) !important;
+    color: #fff !important;
+    -webkit-text-fill-color: #fff !important;
+    box-shadow: none !important;
     font: inherit;
     font-size: 13px;
+}
+.rafflelb-products input[type=search]:focus,
+.rafflelb-products input[type=text]:focus,
+.rafflelb-products input[type=number]:focus,
+.rafflelb-products textarea:focus,
+.rafflelb-products select:focus {
+    border-color: var(--lime) !important;
+    outline: 0;
+    box-shadow: 0 0 0 2px rgba(186,255,0,.08) !important;
+}
+.rafflelb-products input:-webkit-autofill,
+.rafflelb-products input:-webkit-autofill:hover,
+.rafflelb-products input:-webkit-autofill:focus {
+    -webkit-text-fill-color: #fff !important;
+    -webkit-box-shadow: 0 0 0 1000px var(--surface3) inset !important;
+    transition: background-color 99999s ease-out 0s;
+}
+.rafflelb-products input::selection,
+.rafflelb-products textarea::selection {
+    background: rgba(186,255,0,.34);
+    color: #fff;
+    -webkit-text-fill-color: #fff;
 }
 .rafflelb-products input[type=search] { width: 300px; }
 
@@ -215,8 +240,36 @@
 .rafflelb-products .rlp-mode-options label { margin: 0; padding: 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface3); }
 .rafflelb-products .rlp-mode-options small { margin: 6px 0 0 21px; }
 .rafflelb-products .rlp-help { grid-column: 1/-1; margin: 0; font-size: 11px; }
-.rafflelb-products .rlp-categories { max-height: 230px; overflow: auto; }
-.rafflelb-products .rlp-categories label { font-weight: 400; }
+.rafflelb-products .rlp-categories {
+    display: grid;
+    gap: 4px;
+    max-height: 230px;
+    overflow: auto;
+    padding-right: 4px;
+}
+.rafflelb-products .rlp-categories label {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    min-height: 30px;
+    margin: 0;
+    padding: 6px 8px;
+    border: 1px solid transparent;
+    border-radius: 7px;
+    color: #d7dfd0;
+    font-weight: 450;
+    cursor: pointer;
+}
+.rafflelb-products .rlp-categories label:hover {
+    border-color: #46513e;
+    background: #11160e;
+}
+.rafflelb-products .rlp-categories label:has(input[type=checkbox]:checked) {
+    border-color: rgba(186,255,0,.62);
+    background: rgba(186,255,0,.10);
+    color: #fff;
+    font-weight: 700;
+}
 .rafflelb-products .rlp-gallery-preview { margin-top: 14px; }
 .rafflelb-products .rlp-gallery-preview small { display: block; }
 .rafflelb-products .rlp-gallery-preview img { display: block; width: 58px; height: 58px; object-fit: cover; border-radius: 6px; border: 1px solid var(--line); }
@@ -288,9 +341,9 @@
 .rafflelb-products .rlp-mode-options input[type=radio]:checked { border: 5px solid #baff00; background: #0a0d09; }
 .rafflelb-products input[type=checkbox]:checked {
     border-color: #baff00;
-    background: #baff00;
-    background-image: linear-gradient(45deg, transparent 45%, #071004 46% 54%, transparent 55%), linear-gradient(-45deg, transparent 39%, #071004 40% 48%, transparent 49%);
-    background-size: 70% 70%;
+    background-color: #baff00;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M3.1 8.3 6.5 11.5 13 4.8' fill='none' stroke='%23071008' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+    background-size: 14px 14px;
     background-position: center;
     background-repeat: no-repeat;
 }
@@ -304,3 +357,36 @@
 
 /* Brand selector / inline brand creation */
 .rlp-brand-field{display:flex;gap:10px;align-items:center}.rlp-brand-field .select2-container,.rlp-brand-field .selectWoo-container{flex:1;min-width:0}.rlp-brand-add-toggle{white-space:nowrap}.rlp-brand-create{display:flex;gap:8px;align-items:center;margin-top:10px;flex-wrap:wrap}.rlp-brand-create[hidden]{display:none!important}.rlp-brand-new-name{min-width:220px;flex:1}.rlp-brand-create-status{font-size:12px;opacity:.8}@media(max-width:782px){.rlp-brand-field{align-items:stretch;flex-direction:column}.rlp-brand-add-toggle{width:100%}.rlp-brand-create{align-items:stretch;flex-direction:column}.rlp-brand-new-name,.rlp-brand-create .button{width:100%}}
+
+
+/* ---------- Product Studio CSV import/export ---------- */
+.rafflelb-products .rlp-import-card { max-width: 980px; margin-top: 20px; }
+.rafflelb-products .rlp-import-card form { display: flex; align-items: end; gap: 12px; flex-wrap: wrap; margin-top: 18px; }
+.rafflelb-products .rlp-file-field { min-width: 320px; flex: 1; margin: 0 !important; }
+.rafflelb-products .rlp-file-field input[type=file] { margin-top: 7px; min-height: 42px; padding: 7px 9px; }
+.rafflelb-products .rlp-file-field input[type=file]::file-selector-button {
+    margin-right: 10px;
+    padding: 7px 10px;
+    border: 1px solid #435039;
+    border-radius: 6px;
+    background: #161b13;
+    color: #e8eee3;
+    cursor: pointer;
+}
+.rafflelb-products .rlp-import-columns { margin-top: 24px; padding-top: 18px; border-top: 1px solid var(--line); }
+.rafflelb-products .rlp-import-columns h3 { margin: 0 0 10px; color: #fff; font-size: 13px; }
+.rafflelb-products .rlp-import-columns > div { display: flex; flex-wrap: wrap; gap: 6px; }
+.rafflelb-products .rlp-import-columns code {
+    padding: 4px 7px;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    background: var(--surface3);
+    color: #dff6a8;
+    font-size: 11px;
+}
+.rafflelb-products .rlp-import-errors { margin: 10px 0 0 18px; color: #d7dfd0; }
+.rafflelb-products .rlp-import-errors li { margin: 4px 0; }
+@media(max-width:782px){
+    .rafflelb-products .rlp-import-card form { align-items: stretch; flex-direction: column; }
+    .rafflelb-products .rlp-file-field { min-width: 0; width: 100%; }
+}

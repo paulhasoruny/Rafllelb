@@ -1,13 +1,13 @@
 <?php
 /** Plugin Name: RaffleLB Products
  * Description: Product Studio for WooCommerce and RaffleLB operations.
- * Version: 0.2.15
+ * Version: 0.2.16
  * Author: RaffleLB
  * Requires Plugins: woocommerce */
 defined('ABSPATH') || exit;
 
 final class RaffleLB_Products {
-    const VERSION = '0.2.15';
+    const VERSION = '0.2.16';
     const SLUG = 'rafflelb-products';
     const CAPABILITY = 'manage_woocommerce';
     const ENABLED = '_rafflelb_draw_enabled';
@@ -18,12 +18,15 @@ final class RaffleLB_Products {
     const TAG_TAXONOMY = 'product_tag';
     const TAG_NONCE = 'rafflelb_products_tags';
     const BRAND_NONCE = 'rafflelb_products_brands';
+    const CSV_NONCE = 'rafflelb_products_csv';
 
     public static function init() {
         add_action('admin_menu', [__CLASS__, 'menu'], 20);
         add_action('admin_enqueue_scripts', [__CLASS__, 'assets']);
         add_action('admin_post_rafflelb_products_save', [__CLASS__, 'save']);
         add_action('admin_post_rafflelb_products_publish_state', [__CLASS__, 'publish_state']);
+        add_action('admin_post_rafflelb_products_export_csv', [__CLASS__, 'export_csv']);
+        add_action('admin_post_rafflelb_products_import_csv', [__CLASS__, 'import_csv']);
         add_action('wp_ajax_rafflelb_products_tag_search', [__CLASS__, 'ajax_tag_search']);
         add_action('wp_ajax_rafflelb_products_brand_search', [__CLASS__, 'ajax_brand_search']);
         add_action('wp_ajax_rafflelb_products_brand_create', [__CLASS__, 'ajax_brand_create']);
@@ -269,6 +272,7 @@ final class RaffleLB_Products {
         }
         $a = sanitize_key(self::get('action'));
         if ($a === 'view') { wp_safe_redirect(self::edit(absint(self::get('product_id')))); exit; }
+        if ($a === 'import') { self::import_page(); return; }
         if ($a === 'edit' || $a === 'new') { self::editor($a === 'new' ? 0 : absint(self::get('product_id'))); return; }
         self::listing();
     }
@@ -306,7 +310,7 @@ final class RaffleLB_Products {
 
         echo '<div class="wrap rafflelb-products"><main class="rlp-shell">'
             . '<header class="rlp-header"><div><span class="rlp-kicker">RAFFLELB OPERATIONS</span><h1>Product Studio <em>' . esc_html($counts['all']) . '</em></h1><p>Manage simple store and raffle products from one workspace.</p></div>'
-            . '<div class="rlp-header-actions"><a class="rlp-button" href="' . esc_url(self::url(['action' => 'new'])) . '">+ Create Product</a><a class="rlp-button rlp-button--quiet" href="' . esc_url(admin_url('edit.php?post_type=product')) . '">Advanced WooCommerce Editor ↗</a></div></header>';
+            . '<div class="rlp-header-actions"><a class="rlp-button" href="' . esc_url(self::url(['action' => 'new'])) . '">+ Create Product</a><a class="rlp-button rlp-button--quiet" href="' . esc_url(self::url(['action' => 'import'])) . '">Import CSV</a><a class="rlp-button rlp-button--quiet" href="' . esc_url(wp_nonce_url(admin_url('admin-post.php?action=rafflelb_products_export_csv'), self::CSV_NONCE)) . '">Export CSV</a><a class="rlp-button rlp-button--quiet" href="' . esc_url(admin_url('edit.php?post_type=product')) . '">Advanced WooCommerce Editor ↗</a></div></header>';
         self::notice();
         echo '<nav class="rlp-tabs">';
         foreach (['all' => 'All', 'store' => 'Store Only', 'raffle' => 'Raffle Only', 'both' => 'Store + Raffle', 'stock' => 'Out of Stock'] as $k => $v) {
@@ -393,10 +397,474 @@ final class RaffleLB_Products {
                 'drafted' => 'Product moved to Draft.',
                 'published' => 'Product published.',
             ];
-            echo '<div class="rlp-notice">' . esc_html($messages[$n] ?? 'Product updated successfully.') . '</div>';
+            if ($n === 'imported') {
+                $key = 'rafflelb_products_import_' . get_current_user_id();
+                $summary = get_transient($key);
+                delete_transient($key);
+                if (is_array($summary)) {
+                    $message = sprintf(
+                        'CSV import complete: %d created, %d updated, %d skipped.',
+                        (int) ($summary['created'] ?? 0),
+                        (int) ($summary['updated'] ?? 0),
+                        (int) ($summary['skipped'] ?? 0)
+                    );
+                    echo '<div class="rlp-notice"><strong>' . esc_html($message) . '</strong>';
+                    if (!empty($summary['errors']) && is_array($summary['errors'])) {
+                        echo '<ul class="rlp-import-errors">';
+                        foreach (array_slice($summary['errors'], 0, 12) as $error) echo '<li>' . esc_html($error) . '</li>';
+                        echo '</ul>';
+                    }
+                    echo '</div>';
+                } else {
+                    echo '<div class="rlp-notice">CSV import complete.</div>';
+                }
+            } else {
+                echo '<div class="rlp-notice">' . esc_html($messages[$n] ?? 'Product updated successfully.') . '</div>';
+            }
         }
         $e = rawurldecode((string) self::get('rlp_error'));
         if ($e) echo '<div class="rlp-notice rlp-notice--error">' . esc_html($e) . '</div>';
+    }
+
+
+    private static function csv_headers() {
+        return [
+            'product_id',
+            'sku',
+            'name',
+            'short_description',
+            'description',
+            'selling_mode',
+            'regular_price',
+            'sale_price',
+            'retail_price',
+            'stock_quantity',
+            'stock_status',
+            'raffle_entry_price',
+            'raffle_capacity',
+            'delivery_type',
+            'publish_state',
+            'catalog_visibility',
+            'categories',
+            'brand',
+            'tags',
+            'featured_image',
+            'gallery_images',
+        ];
+    }
+
+    private static function csv_split($value) {
+        $value = trim((string) $value);
+        if ($value === '') return [];
+        return array_values(array_filter(array_map('trim', explode('|', $value)), static function($v) { return $v !== ''; }));
+    }
+
+    private static function category_path($term_id) {
+        $term = get_term((int) $term_id, 'product_cat');
+        if (!$term || is_wp_error($term)) return '';
+        $names = [];
+        $ancestors = array_reverse(get_ancestors($term->term_id, 'product_cat', 'taxonomy'));
+        foreach ($ancestors as $ancestor_id) {
+            $ancestor = get_term((int) $ancestor_id, 'product_cat');
+            if ($ancestor && !is_wp_error($ancestor)) $names[] = $ancestor->name;
+        }
+        $names[] = $term->name;
+        return implode(' > ', $names);
+    }
+
+    private static function ensure_category_path($path) {
+        $parts = array_values(array_filter(array_map('trim', preg_split('/\s*>\s*/', (string) $path)), static function($v) { return $v !== ''; }));
+        if (!$parts) return 0;
+        $parent = 0;
+        $term_id = 0;
+        foreach ($parts as $name) {
+            $existing = term_exists($name, 'product_cat', $parent);
+            if ($existing) {
+                $term_id = is_array($existing) ? (int) $existing['term_id'] : (int) $existing;
+            } else {
+                $created = wp_insert_term($name, 'product_cat', ['parent' => $parent]);
+                if (is_wp_error($created)) return 0;
+                $term_id = (int) $created['term_id'];
+            }
+            $parent = $term_id;
+        }
+        return $term_id;
+    }
+
+    private static function attachment_from_csv($value) {
+        $value = trim((string) $value);
+        if ($value === '') return 0;
+        if (ctype_digit($value)) {
+            $id = (int) $value;
+            return $id && wp_attachment_is_image($id) ? $id : 0;
+        }
+        $url = esc_url_raw($value);
+        if ($url === '') return 0;
+        $id = attachment_url_to_postid($url);
+        return $id && wp_attachment_is_image($id) ? (int) $id : 0;
+    }
+
+    private static function export_row($p) {
+        $id = $p->get_id();
+        $profile = self::profile($p);
+        $mode = $profile['mode'];
+        $brand = '';
+        $brand_taxonomy = self::brand_taxonomy();
+        if ($brand_taxonomy !== '') {
+            $brands = wp_get_post_terms($id, $brand_taxonomy, ['fields' => 'names']);
+            if (!is_wp_error($brands) && $brands) $brand = (string) reset($brands);
+        }
+
+        $categories = wp_get_post_terms($id, 'product_cat', ['fields' => 'ids']);
+        $category_paths = [];
+        if (!is_wp_error($categories)) {
+            foreach ($categories as $category_id) {
+                $path = self::category_path($category_id);
+                if ($path !== '') $category_paths[] = $path;
+            }
+        }
+
+        $tags = wp_get_post_terms($id, self::TAG_TAXONOMY, ['fields' => 'names']);
+        if (is_wp_error($tags)) $tags = [];
+
+        $gallery = [];
+        foreach ($p->get_gallery_image_ids() as $image_id) {
+            $url = wp_get_attachment_url($image_id);
+            if ($url) $gallery[] = $url;
+        }
+        $featured = $p->get_image_id() ? wp_get_attachment_url($p->get_image_id()) : '';
+
+        return [
+            $id,
+            $p->get_sku(),
+            $p->get_name(),
+            $p->get_short_description(),
+            $p->get_description(),
+            $mode,
+            $mode === 'store' ? $p->get_regular_price() : '',
+            $mode === 'store' ? $p->get_sale_price() : '',
+            $mode === 'both' ? get_post_meta($id, self::RETAIL, true) : '',
+            $mode === 'store' && $p->managing_stock() ? $p->get_stock_quantity() : '',
+            $mode === 'store' ? $p->get_stock_status() : '',
+            $mode !== 'store' ? $p->get_price() : '',
+            $mode !== 'store' ? get_post_meta($id, self::TOTAL, true) : '',
+            $mode !== 'store' ? (get_post_meta($id, self::ITEM, true) === 'digital' ? 'digital' : 'tangible') : '',
+            $p->get_status(),
+            $p->get_catalog_visibility(),
+            implode('|', array_unique($category_paths)),
+            $brand,
+            implode('|', $tags),
+            $featured ?: '',
+            implode('|', $gallery),
+        ];
+    }
+
+    public static function export_csv() {
+        if (!self::ok()) wp_die('You do not have permission to export products.', '', ['response' => 403]);
+        check_admin_referer(self::CSV_NONCE);
+
+        $template = !empty($_GET['template']);
+        $filename = $template ? 'rafflelb-products-template.csv' : 'rafflelb-products-' . wp_date('Y-m-d') . '.csv';
+
+        nocache_headers();
+        header('Content-Type: text/csv; charset=utf-8');
+        header('Content-Disposition: attachment; filename="' . $filename . '"');
+
+        $out = fopen('php://output', 'w');
+        if (!$out) exit;
+        fwrite($out, "\xEF\xBB\xBF");
+        fputcsv($out, self::csv_headers(), ',', '"', '');
+
+        if (!$template) {
+            $q = new WP_Query([
+                'post_type' => 'product',
+                'post_status' => ['publish', 'draft', 'private'],
+                'posts_per_page' => -1,
+                'orderby' => 'ID',
+                'order' => 'ASC',
+                'fields' => 'ids',
+                'no_found_rows' => true,
+            ]);
+            foreach ($q->posts as $product_id) {
+                $product = wc_get_product($product_id);
+                if (!$product || !$product->is_type('simple')) continue;
+                fputcsv($out, self::export_row($product), ',', '"', '');
+            }
+        }
+
+        fclose($out);
+        exit;
+    }
+
+    private static function import_page() {
+        if (!self::ok()) wp_die('You do not have permission to import products.', '', ['response' => 403]);
+
+        $template_url = wp_nonce_url(admin_url('admin-post.php?action=rafflelb_products_export_csv&template=1'), self::CSV_NONCE);
+        $export_url = wp_nonce_url(admin_url('admin-post.php?action=rafflelb_products_export_csv'), self::CSV_NONCE);
+
+        echo '<div class="wrap rafflelb-products"><main class="rlp-shell rlp-import-page">'
+            . '<a class="rlp-back" href="' . esc_url(self::url()) . '">← Back to Products</a>'
+            . '<header class="rlp-header"><div><span class="rlp-kicker">RAFFLELB OPERATIONS</span><h1>Import Products</h1><p>Import only the fields managed by Product Studio. Advanced WooCommerce attributes are intentionally excluded.</p></div>'
+            . '<div class="rlp-header-actions"><a class="rlp-button rlp-button--quiet" href="' . esc_url($template_url) . '">Download CSV Template</a><a class="rlp-button rlp-button--quiet" href="' . esc_url($export_url) . '">Export Current Products</a></div></header>';
+
+        self::notice();
+
+        echo '<section class="rlp-card rlp-import-card"><h2>Upload CSV</h2>'
+            . '<p class="rlp-help">Updates match <strong>product_id</strong> first, then SKU. Products with active raffle operations are skipped for safety. Category paths use <code>Parent &gt; Child</code>; multiple categories, tags, and gallery images use <code>|</code>.</p>'
+            . '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" enctype="multipart/form-data">'
+            . '<input type="hidden" name="action" value="rafflelb_products_import_csv">';
+
+        wp_nonce_field(self::CSV_NONCE, 'rafflelb_products_csv_nonce');
+
+        echo '<label class="rlp-file-field">CSV file<input type="file" name="products_csv" accept=".csv,text/csv" required></label>'
+            . '<button class="rlp-button" type="submit">Import Products</button></form>'
+            . '<div class="rlp-import-columns"><h3>Product Studio CSV columns</h3><div>';
+
+        foreach (self::csv_headers() as $header) echo '<code>' . esc_html($header) . '</code>';
+
+        echo '</div><p class="rlp-help">Images must already exist in the WordPress Media Library. Use an attachment ID or the exact Media Library URL. Product Studio import does not download external images.</p></div>'
+            . '</section></main></div>';
+    }
+
+    public static function import_csv() {
+        if (!self::ok()) wp_die('You do not have permission to import products.', '', ['response' => 403]);
+        check_admin_referer(self::CSV_NONCE, 'rafflelb_products_csv_nonce');
+
+        $summary = ['created' => 0, 'updated' => 0, 'skipped' => 0, 'errors' => []];
+
+        if (empty($_FILES['products_csv']) || !isset($_FILES['products_csv']['tmp_name']) || (int) $_FILES['products_csv']['error'] !== UPLOAD_ERR_OK) {
+            self::import_redirect_error('Choose a valid CSV file.');
+        }
+        if ((int) $_FILES['products_csv']['size'] > 5 * 1024 * 1024) self::import_redirect_error('CSV file is too large. Maximum size is 5 MB.');
+
+        $handle = fopen($_FILES['products_csv']['tmp_name'], 'r');
+        if (!$handle) self::import_redirect_error('CSV file could not be opened.');
+
+        $headers = fgetcsv($handle, 0, ',', '"', '');
+        if (!$headers) {
+            fclose($handle);
+            self::import_redirect_error('CSV file is empty.');
+        }
+
+        $headers[0] = preg_replace('/^\xEF\xBB\xBF/', '', (string) $headers[0]);
+        $headers = array_map(static function($v) { return sanitize_key(trim((string) $v)); }, $headers);
+
+        foreach (['name', 'selling_mode'] as $required_header) {
+            if (!in_array($required_header, $headers, true)) {
+                fclose($handle);
+                self::import_redirect_error('CSV is missing required column: ' . $required_header);
+            }
+        }
+
+        $row_number = 1;
+        while (($values = fgetcsv($handle, 0, ',', '"', '')) !== false) {
+            $row_number++;
+            if (!array_filter($values, static function($v) { return trim((string) $v) !== ''; })) continue;
+
+            $values = array_pad($values, count($headers), '');
+            $row = array_combine($headers, array_slice($values, 0, count($headers)));
+            if (!is_array($row)) {
+                $summary['skipped']++;
+                $summary['errors'][] = "Row {$row_number}: could not be parsed.";
+                continue;
+            }
+
+            $product_id = isset($row['product_id']) ? absint($row['product_id']) : 0;
+            $sku = isset($row['sku']) ? wc_clean($row['sku']) : '';
+
+            $existing_id = $product_id && get_post_type($product_id) === 'product' ? $product_id : 0;
+            if (!$existing_id && $sku !== '') $existing_id = wc_get_product_id_by_sku($sku);
+
+            $is_new = !$existing_id;
+            $product = $is_new ? new WC_Product_Simple() : wc_get_product($existing_id);
+
+            if (!$product || (!$is_new && !$product->is_type('simple'))) {
+                $summary['skipped']++;
+                $summary['errors'][] = "Row {$row_number}: only simple products are supported.";
+                continue;
+            }
+
+            $current_profile = null;
+            if (!$is_new) {
+                $current_profile = self::profile($product);
+                $current_stats = $current_profile['raffle'] ? self::stats($product->get_id()) : false;
+                if ($current_profile['raffle'] && (!$current_stats || self::locked($product->get_id(), $current_stats))) {
+                    $summary['skipped']++;
+                    $summary['errors'][] = "Row {$row_number}: product {$product->get_id()} has raffle activity and was skipped.";
+                    continue;
+                }
+            }
+
+            $name = isset($row['name']) ? sanitize_text_field($row['name']) : '';
+            $mode = isset($row['selling_mode']) ? sanitize_key($row['selling_mode']) : '';
+
+            if (!$is_new && $current_profile && $mode !== '' && $mode !== $current_profile['mode']) {
+                $summary['skipped']++;
+                $summary['errors'][] = "Row {$row_number}: selling mode changes must be made inside Product Studio, so this row was skipped.";
+                continue;
+            }
+
+            if ($name === '' || !in_array($mode, ['store', 'raffle', 'both'], true)) {
+                $summary['skipped']++;
+                $summary['errors'][] = "Row {$row_number}: name or selling_mode is invalid.";
+                continue;
+            }
+
+            if ($sku !== '') {
+                $sku_owner = wc_get_product_id_by_sku($sku);
+                if ($sku_owner && (!$existing_id || (int) $sku_owner !== (int) $existing_id)) {
+                    $summary['skipped']++;
+                    $summary['errors'][] = "Row {$row_number}: SKU {$sku} already belongs to another product.";
+                    continue;
+                }
+            }
+
+            $status = isset($row['publish_state']) ? sanitize_key($row['publish_state']) : ($is_new ? 'draft' : $product->get_status());
+            if (!in_array($status, ['draft', 'publish', 'private'], true)) $status = 'draft';
+            if ($status === 'publish' && !current_user_can('publish_products')) $status = 'draft';
+            if ($status === 'private' && !current_user_can('edit_private_products')) $status = 'draft';
+
+            $visibility = isset($row['catalog_visibility']) ? sanitize_key($row['catalog_visibility']) : $product->get_catalog_visibility();
+            if (!in_array($visibility, ['visible', 'catalog', 'search', 'hidden'], true)) $visibility = 'visible';
+
+            $product->set_name($name);
+            $product->set_sku($sku);
+            $product->set_short_description(isset($row['short_description']) ? wp_kses_post($row['short_description']) : '');
+            $product->set_description(isset($row['description']) ? wp_kses_post($row['description']) : '');
+            $product->set_status($status);
+            $product->set_catalog_visibility($visibility);
+
+            if (array_key_exists('featured_image', $row)) {
+                $image_value = trim((string) $row['featured_image']);
+                if ($image_value === '') {
+                    $product->set_image_id(0);
+                } else {
+                    $image_id = self::attachment_from_csv($image_value);
+                    if ($image_id) $product->set_image_id($image_id);
+                    else $summary['errors'][] = "Row {$row_number}: featured image was not found in Media Library.";
+                }
+            }
+
+            if (array_key_exists('gallery_images', $row)) {
+                $gallery_ids = [];
+                foreach (self::csv_split($row['gallery_images']) as $gallery_value) {
+                    $image_id = self::attachment_from_csv($gallery_value);
+                    if ($image_id) $gallery_ids[] = $image_id;
+                    else $summary['errors'][] = "Row {$row_number}: one gallery image was not found in Media Library.";
+                }
+                $product->set_gallery_image_ids(array_values(array_unique($gallery_ids)));
+            }
+
+            if ($mode === 'store') {
+                if ($is_new) $product->set_virtual(false);
+                $regular = isset($row['regular_price']) ? wc_format_decimal($row['regular_price']) : '';
+                $sale = isset($row['sale_price']) ? wc_format_decimal($row['sale_price']) : '';
+
+                if (($regular !== '' && (float) $regular < 0) || ($sale !== '' && (float) $sale < 0)) {
+                    $summary['skipped']++;
+                    $summary['errors'][] = "Row {$row_number}: store price cannot be negative.";
+                    continue;
+                }
+
+                $product->set_regular_price($regular);
+                $product->set_sale_price($sale);
+                $product->set_price($sale !== '' ? $sale : $regular);
+
+                $stock_raw = isset($row['stock_quantity']) ? trim((string) $row['stock_quantity']) : '';
+                if ($stock_raw !== '') {
+                    $stock_qty = max(0, wc_stock_amount($stock_raw));
+                    $product->set_manage_stock(true);
+                    $product->set_stock_quantity($stock_qty);
+                } else {
+                    $product->set_manage_stock(false);
+                }
+
+                $stock_status = isset($row['stock_status']) ? sanitize_key($row['stock_status']) : 'instock';
+                if (!in_array($stock_status, ['instock', 'outofstock'], true)) $stock_status = 'instock';
+                $product->set_stock_status($stock_status);
+            } else {
+                $entry = isset($row['raffle_entry_price']) ? wc_format_decimal($row['raffle_entry_price']) : '';
+                $capacity = isset($row['raffle_capacity']) ? absint($row['raffle_capacity']) : 0;
+                $retail = isset($row['retail_price']) ? wc_format_decimal($row['retail_price']) : '';
+
+                if ($entry === '' || (float) $entry <= 0 || $capacity < 1 || ($mode === 'both' && ($retail === '' || (float) $retail <= 0))) {
+                    $summary['skipped']++;
+                    $summary['errors'][] = "Row {$row_number}: raffle price/capacity" . ($mode === 'both' ? '/retail price' : '') . " is invalid.";
+                    continue;
+                }
+
+                $product->set_regular_price($entry);
+                $product->set_sale_price('');
+                $product->set_price($entry);
+                $product->set_virtual(true);
+                $product->set_manage_stock(true);
+                $product->set_backorders('no');
+                $product->set_sold_individually(false);
+                $product->set_stock_quantity($capacity);
+                $product->set_stock_status('instock');
+            }
+
+            $saved = $product->save();
+            if (!$saved) {
+                $summary['skipped']++;
+                $summary['errors'][] = "Row {$row_number}: product could not be saved.";
+                continue;
+            }
+
+            if (array_key_exists('categories', $row)) {
+                $category_ids = [];
+                foreach (self::csv_split($row['categories']) as $category_path) {
+                    $term_id = self::ensure_category_path($category_path);
+                    if ($term_id) $category_ids[] = $term_id;
+                    else $summary['errors'][] = "Row {$row_number}: category '{$category_path}' could not be created.";
+                }
+                wp_set_object_terms($saved, array_values(array_unique($category_ids)), 'product_cat');
+            }
+
+            $brand_taxonomy = self::brand_taxonomy();
+            if ($brand_taxonomy !== '' && array_key_exists('brand', $row)) {
+                $brand = trim((string) $row['brand']);
+                $brand_result = wp_set_object_terms($saved, $brand === '' ? [] : [sanitize_text_field($brand)], $brand_taxonomy);
+                if (is_wp_error($brand_result)) $summary['errors'][] = "Row {$row_number}: brand could not be saved.";
+            }
+
+            if (array_key_exists('tags', $row)) {
+                $tag_names = array_map('sanitize_text_field', self::csv_split($row['tags']));
+                $tag_result = wp_set_object_terms($saved, $tag_names, self::TAG_TAXONOMY);
+                if (is_wp_error($tag_result)) $summary['errors'][] = "Row {$row_number}: tags could not be saved.";
+            }
+
+            if ($mode === 'store') {
+                update_post_meta($saved, self::ENABLED, 'no');
+                update_post_meta($saved, self::BUY, 'no');
+                delete_post_meta($saved, self::RETAIL);
+            } else {
+                $capacity = absint($row['raffle_capacity']);
+                $delivery = isset($row['delivery_type']) && sanitize_key($row['delivery_type']) === 'digital' ? 'digital' : 'tangible';
+
+                update_post_meta($saved, self::ENABLED, 'yes');
+                update_post_meta($saved, self::TOTAL, $capacity);
+                update_post_meta($saved, self::ITEM, $delivery);
+                update_post_meta($saved, self::BUY, $mode === 'both' ? 'yes' : 'no');
+
+                if ($mode === 'both') update_post_meta($saved, self::RETAIL, wc_format_decimal($row['retail_price']));
+                else delete_post_meta($saved, self::RETAIL);
+            }
+
+            if ($is_new) $summary['created']++;
+            else $summary['updated']++;
+        }
+
+        fclose($handle);
+
+        set_transient('rafflelb_products_import_' . get_current_user_id(), $summary, 5 * MINUTE_IN_SECONDS);
+        wp_safe_redirect(self::url(['rlp' => 'imported']));
+        exit;
+    }
+
+    private static function import_redirect_error($message) {
+        wp_safe_redirect(add_query_arg('rlp_error', rawurlencode($message), self::url(['action' => 'import'])));
+        exit;
     }
 
     private static function editor($id) {

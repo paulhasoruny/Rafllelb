@@ -2,13 +2,13 @@
 /**
  * Plugin Name: RaffleLB Homepage
  * Description: Existing RaffleLB homepage presentation with Selection Engine-backed public result cards.
- * Version: 0.1.10
+ * Version: 0.1.13
  * Author: RaffleLB
  * Requires PHP: 7.4
  */
 if (!defined('ABSPATH')) { exit; }
 final class RaffleLB_Homepage {
-    const VERSION = '0.1.10';
+    const VERSION = '0.1.13';
     public static function ready() {
         return class_exists('RaffleLB\\Core\\Contracts')
             && version_compare(\RaffleLB\Core\Contracts::VERSION, '0.1.0', '>=')
@@ -121,6 +121,10 @@ final class RaffleLB_Homepage {
     public static function homepage_live_raffles_inject() {
         if (is_admin() || !function_exists('wc_get_product')) return;
 
+        // The editorial tag is the source of truth for which products are
+        // candidates for the hero. Resolve the actual live draw below instead
+        // of pre-filtering on a single post-meta key; this keeps Store + Raffle
+        // products and variation-backed raffles working consistently.
         $posts = get_posts([
             'post_type'      => 'product',
             'post_status'    => 'publish',
@@ -129,11 +133,6 @@ final class RaffleLB_Homepage {
                 'menu_order' => 'ASC',
                 'date'       => 'DESC',
             ],
-            'meta_query'     => [[
-                'key'     => \RaffleLB\Core\Contracts::META_ENABLED,
-                'value'   => 'yes',
-                'compare' => '=',
-            ]],
             'tax_query'      => [[
                 'taxonomy' => 'product_tag',
                 'field'    => 'slug',
@@ -145,10 +144,18 @@ final class RaffleLB_Homepage {
         foreach ($posts as $post) {
             $pid = absint($post->ID);
             $product = wc_get_product($pid);
-            if (!$product) continue;
+            if (!$product || !$product->is_visible()) continue;
 
-            $stats = RaffleLB_Draw_Engine::homepage_stats($pid, true);
-            if (!$stats || $stats['status'] !== 'live' || absint($stats['available']) < 1) continue;
+            // Always resolve the raffle/draw product through the Draw Engine.
+            // The old code queried stats directly with the tagged product ID,
+            // which could leave a correctly tagged Store + Raffle product out
+            // of the hero even though its raffle was live.
+            $draw_pid = RaffleLB_Draw_Engine::homepage_draw_id($product);
+            if (!$draw_pid) continue;
+
+            $stats = RaffleLB_Draw_Engine::homepage_stats($draw_pid, true);
+            if (!$stats || (string) $stats['status'] !== 'live' || absint($stats['available']) < 1) continue;
+            if (RaffleLB_Draw_Engine::homepage_get_draw_result($draw_pid)) continue;
 
             $entry_value = (float) wc_get_price_to_display($product);
             $items[] = [
@@ -291,12 +298,60 @@ final class RaffleLB_Homepage {
         <?php
     }
 
+    /**
+     * v0.1.13 — root cause of "homepage-featured" products not appearing.
+     *
+     * featured_products_shortcode() used to call
+     * RaffleLB_Draw_Engine::homepage_buy_now_price($product) to decide
+     * eligibility. That helper is: return 0 unless the product's raffle is
+     * enabled (self::draw_id($product) !== 0), then read the dedicated
+     * "_rafflelb_buy_now_price" meta. Two problems for a STORE ONLY
+     * product (raffle not enabled): (1) it returns 0.0 immediately,
+     * before ever looking at a price, because draw_id() requires the
+     * raffle-enabled meta; (2) even if it didn't, Product Studio only
+     * ever writes "_rafflelb_buy_now_price" when the product's mode is
+     * "both" (STORE & RAFFLE) — for STORE ONLY, the real direct-purchase
+     * price lives in WooCommerce's own regular/sale price instead. So
+     * homepage_buy_now_price() always returned 0 for a STORE ONLY
+     * product regardless of its tag or its actual price, and
+     * `if ($buy_price <= 0) continue;` silently dropped it — exactly
+     * contradicting this section's own stated intent ("should not
+     * disappear merely because its raffle is closed"; a STORE ONLY
+     * product has no raffle to begin with).
+     *
+     * This resolves the product's real effective direct-purchase price
+     * without going through that raffle-gated helper: raffle-enabled
+     * with Buy Now turned on and a price configured uses that dedicated
+     * price (mirrors what Shop shows for a dual STORE & RAFFLE product);
+     * otherwise, if the product's raffle isn't enabled at all (STORE
+     * ONLY), its own WooCommerce display price is the real buy price. A
+     * RAFFLE ONLY product (raffle enabled, Buy Now not configured) has no
+     * genuine direct-purchase price and correctly returns 0 — the
+     * Featured section is a "buy it now" showcase, and showing its entry
+     * price mislabeled as a buy price would be wrong.
+     */
+    private static function featured_buy_now_price($product) {
+        if (!$product instanceof WC_Product) return 0.0;
+        $pid = $product->get_id();
+
+        $draw_enabled = 'yes' === get_post_meta($pid, \RaffleLB\Core\Contracts::META_ENABLED, true);
+        if ($draw_enabled) {
+            $buy_now_enabled = 'yes' === get_post_meta($pid, \RaffleLB\Core\Contracts::META_BUY_NOW_ENABLED, true);
+            $dedicated_price = (float) get_post_meta($pid, \RaffleLB\Core\Contracts::META_BUY_NOW_PRICE, true);
+            return ($buy_now_enabled && $dedicated_price > 0) ? $dedicated_price : 0.0;
+        }
+
+        return max(0.0, (float) wc_get_price_to_display($product));
+    }
+
     public static function featured_products_shortcode($atts = []) {
         if (!function_exists('wc_get_product')) return '';
 
         $atts = shortcode_atts([
             'limit' => 6,
-            'tag'   => '',
+            // Product Studio uses this native WooCommerce product tag as the
+            // editorial source of truth for the Featured Products section.
+            'tag'   => 'homepage-featured',
         ], $atts, 'rafflelb_featured_products');
 
         $limit = max(1, min(12, absint($atts['limit'])));
@@ -309,25 +364,6 @@ final class RaffleLB_Homepage {
             'fields'         => 'ids',
             'orderby'        => 'date',
             'order'          => 'DESC',
-            'meta_query'     => [
-                'relation' => 'AND',
-                [
-                    'key'     => \RaffleLB\Core\Contracts::META_ENABLED,
-                    'value'   => 'yes',
-                    'compare' => '=',
-                ],
-                [
-                    'key'     => \RaffleLB\Core\Contracts::META_BUY_NOW_ENABLED,
-                    'value'   => 'yes',
-                    'compare' => '=',
-                ],
-                [
-                    'key'     => \RaffleLB\Core\Contracts::META_BUY_NOW_PRICE,
-                    'value'   => 0,
-                    'type'    => 'NUMERIC',
-                    'compare' => '>',
-                ],
-            ],
         ];
 
         // Optional WooCommerce product-tag filter. Example:
@@ -349,17 +385,13 @@ final class RaffleLB_Homepage {
             $product = wc_get_product($pid);
             if (!$product || !$product->is_visible()) continue;
 
-            // Featured Products represents products whose raffle is currently open.
-            // Keep the product tag as an editorial flag, but automatically hide a
-            // product once its raffle fills, is closed early, or has a winner.
-            $draw_pid = RaffleLB_Draw_Engine::homepage_draw_id($product);
-            if (!$draw_pid) continue;
-
-            $stats = RaffleLB_Draw_Engine::homepage_stats($draw_pid, true);
-            if (!$stats || (string) $stats['status'] !== 'live' || absint($stats['available']) < 1) continue;
-
-            // A recorded result is definitive evidence that this raffle cycle is over.
-            if (RaffleLB_Draw_Engine::homepage_get_draw_result($draw_pid)) continue;
+            // homepage-featured is an editorial selection, so a tagged product
+            // should not disappear merely because its raffle is closed/full. The
+            // Featured Products section is primarily a direct-purchase showcase.
+            // Require only a valid direct-purchase price here; the raffle CTA is
+            // rendered conditionally below when that product also has a live raffle.
+            $buy_price = self::featured_buy_now_price($product);
+            if ($buy_price <= 0) continue;
 
             $products[] = $product;
             if (count($products) >= $limit) break;
@@ -386,12 +418,15 @@ final class RaffleLB_Homepage {
                         $url          = get_permalink($pid);
                         $title        = $product->get_name();
                         $image_id     = $product->get_image_id();
-                        $buy_price    = RaffleLB_Draw_Engine::homepage_buy_now_price($product);
+                        $buy_price    = self::featured_buy_now_price($product);
                         $entry_price  = (float) $product->get_price();
-                        $stats        = RaffleLB_Draw_Engine::homepage_stats(RaffleLB_Draw_Engine::homepage_draw_id($product), true);
+                        $draw_pid     = RaffleLB_Draw_Engine::homepage_draw_id($product);
+                        $stats        = $draw_pid ? RaffleLB_Draw_Engine::homepage_stats($draw_pid, true) : null;
                         $available    = $stats ? absint($stats['available']) : 0;
                         $total        = $stats ? absint($stats['total']) : 0;
                         $status       = $stats ? (string) $stats['status'] : '';
+                        $raffle_live  = $draw_pid && $stats && $status === 'live' && $available > 0
+                            && !RaffleLB_Draw_Engine::homepage_get_draw_result($draw_pid);
 
                         $terms = get_the_terms($pid, 'product_cat');
                         $category = '';
@@ -429,17 +464,17 @@ final class RaffleLB_Homepage {
                                 <span>BUY NOW</span><span class="rlfp318-bag" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><path d="M6.5 8V6.5a5.5 5.5 0 0 1 11 0V8M4.5 8h15l1 13h-17l1-13Z"/></svg></span>
                             </a>
 
-                            <div class="rlfp318-or" aria-hidden="true"><span>OR</span></div>
+                            <?php if ($raffle_live): ?>
+                                <div class="rlfp318-or" aria-hidden="true"><span>OR</span></div>
 
-                            <a class="rlfp318-enter" href="<?php echo esc_url($url); ?>">
-                                <span>Enter Raffle from</span>
-                                <strong><span class="rlfp318-currency"><?php echo esc_html(get_woocommerce_currency_symbol()); ?></span><span class="rlfp318-amount"><?php echo esc_html(number_format((float) $entry_price, 2, '.', ',')); ?></span></strong>
-                            </a>
+                                <a class="rlfp318-enter" href="<?php echo esc_url($url); ?>">
+                                    <span>Enter Raffle from</span>
+                                    <strong><span class="rlfp318-currency"><?php echo esc_html(get_woocommerce_currency_symbol()); ?></span><span class="rlfp318-amount"><?php echo esc_html(number_format((float) $entry_price, 2, '.', ',')); ?></span></strong>
+                                </a>
 
-                            <?php if ($status === 'live' && $total > 0): ?>
-                                <div class="rlfp318-availability"><strong><?php echo esc_html($available); ?></strong> of <?php echo esc_html($total); ?> entries available</div>
-                            <?php elseif ($status === 'ready_to_draw'): ?>
-                                <div class="rlfp318-availability">Raffle filled — awaiting draw</div>
+                                <?php if ($total > 0): ?>
+                                    <div class="rlfp318-availability"><strong><?php echo esc_html($available); ?></strong> of <?php echo esc_html($total); ?> entries available</div>
+                                <?php endif; ?>
                             <?php endif; ?>
                         </div>
                     </article>
@@ -638,6 +673,20 @@ body.home :is(.e-con,.elementor-section,.elementor-column):has(:is(.rl-home-mode
         <?php return ob_get_clean();
     }
 
+    /**
+     * v0.1.13 — this shortcode ([rafflelb_live_raffles]) queried every
+     * raffle-enabled product on the whole site by META_ENABLED alone —
+     * it never looked at the "homepage-live-raffle" tag at all, unlike
+     * its sibling homepage_live_raffles_inject() (the wp_footer-injected
+     * .rl-home-c-raffle-list version), which already resolves the tagged
+     * product's real draw through RaffleLB_Draw_Engine::homepage_draw_id()
+     * before checking live status. Wherever this shortcode is the one
+     * actually placed on the homepage, tagging or un-tagging a product
+     * with homepage-live-raffle had no effect whatsoever on what it
+     * showed. Brought in line with the tag-based, draw_id-mapped
+     * behaviour required by the task and already used by the sibling
+     * function, so both current "Live Raffles" render paths agree.
+     */
     public static function live_raffles_shortcode() {
         $products = get_posts([
             'post_type'      => 'product',
@@ -645,10 +694,10 @@ body.home :is(.e-con,.elementor-section,.elementor-column):has(:is(.rl-home-mode
             'posts_per_page' => -1,
             'orderby'        => 'date',
             'order'          => 'DESC',
-            'meta_query'     => [[
-                'key'     => \RaffleLB\Core\Contracts::META_ENABLED,
-                'value'   => 'yes',
-                'compare' => '=',
+            'tax_query'      => [[
+                'taxonomy' => 'product_tag',
+                'field'    => 'slug',
+                'terms'    => ['homepage-live-raffle'],
             ]],
         ]);
 
@@ -656,10 +705,19 @@ body.home :is(.e-con,.elementor-section,.elementor-column):has(:is(.rl-home-mode
         foreach ($products as $post) {
             $pid = absint($post->ID);
             $product = wc_get_product($pid);
-            if (!$product) continue;
+            if (!$product || !$product->is_visible()) continue;
 
-            $stats = RaffleLB_Draw_Engine::homepage_stats($pid, true);
+            // Resolve through Draw Engine rather than using the tagged
+            // product's own ID directly, exactly like
+            // homepage_live_raffles_inject() — a Store + Raffle or
+            // variation-backed product's live stats may live on a
+            // different product ID than the one the tag is assigned to.
+            $draw_pid = RaffleLB_Draw_Engine::homepage_draw_id($product);
+            if (!$draw_pid) continue;
+
+            $stats = RaffleLB_Draw_Engine::homepage_stats($draw_pid, true);
             if (!$stats || $stats['status'] !== 'live' || $stats['available'] < 1) continue;
+            if (RaffleLB_Draw_Engine::homepage_get_draw_result($draw_pid)) continue;
 
             $live[] = [$product, $stats];
         }
@@ -2147,6 +2205,29 @@ body.home :is(.e-con,.elementor-section,.elementor-column):has(:is(.rl-home-mode
         return ob_get_clean();
     }
 
+    /**
+     * Homepage product selections are tag-driven, but page-cache plugins can
+     * otherwise keep an old rendered homepage after Product Studio changes a
+     * product tag. Purge only the homepage/front-page cache when product tags
+     * change; product data and raffle state are not modified here.
+     */
+    public static function product_tag_cache_purge($object_id, $terms, $tt_ids, $taxonomy, $append, $old_tt_ids) {
+        $object_id = absint($object_id);
+        if ($taxonomy !== 'product_tag' || !$object_id || get_post_type($object_id) !== 'product') return;
+
+        clean_post_cache($object_id);
+        if (function_exists('wc_delete_product_transients')) wc_delete_product_transients($object_id);
+
+        // WP Rocket: refresh the public homepage immediately after changing
+        // homepage-featured / homepage-live-raffle / homepage-hero tags.
+        if (function_exists('rocket_clean_home')) rocket_clean_home();
+        $front_id = absint(get_option('page_on_front'));
+        if ($front_id && function_exists('rocket_clean_post')) rocket_clean_post($front_id);
+        // Some WP Rocket configurations cache the front page through the domain
+        // cache path rather than the page-specific path. Purge that layer too.
+        if (function_exists('rocket_clean_domain')) rocket_clean_domain();
+    }
+
     public static function hero_artwork() {
     if (is_admin()) return;
     $art = plugins_url('assets/hero-reference-scene.webp', __FILE__);
@@ -2196,3 +2277,6 @@ body.home :is(.e-con,.elementor-section,.elementor-column):has(:is(.rl-home-mode
     <?php
 }
 }
+// Keep the cached homepage in sync with Product Studio / WooCommerce product-tag edits.
+add_action('set_object_terms', ['RaffleLB_Homepage', 'product_tag_cache_purge'], 20, 6);
+
