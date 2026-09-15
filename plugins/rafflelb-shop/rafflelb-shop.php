@@ -2,14 +2,14 @@
 /**
  * Plugin Name: RaffleLB Shop
  * Description: Existing RaffleLB catalog and product presentation with reversible Draw Engine delegation.
- * Version: 0.2.46
+ * Version: 0.2.47
  * Author: RaffleLB
  * Requires PHP: 7.4
  */
 if (!defined('ABSPATH')) { exit; }
 require_once plugin_dir_path(__FILE__) . 'includes/class-rafflelb-store-only-renderer.php';
 final class RaffleLB_Shop {
-    const VERSION = '0.2.46';
+    const VERSION = '0.2.47';
     private static $selection_entry_form_context = false;
     private static $public_banners_rendered = false;
     public static function ready() {
@@ -4798,6 +4798,14 @@ final class RaffleLB_Shop {
                 min-width:0!important;
                 min-height:44px!important;
                 font-size:13px!important;
+            }
+            /* .rl-brand-filter-link uses display:flex!important (desktop
+               rule above), which otherwise wins over the native
+               [hidden]{display:none} UA rule the same way .rl-brand-
+               filter-empty did — so setting link.hidden = !match from the
+               brand search JS had no visible effect on mobile. */
+            body.rafflelb-raffle-archive .rl-brand-filter-link[hidden]{
+                display:none!important;
             }
         }
         </style>
