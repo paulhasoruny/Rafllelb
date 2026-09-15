@@ -42,18 +42,6 @@ $rlcc_mixed = ($rlcc_mode === 'mixed');
  <form name="checkout" method="post" class="checkout woocommerce-checkout" action="<?php echo esc_url(wc_get_checkout_url()); ?>" enctype="multipart/form-data" aria-label="<?php echo esc_attr__('Checkout','woocommerce'); ?>">
   <div class="rlcc-grid">
    <main class="rlcc-left">
-    <section class="rlcc-card rlcc-pay">
-     <h2 class="rlcc-heading">PAYMENT</h2>
-     <p class="rlcc-muted">Choose your preferred payment method.</p>
-     <div id="order_review" class="woocommerce-checkout-review-order rlcc-payment-loading" aria-busy="true">
-      <div class="rlcc-payment-verification" role="status" aria-live="polite" aria-atomic="true">
-       <span class="rlcc-payment-verification__spinner" aria-hidden="true"></span>
-       <span>Verifying secure checkout&hellip;</span>
-      </div>
-      <?php wc_get_template('checkout/payment.php',array('checkout'=>$checkout)); ?>
-     </div>
-    </section>
-
     <?php if($checkout->get_checkout_fields()): ?>
     <details class="rlcc-card rlcc-details" id="rlcc-entry-details" open>
      <summary>CONTACT DETAILS</summary>
@@ -71,6 +59,18 @@ $rlcc_mixed = ($rlcc_mode === 'mixed');
      </div>
     </details>
     <?php endif; ?>
+
+    <section class="rlcc-card rlcc-pay">
+     <h2 class="rlcc-heading">PAYMENT</h2>
+     <p class="rlcc-muted">Choose your preferred payment method.</p>
+     <div id="order_review" class="woocommerce-checkout-review-order rlcc-payment-loading" aria-busy="true">
+      <div class="rlcc-payment-verification" role="status" aria-live="polite" aria-atomic="true">
+       <span class="rlcc-payment-verification__spinner" aria-hidden="true"></span>
+       <span>Verifying secure checkout&hellip;</span>
+      </div>
+      <?php wc_get_template('checkout/payment.php',array('checkout'=>$checkout)); ?>
+     </div>
+    </section>
 
    </main>
 

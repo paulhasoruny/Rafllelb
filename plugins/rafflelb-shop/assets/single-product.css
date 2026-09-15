@@ -50,11 +50,13 @@ body.rafflelb-product-page .flex-control-thumbs li{flex:0 0 88px;width:88px;marg
 body.rafflelb-product-page .flex-control-thumbs li img{width:100%;height:74px;object-fit:cover;opacity:.72}
 body.rafflelb-product-page .flex-control-thumbs li img.flex-active{opacity:1;outline:2px solid #baff00;outline-offset:-2px}
 body.rafflelb-product-page .summary{min-width:0;padding:0}
-body.rafflelb-product-page :is(.product-image-summary,.rl-raffle-details-section),body.rafflelb-product-page :is(.product-image-summary,.rl-raffle-details-section) *{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif!important;text-shadow:none!important;filter:none!important;backdrop-filter:none!important;-webkit-text-stroke:0!important}
+body.rafflelb-product-page :is(.product-image-summary,.rl-raffle-details-section),body.rafflelb-product-page :is(.product-image-summary,.rl-raffle-details-section) *{text-shadow:none!important;filter:none!important;backdrop-filter:none!important;-webkit-text-stroke:0!important}
 body.rafflelb-product-page .rl-product-meta-row{display:flex;align-items:center;justify-content:flex-start;gap:12px;margin:4px 0 14px}
 body.rafflelb-product-page .rl-stock-badge,body.rafflelb-raffle-product .rl-raffle-live{display:inline-flex;align-items:center;gap:8px;padding:7px 13px;border:1px solid rgba(186,255,0,.48);border-radius:999px;color:#baff00;font-size:12px;font-weight:650;letter-spacing:.065em;white-space:nowrap}
 body.rafflelb-product-page .rl-stock-badge i,body.rafflelb-raffle-product .rl-raffle-live i{width:7px;height:7px;border-radius:50%;background:#baff00;box-shadow:0 0 10px #baff00}
 body.rafflelb-product-page .rl-stock-badge.is-out-of-stock{border-color:#a95050;color:#ff8b8b}body.rafflelb-product-page .rl-stock-badge.is-out-of-stock i{background:#ff8b8b;box-shadow:none}
+body.rafflelb-raffle-product .rl-stock-badge.is-raffle-closed{border-color:#9c8350;color:#f0c66d}body.rafflelb-raffle-product .rl-stock-badge.is-raffle-closed i{background:#f0c66d;box-shadow:none}
+body.rafflelb-raffle-product .rl-stock-badge.is-selection-complete{border-color:#7d9460;color:#d8ff8a}body.rafflelb-raffle-product .rl-stock-badge.is-selection-complete i{background:#baff00;box-shadow:0 0 9px rgba(186,255,0,.55)}
 body.rafflelb-product-page .rl-product-classification{margin:0;color:#d0d8cd;font-size:12px;font-weight:650;letter-spacing:.06em;text-align:left;text-transform:uppercase}
 body.rafflelb-product-page .product_title{margin:0 0 13px;color:#f8faf5;font-size:clamp(34px,2.8vw,48px);font-weight:750;line-height:1.08;letter-spacing:-.015em}
 body.rafflelb-raffle-product .rl-raffle-short-description{margin:0 0 24px;color:#c1c9bf;font-size:16px;line-height:1.55}.rafflelb-raffle-product .rl-raffle-short-description p{margin:0}
@@ -260,4 +262,271 @@ body.rafflelb-store-product .rl-product-left>.woocommerce-product-gallery,body.r
 body.rafflelb-store-product .rl-product-right>.summary{order:2;min-width:0}
 body.rafflelb-store-product .rl-product-right>.rl-buy-now-panel{order:3;min-width:0}
 body.rafflelb-store-product .rl-product-left>.rl-product-details-panel{order:4;min-width:0;margin-top:0}
+}
+
+/* ------------------------------------------------------------------ *
+ * 0.1.97 — authoritative, selector-safe single-product typography.
+ * Typography only: no dimensions, spacing, layout, gallery, or form rules.
+ * ------------------------------------------------------------------ */
+html body.rafflelb-product-page :is(
+.product_title,
+.rl-product-breadcrumbs,
+.rl-product-breadcrumbs .woocommerce-breadcrumb,
+.rl-product-breadcrumbs a,
+.rl-product-classification,
+.rl-product-classification a,
+.product_meta,
+.product_meta span,
+.product_meta a,
+.rl-stock-badge,
+.rl-raffle-live,
+.rl-raffle-short-description,
+.rl-raffle-short-description p,
+.rl-raffle-short-description li,
+.rl-buy-now-copy strong,
+.rl-buy-now-copy p,
+.rl-buy-now-price-label,
+.rl-buy-now-action>span,
+.rl-buy-now-price,
+.rl-buy-now-price .woocommerce-Price-amount,
+.rl-buy-now-price .woocommerce-Price-currencySymbol,
+.rl-buy-now-price bdi,
+.rl-buy-now-action>.price,
+.rl-buy-now-action>.price .woocommerce-Price-amount,
+.rl-buy-now-action>.price .woocommerce-Price-currencySymbol,
+.rl-buy-now-action>.price bdi,
+.rl-buy-now-button,
+.rl-buy-now-action .single_add_to_cart_button,
+.rl-raffle-heading strong,
+.rl-raffle-heading p,
+.rl-entry-price,
+.rl-entry-price small,
+.rl-entry-price .woocommerce-Price-amount,
+.rl-entry-price .woocommerce-Price-currencySymbol,
+.rl-entry-price bdi,
+.rafflelb-live-panel .rlp-status,
+.rafflelb-live-panel .rlp-counts strong,
+.rafflelb-live-panel .rlp-counts span,
+.rafflelb-live-panel .rlp-meta,
+.rafflelb-live-panel .rlp-meta span,
+.rafflelb-live-panel .rlp-meta strong,
+.rafflelb-live-panel .rlp-meta b,
+.rl-raffle-secondary-intro p,
+.rl-raffle-secondary-intro b,
+.rl-raffle-secondary-intro .woocommerce-Price-amount,
+.rl-raffle-secondary-intro .woocommerce-Price-currencySymbol,
+.rl-entry-label,
+.rl-raffle-option-card form.cart .quantity input.qty,
+.rl-raffle-option-card form.cart .single_add_to_cart_button,
+.rl-entry-trust b,
+.rl-entry-trust small,
+.rl-product-details-head span,
+.rl-product-details-head strong,
+.rl-product-retail-notes,
+.rl-product-retail-notes p,
+.rl-product-retail-notes li,
+.rl-product-spec-row>span,
+.rl-product-spec-row>strong,
+.rl-product-feature b,
+.rl-product-feature small,
+.rl-product-description,
+.rl-product-description p,
+.rl-product-description li,
+.rl-raffle-details-heading span,
+.rl-raffle-detail-col h3,
+.rl-raffle-detail-col p,
+.rl-raffle-detail-col li,
+.rl-raffle-detail-col strong,
+.woocommerce-tabs .tabs,
+.woocommerce-tabs .tabs li,
+.woocommerce-tabs .tabs a,
+.woocommerce-tabs h2,
+.woocommerce-tabs h3,
+.woocommerce-tabs p,
+.woocommerce-tabs th,
+.woocommerce-tabs td,
+.wd-accordion a,
+.wd-accordion h2,
+.wd-accordion h3,
+.wd-accordion p,
+.wd-accordion th,
+.wd-accordion td
+){
+font-family:var(--rl-font,"Manrope",sans-serif)!important;
+text-rendering:optimizeLegibility;
+-webkit-font-smoothing:antialiased
+}
+html body.rafflelb-product-page .product_title{
+font-size:clamp(34px,2.45vw,42px)!important;
+font-weight:var(--rl-weight-heavy,800)!important;
+line-height:var(--rl-line-tight,1.08)!important;
+letter-spacing:var(--rl-tracking-tight,-.025em)!important;
+overflow-wrap:break-word
+}
+html body.rafflelb-product-page :is(.rl-product-breadcrumbs,.rl-product-classification,.rl-product-classification a,.product_meta,.product_meta *){
+font-size:12px!important;
+font-weight:var(--rl-weight-medium,500)!important;
+line-height:1.5!important;
+letter-spacing:.035em!important
+}
+html body.rafflelb-product-page :is(.rl-stock-badge,.rl-raffle-live){
+font-size:12px!important;
+font-weight:var(--rl-weight-semibold,600)!important;
+line-height:var(--rl-line-heading,1.18)!important;
+letter-spacing:.045em!important
+}
+html body.rafflelb-raffle-product .rl-raffle-short-description,
+html body.rafflelb-raffle-product .rl-raffle-short-description :is(p,li){
+font-size:var(--rl-text-base,16px)!important;
+font-weight:var(--rl-weight-regular,400)!important;
+line-height:1.6!important;
+letter-spacing:var(--rl-tracking-normal,0)!important
+}
+html body.rafflelb-product-page .rl-product-details-head span{
+font-size:11px!important;
+font-weight:var(--rl-weight-bold,700)!important;
+line-height:var(--rl-line-heading,1.18)!important;
+letter-spacing:var(--rl-tracking-label,.09em)!important
+}
+html body.rafflelb-product-page .rl-product-details-head strong{
+font-size:var(--rl-text-xl,22px)!important;
+font-weight:var(--rl-weight-bold,700)!important;
+line-height:var(--rl-line-heading,1.18)!important;
+letter-spacing:var(--rl-tracking-tight,-.025em)!important
+}
+html body.rafflelb-product-page :is(.rl-product-retail-notes,.rl-product-description),
+html body.rafflelb-product-page :is(.rl-product-retail-notes,.rl-product-description) :is(p,li){
+font-size:15px!important;
+font-weight:var(--rl-weight-regular,400)!important;
+line-height:1.6!important;
+letter-spacing:var(--rl-tracking-normal,0)!important
+}
+html body.rafflelb-product-page .rl-product-spec-row>span{
+font-size:11px!important;
+font-weight:var(--rl-weight-semibold,600)!important;
+line-height:1.45!important;
+letter-spacing:.045em!important
+}
+html body.rafflelb-product-page .rl-product-spec-row>strong,
+html body.rafflelb-product-page .rl-product-feature b{
+font-size:14px!important;
+font-weight:var(--rl-weight-semibold,600)!important;
+line-height:1.45!important
+}
+html body.rafflelb-product-page .rl-product-feature small{
+font-size:12px!important;
+font-weight:var(--rl-weight-medium,500)!important;
+line-height:1.5!important
+}
+html body.rafflelb-product-page :is(.rl-buy-now-copy strong,.rl-raffle-heading strong){
+font-size:var(--rl-text-xl,22px)!important;
+font-weight:var(--rl-weight-bold,700)!important;
+line-height:var(--rl-line-heading,1.18)!important;
+letter-spacing:var(--rl-tracking-tight,-.025em)!important
+}
+html body.rafflelb-product-page :is(.rl-buy-now-copy p,.rl-raffle-heading p){
+font-size:14px!important;
+font-weight:var(--rl-weight-regular,400)!important;
+line-height:1.55!important
+}
+html body.rafflelb-product-page :is(.rl-buy-now-price-label,.rl-buy-now-action>span,.rl-entry-label){
+font-size:11px!important;
+font-weight:var(--rl-weight-semibold,600)!important;
+line-height:var(--rl-line-heading,1.18)!important;
+letter-spacing:.065em!important
+}
+html body.rafflelb-product-page :is(.rl-buy-now-price,.rl-buy-now-price *,.rl-buy-now-action>.price,.rl-buy-now-action>.price *){
+font-size:30px!important;
+font-weight:var(--rl-weight-heavy,800)!important;
+line-height:1!important;
+letter-spacing:var(--rl-tracking-tight,-.025em)!important
+}
+html body.rafflelb-product-page :is(.rl-buy-now-button,.rl-buy-now-action .single_add_to_cart_button){
+font-size:14px!important;
+font-weight:var(--rl-weight-bold,700)!important;
+line-height:1.1!important;
+letter-spacing:0!important
+}
+html body.rafflelb-raffle-product .rl-entry-price,
+html body.rafflelb-raffle-product .rl-entry-price :is(.woocommerce-Price-amount,bdi){
+font-size:30px!important;
+font-weight:var(--rl-weight-heavy,800)!important;
+line-height:1!important;
+letter-spacing:var(--rl-tracking-tight,-.025em)!important
+}
+html body.rafflelb-raffle-product .rl-entry-price small{
+font-size:12px!important;
+font-weight:var(--rl-weight-medium,500)!important;
+line-height:1.3!important;
+letter-spacing:0!important
+}
+html body.rafflelb-raffle-product .rafflelb-live-panel .rlp-counts strong{
+font-size:30px!important;
+font-weight:var(--rl-weight-heavy,800)!important;
+line-height:1.05!important;
+letter-spacing:var(--rl-tracking-tight,-.025em)!important
+}
+html body.rafflelb-raffle-product .rafflelb-live-panel :is(.rlp-counts span,.rlp-meta,.rlp-meta *){
+font-size:12px!important;
+font-weight:var(--rl-weight-semibold,600)!important;
+line-height:1.45!important;
+letter-spacing:.02em!important
+}
+html body.rafflelb-raffle-product .rl-raffle-secondary-intro p{
+font-size:15px!important;
+font-weight:var(--rl-weight-regular,400)!important;
+line-height:1.6!important
+}
+html body.rafflelb-raffle-product .rl-raffle-option-card form.cart .quantity input.qty{
+font-size:14px!important;
+font-weight:var(--rl-weight-semibold,600)!important
+}
+html body.rafflelb-raffle-product .rl-raffle-option-card form.cart .single_add_to_cart_button{
+font-size:14px!important;
+font-weight:var(--rl-weight-bold,700)!important;
+line-height:1.1!important;
+letter-spacing:0!important
+}
+html body.rafflelb-raffle-product .rl-entry-trust b{
+font-size:12px!important;
+font-weight:var(--rl-weight-semibold,600)!important;
+line-height:1.4!important
+}
+html body.rafflelb-raffle-product .rl-entry-trust small{
+font-size:11px!important;
+font-weight:var(--rl-weight-medium,500)!important;
+line-height:1.45!important
+}
+html body.rafflelb-raffle-product .rl-raffle-details-heading span{
+font-size:14px!important;
+font-weight:var(--rl-weight-bold,700)!important;
+line-height:var(--rl-line-heading,1.18)!important
+}
+html body.rafflelb-raffle-product .rl-raffle-detail-col h3{
+font-size:13px!important;
+font-weight:var(--rl-weight-bold,700)!important;
+line-height:var(--rl-line-heading,1.18)!important;
+letter-spacing:.065em!important
+}
+html body.rafflelb-raffle-product .rl-raffle-detail-col :is(p,li){
+font-size:15px!important;
+font-weight:var(--rl-weight-regular,400)!important;
+line-height:1.6!important
+}
+html body.rafflelb-product-page :is(.woocommerce-tabs,.wd-accordion) :is(.tabs,li,a,h2,h3,p,th,td){
+font-family:var(--rl-font,"Manrope",sans-serif)!important
+}
+@media(max-width:767px){
+html body.rafflelb-product-page .product_title{font-size:clamp(28px,7.5vw,32px)!important;line-height:1.06!important;letter-spacing:-.025em!important}
+html body.rafflelb-raffle-product .rl-raffle-short-description,
+html body.rafflelb-raffle-product .rl-raffle-short-description :is(p,li),
+html body.rafflelb-product-page :is(.rl-product-retail-notes,.rl-product-description),
+html body.rafflelb-product-page :is(.rl-product-retail-notes,.rl-product-description) :is(p,li),
+html body.rafflelb-raffle-product .rl-raffle-secondary-intro p,
+html body.rafflelb-raffle-product .rl-raffle-detail-col :is(p,li){font-size:14px!important;line-height:1.6!important}
+html body.rafflelb-product-page :is(.rl-buy-now-price,.rl-buy-now-price *,.rl-buy-now-action>.price,.rl-buy-now-action>.price *),
+html body.rafflelb-raffle-product .rl-entry-price,
+html body.rafflelb-raffle-product .rl-entry-price :is(.woocommerce-Price-amount,bdi){font-size:28px!important}
+html body.rafflelb-product-page :is(.rl-buy-now-button,.rl-buy-now-action .single_add_to_cart_button),
+html body.rafflelb-raffle-product .rl-raffle-option-card form.cart .single_add_to_cart_button{font-size:13px!important}
 }

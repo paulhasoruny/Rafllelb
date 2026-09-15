@@ -2,20 +2,21 @@
 /**
  * Plugin Name: RaffleLB Notifications
  * Description: A notification badge on the account icon, a "Notifications" tab in My Account, and an admin screen to create notifications and control the automatic winner / draw-completed ones. Listens to RaffleLB Draw Engine's rafflelb_draw_completed hook instead of duplicating any draw logic.
- * Version: 1.2.3
+ * Version: 1.2.4
  * Author: RaffleLB
  */
 
 if (!defined('ABSPATH')) exit;
 
 final class RaffleLB_Notifications {
-    const VERSION = '1.2.3';
+    const VERSION = '1.2.4';
     const TABLE = 'rafflelb_notifications';
     const ENDPOINT = 'rafflelb-notifications';
 
     const OPT_NOTIFY_WINNER        = 'rafflelb_notify_on_winner';
     const OPT_NOTIFY_DRAW_COMPLETE = 'rafflelb_notify_on_draw_complete';
     const OPT_NOTIFY_FULFILLED     = 'rafflelb_notify_on_prize_fulfilled';
+    const OPT_NOTIFY_CANCELLATION  = 'rafflelb_notify_on_raffle_cancellation';
 
     public static function init() {
         register_activation_hook(__FILE__, [__CLASS__, 'activate']);
@@ -75,6 +76,7 @@ final class RaffleLB_Notifications {
         add_action('admin_post_rafflelb_notify_delete_all', [__CLASS__, 'handle_delete_all_notifications']);
         add_action('rafflelb_draw_completed', [__CLASS__, 'on_draw_completed'], 10, 6);
         add_action('rafflelb_fulfillment_status_changed', [__CLASS__, 'on_fulfillment_status_changed'], 10, 6);
+        add_action('rafflelb_raffle_cancelled_refunded', [__CLASS__, 'on_raffle_cancelled_refunded'], 10, 3);
         add_filter('rafflelb_winner_email_delivery', [__CLASS__, 'handle_winner_email_delivery'], 10, 3);
 
         if (!class_exists('WooCommerce')) return;
@@ -241,6 +243,55 @@ final class RaffleLB_Notifications {
             $product_id,
             $result_id
         );
+    }
+
+    /**
+     * Draw Engine fires this only after the cancellation refund pass is
+     * complete. The notification row is deduplicated by raffle/user so an
+     * administrator can safely retry the idempotent close action.
+     */
+    public static function on_raffle_cancelled_refunded($product_id, $participants = [], $closure = []) {
+        $product_id = absint($product_id);
+        if (!$product_id || !self::option_enabled(self::OPT_NOTIFY_CANCELLATION) || !is_array($participants)) return;
+
+        $reward_title = wp_strip_all_tags((string) get_the_title($product_id));
+        if ($reward_title === '') $reward_title = 'Raffle #' . $product_id;
+        $link = function_exists('wc_get_account_endpoint_url')
+            ? wc_get_account_endpoint_url('orders')
+            : home_url('/my-account/orders/');
+
+        foreach ($participants as $participant) {
+            if (!is_array($participant)) continue;
+            $user_id = absint($participant['user_id'] ?? 0);
+            $points = absint($participant['points'] ?? 0);
+            if (!$user_id || self::already_notified($product_id, 'raffle_cancelled', $user_id)) continue;
+
+            if ($points > 0) {
+                $notice_title = 'Raffle cancelled — Raffle Points returned';
+                $message = sprintf(
+                    'The raffle for "%s" was cancelled. %d Raffle Point%s %s been credited back to your Raffle Points balance.',
+                    $reward_title,
+                    $points,
+                    $points === 1 ? '' : 's',
+                    $points === 1 ? 'has' : 'have'
+                );
+            } else {
+                $notice_title = 'Raffle cancelled';
+                $message = sprintf(
+                    'The raffle for "%s" was cancelled. View your order for the updated raffle status.',
+                    $reward_title
+                );
+            }
+
+            self::insert_notification(
+                $user_id,
+                'raffle_cancelled',
+                $notice_title,
+                $message,
+                $link,
+                $product_id
+            );
+        }
     }
 
     private static function option_enabled($key) {
@@ -486,12 +537,12 @@ final class RaffleLB_Notifications {
     }
 
     private static function type_label($type) {
-        $labels = ['winner' => 'Winner', 'draw_completed' => 'Draw Completed', 'prize_fulfilled' => 'Prize Fulfilled', 'announcement' => 'Announcement'];
+        $labels = ['winner' => 'Winner', 'draw_completed' => 'Draw Completed', 'prize_fulfilled' => 'Prize Fulfilled', 'raffle_cancelled' => 'Raffle Cancelled', 'announcement' => 'Announcement'];
         return $labels[$type] ?? ucfirst($type);
     }
 
     private static function type_icon($type) {
-        $icons = ['winner' => '🏆', 'draw_completed' => '🎲', 'prize_fulfilled' => '🎁', 'announcement' => '📢'];
+        $icons = ['winner' => '🏆', 'draw_completed' => '🎲', 'prize_fulfilled' => '🎁', 'raffle_cancelled' => '↩', 'announcement' => '📢'];
         return $icons[$type] ?? '🔔';
     }
 
@@ -619,6 +670,7 @@ final class RaffleLB_Notifications {
         update_option(self::OPT_NOTIFY_WINNER, !empty($_POST['notify_winner']) ? 'yes' : 'no');
         update_option(self::OPT_NOTIFY_DRAW_COMPLETE, !empty($_POST['notify_draw_complete']) ? 'yes' : 'no');
         update_option(self::OPT_NOTIFY_FULFILLED, !empty($_POST['notify_fulfilled']) ? 'yes' : 'no');
+        update_option(self::OPT_NOTIFY_CANCELLATION, !empty($_POST['notify_cancellation']) ? 'yes' : 'no');
 
         wp_safe_redirect(add_query_arg('rlbn', 'settings_saved', admin_url('admin.php?page=rafflelb-notifications-admin')));
         exit;
@@ -705,14 +757,15 @@ final class RaffleLB_Notifications {
         $notify_winner = self::option_enabled(self::OPT_NOTIFY_WINNER);
         $notify_draw_complete = self::option_enabled(self::OPT_NOTIFY_DRAW_COMPLETE);
         $notify_fulfilled = self::option_enabled(self::OPT_NOTIFY_FULFILLED);
+        $notify_cancellation = self::option_enabled(self::OPT_NOTIFY_CANCELLATION);
 
-        echo '<div class="wrap rlbn-page"><header class="rlbn-header"><span class="rlbn-kicker">RAFFLELB / NOTIFICATIONS</span><h1>Notifications</h1><p>Automatic winner and draw delivery, plus one-off announcements to your customers.</p></header>';
+        echo '<div class="wrap rlbn-page"><header class="rlbn-header"><span class="rlbn-kicker">RAFFLELB / NOTIFICATIONS</span><h1>Notifications</h1><p>Automatic winner, fulfillment and cancellation delivery, plus one-off announcements to your customers.</p></header>';
         self::print_admin_styles();
         self::print_admin_script();
 
         self::render_admin_notices();
 
-        echo '<section class="rlbn-panel"><div class="rlbn-panel-head"><h2>Automatic Notifications</h2><p>Draw Engine records permanent draw and fulfillment state. This plugin owns customer delivery only: winner notifications/email, draw-completed alerts for other entrants, and the optional prize-fulfilled notification.</p></div>';
+        echo '<section class="rlbn-panel"><div class="rlbn-panel-head"><h2>Automatic Notifications</h2><p>Draw Engine records permanent selection, fulfillment and cancellation state. This plugin owns customer delivery only: winner notifications/email, completion alerts, prize-fulfilled notifications and raffle-cancellation updates.</p></div>';
         echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '">';
         echo '<input type="hidden" name="action" value="rafflelb_notify_save_settings">';
         wp_nonce_field('rafflelb_notify_save_settings');
@@ -720,6 +773,7 @@ final class RaffleLB_Notifications {
         echo '<label class="rlbn-option"><input type="checkbox" name="notify_winner" value="1" ' . checked($notify_winner, true, false) . '><span class="rlbn-option-text"><strong>Notify the winner</strong><small>In My Account and by email, as soon as a draw is completed.</small></span></label>';
         echo '<label class="rlbn-option"><input type="checkbox" name="notify_draw_complete" value="1" ' . checked($notify_draw_complete, true, false) . '><span class="rlbn-option-text"><strong>Notify every other entrant</strong><small>Lets everyone who entered know the draw is complete.</small></span></label>';
         echo '<label class="rlbn-option"><input type="checkbox" name="notify_fulfilled" value="1" ' . checked($notify_fulfilled, true, false) . '><span class="rlbn-option-text"><strong>Notify on prize fulfillment</strong><small>Tells the winner in My Account once fulfillment is marked complete.</small></span></label>';
+        echo '<label class="rlbn-option"><input type="checkbox" name="notify_cancellation" value="1" ' . checked($notify_cancellation, true, false) . '><span class="rlbn-option-text"><strong>Notify on raffle cancellation</strong><small>Tells participants when a cancelled raffle has finished returning eligible value in Raffle Points.</small></span></label>';
         echo '</div>';
         echo '<div class="rlbn-actions"><button type="submit" class="button button-primary">Save Settings</button></div>';
         echo '</form></section>';

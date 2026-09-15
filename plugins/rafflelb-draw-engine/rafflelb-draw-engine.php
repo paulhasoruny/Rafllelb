@@ -2,7 +2,7 @@
 /**
  * Plugin Name: RaffleLB Draw Engine
  * Description: Raffle entry engine with cart-level reservation locking, unique paid entries, live progress, and WooCommerce integration.
- * Version: 0.34.18.37
+ * Version: 0.34.18.46
  * Author: RaffleLB
  */
 
@@ -43,6 +43,17 @@ final class RaffleLB_Draw_Engine {
         return self::winner_masked_name($result);
     }
 
+    // Selection Engine receives only the immutable public projection. Internal
+    // entry ownership and order identifiers never cross this bridge.
+    const SELECTION_BRIDGE_VERSION = '1';
+    const EARLY_CLOSE_MODE_VERSION = '1';
+    public static function selection_bridge_locked_pool($pid, $page = 1, $per_page = 100, $entry_number = 0) {
+        return self::public_locked_pool_page($pid, $page, $per_page, $entry_number);
+    }
+    public static function selection_bridge_public_closure($pid) {
+        return self::public_early_closure($pid);
+    }
+
     // Read-only bridge: transactional statistics remain owned by Draw Engine.
     const ACCOUNT_BRIDGE_VERSION = '1';
     public static function account_stats($pid, $exclude_own = false) {
@@ -60,8 +71,15 @@ final class RaffleLB_Draw_Engine {
     const META_WINNER_SELECTED_AT = '_rafflelb_winner_selected_at';
     const META_EARLY_CLOSED = '_rafflelb_early_closed';
     const META_EARLY_CLOSE_REASON = '_rafflelb_early_close_reason';
+    const META_EARLY_CLOSE_PUBLIC_NOTE = '_rafflelb_early_close_public_note';
+    const META_EARLY_CLOSE_REFUND_STATUS = '_rafflelb_early_close_refund_status';
+    const META_EARLY_CLOSE_MODE = '_rafflelb_early_close_mode';
     const META_EARLY_CLOSED_BY = '_rafflelb_early_closed_by';
     const META_EARLY_CLOSE_CLAIMED = '_rafflelb_early_close_claimed';
+    const META_LOCKED_POOL_REVISION = '_rafflelb_locked_pool_revision';
+    const META_LOCKED_POOL_COUNT = '_rafflelb_locked_pool_count';
+    const META_LOCKED_POOL_AT = '_rafflelb_locked_pool_at';
+    const HISTORY_EVENT_LOCKED_POOL = 'locked_pool';
     const META_ENABLED = '_rafflelb_draw_enabled';
     const META_TOTAL   = '_rafflelb_total_entries';
     const META_BUY_NOW_ENABLED = '_rafflelb_buy_now_enabled';
@@ -69,6 +87,7 @@ final class RaffleLB_Draw_Engine {
     const META_HERO_IMAGE      = '_rafflelb_homepage_hero_image_id';
     const ITEM_MODE_META       = '_rafflelb_purchase_mode';
     const HOLD_MINUTES = 15;
+    const RAFFLE_LOCK_TIMEOUT = 3;
 
     public static function init() {
         register_activation_hook(__FILE__, [__CLASS__, 'activate']);
@@ -926,33 +945,85 @@ final class RaffleLB_Draw_Engine {
 
         $total = absint(get_post_meta($pid, self::META_TOTAL, true));
         if ($total > 0 && self::claimed($pid) >= $total) {
-            self::mark_ready_to_draw($pid);
-            return 'ready_to_draw';
+            return self::mark_ready_to_draw($pid) ? 'ready_to_draw' : 'live';
         }
         return 'live';
     }
 
-    private static function mark_ready_to_draw($pid) {
-        $total = absint(get_post_meta($pid, self::META_TOTAL, true));
-        if ($total < 1 || self::claimed($pid) < $total) return false;
+    /**
+     * Authoritative paid-entry gate. A closed raffle can never accept another
+     * entry, including when an older pending order becomes paid afterward.
+     */
+    private static function raffle_accepts_new_entries($pid) {
+        if (get_post_meta($pid, self::META_EARLY_CLOSED, true) === 'yes') return false;
+        if (self::get_draw_result($pid)) return false;
 
-        $current_status = (string) get_post_meta($pid, self::META_DRAW_STATUS, true);
-        if ($current_status === 'winner_selected') return true;
+        $status = (string) get_post_meta($pid, self::META_DRAW_STATUS, true);
+        if (in_array($status, ['ready_to_draw', 'winner_selected'], true)) return false;
+        if ($status !== '' && $status !== 'live') return false;
 
-        if ($current_status !== 'ready_to_draw') {
-            update_post_meta($pid, self::META_DRAW_STATUS, 'ready_to_draw');
-            update_post_meta($pid, self::META_CLOSED_AT, current_time('mysql'));
+        return self::draw_status($pid) === 'live';
+    }
+
+    private static function raffle_lock_name($pid) {
+        global $wpdb;
+        $site_id = function_exists('get_current_blog_id') ? absint(get_current_blog_id()) : 1;
+        $database = defined('DB_NAME') ? (string) DB_NAME : 'wordpress';
+        $scope = substr(hash('sha256', $database . '|' . $wpdb->prefix . '|' . $site_id), 0, 12);
+        return 'rafflelb_draw_' . $scope . '_' . absint($pid);
+    }
+
+    private static function acquire_raffle_lock($pid) {
+        global $wpdb;
+        $acquired = $wpdb->get_var($wpdb->prepare(
+            'SELECT GET_LOCK(%s, %d)',
+            self::raffle_lock_name($pid),
+            self::RAFFLE_LOCK_TIMEOUT
+        ));
+        return (string) $acquired === '1';
+    }
+
+    private static function release_raffle_lock($pid) {
+        global $wpdb;
+        $wpdb->get_var($wpdb->prepare(
+            'SELECT RELEASE_LOCK(%s)',
+            self::raffle_lock_name($pid)
+        ));
+    }
+
+    private static function mark_ready_to_draw($pid, $lock_already_held=false) {
+        $owns_lock = false;
+        if (!$lock_already_held) {
+            if (!self::acquire_raffle_lock($pid)) return false;
+            $owns_lock = true;
         }
 
-        // Once full, no temporary reservation should remain for this reward.
-        global $wpdb;
-        $wpdb->delete(
-            $wpdb->prefix . self::HOLD_TABLE,
-            ['product_id' => $pid],
-            ['%d']
-        );
+        try {
+            $total = absint(get_post_meta($pid, self::META_TOTAL, true));
+            if ($total < 1 || self::claimed($pid) < $total) return false;
 
-        return true;
+            $current_status = (string) get_post_meta($pid, self::META_DRAW_STATUS, true);
+            if ($current_status === 'winner_selected') return true;
+
+            if ($current_status !== 'ready_to_draw') {
+                $closed_at = current_time('mysql');
+                if (!self::capture_locked_pool_snapshot($pid, 'normal', $closed_at)) return false;
+                update_post_meta($pid, self::META_DRAW_STATUS, 'ready_to_draw');
+                update_post_meta($pid, self::META_CLOSED_AT, $closed_at);
+            }
+
+            // Once full, no temporary reservation should remain for this reward.
+            global $wpdb;
+            $wpdb->delete(
+                $wpdb->prefix . self::HOLD_TABLE,
+                ['product_id' => $pid],
+                ['%d']
+            );
+
+            return true;
+        } finally {
+            if ($owns_lock) self::release_raffle_lock($pid);
+        }
     }
 
     private static function stats($pid, $exclude_own=false) {
@@ -1364,13 +1435,35 @@ final class RaffleLB_Draw_Engine {
             $needed=max(0,$qty-$existing);
             if(!$total || !$needed) continue;
 
+            if (!self::raffle_accepts_new_entries($pid)) {
+                $order->add_order_note(
+                    'RaffleLB: entry generation was BLOCKED for ' . get_the_title($pid) .
+                    ' because the raffle was already closed. The order was preserved and no raffle entry was allocated.'
+                );
+                continue;
+            }
+
             $claimed=self::claimed($pid);
             if($claimed+$needed>$total) {
                 $order->add_order_note('RaffleLB: entry limit protection blocked entry generation.');
                 continue;
             }
 
-            $created=self::allocate($order_id,$item_id,$pid,absint($order->get_user_id()),$needed,$total);
+            $allocation_failure = '';
+            $created=self::allocate($order_id,$item_id,$pid,absint($order->get_user_id()),$needed,$total,$qty,$allocation_failure);
+            if ($allocation_failure === 'lock') {
+                $order->add_order_note(
+                    'RaffleLB: entry generation could not safely obtain the raffle allocation guard for ' . get_the_title($pid) .
+                    '. No entry was created; manual review is required.'
+                );
+            } elseif ($allocation_failure === 'capacity') {
+                $order->add_order_note('RaffleLB: entry limit protection blocked entry generation.');
+            } elseif (count($created) < $needed && !self::raffle_accepts_new_entries($pid)) {
+                $order->add_order_note(
+                    'RaffleLB: entry generation was BLOCKED for ' . get_the_title($pid) .
+                    ' because the raffle closed before allocation completed. The order was preserved and the closed eligible pool was not expanded further.'
+                );
+            }
             if($created) {
                 $order->add_order_note('RaffleLB entries generated: '.implode(', ',array_map(
                     fn($n)=>'#'.str_pad((string)$n,3,'0',STR_PAD_LEFT),$created
@@ -1405,6 +1498,390 @@ final class RaffleLB_Draw_Engine {
             ['%d','%d','%d','%d','%d','%d','%s','%s','%s']
         );
     }
+
+    /**
+     * Append an immutable revision of the currently eligible pool. The caller
+     * must hold the raffle advisory lock so allocation, voiding and selection
+     * cannot race this snapshot.
+     */
+    private static function capture_locked_pool_snapshot($pid, $mode='refresh', $locked_at='') {
+        global $wpdb;
+
+        $pid = absint($pid);
+        $entries_table = $wpdb->prefix . self::ENTRY_TABLE;
+        $history_table = $wpdb->prefix . self::HISTORY_TABLE;
+        $entries = $wpdb->get_results($wpdb->prepare(
+            "SELECT id, order_id, order_item_id, product_id, user_id, entry_number
+             FROM {$entries_table}
+             WHERE product_id=%d AND status='active'
+             ORDER BY entry_number ASC, id ASC",
+            $pid
+        ));
+
+        $count = count($entries);
+        $total = absint(get_post_meta($pid, self::META_TOTAL, true));
+        if ($total < 1 || $count > $total) return false;
+        if ($mode === 'normal' && $count !== $total) return false;
+        if ($mode === 'early' && ($count < 1 || $count >= $total)) return false;
+
+        $locked_at = $locked_at !== '' ? sanitize_text_field($locked_at) : current_time('mysql');
+        $previous = (string) get_post_meta($pid, self::META_LOCKED_POOL_REVISION, true);
+        $identity = [];
+        foreach ($entries as $entry) {
+            $identity[] = implode(':', [
+                absint($entry->id), absint($entry->order_id), absint($entry->order_item_id),
+                absint($entry->user_id), absint($entry->entry_number),
+            ]);
+        }
+        $nonce = function_exists('wp_generate_uuid4') ? wp_generate_uuid4() : uniqid((string)$pid, true);
+        $revision = hash_hmac(
+            'sha256',
+            implode('|', [$pid, $locked_at, $previous, $nonce, implode(',', $identity)]),
+            wp_salt('auth')
+        );
+
+        $wpdb->query('START TRANSACTION');
+        foreach ($entries as $entry) {
+            $inserted = $wpdb->insert(
+                $history_table,
+                [
+                    'entry_id'      => absint($entry->id),
+                    'order_id'      => absint($entry->order_id),
+                    'order_item_id' => absint($entry->order_item_id),
+                    'product_id'    => $pid,
+                    'user_id'       => absint($entry->user_id),
+                    'entry_number'  => absint($entry->entry_number),
+                    'event_type'    => self::HISTORY_EVENT_LOCKED_POOL,
+                    'reason'        => $revision,
+                    'event_at'      => $locked_at,
+                ],
+                ['%d','%d','%d','%d','%d','%d','%s','%s','%s']
+            );
+            if (!$inserted) {
+                $wpdb->query('ROLLBACK');
+                return false;
+            }
+        }
+
+        $stored_count = (int) $wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(*) FROM {$history_table}
+             WHERE product_id=%d AND event_type=%s AND reason=%s",
+            $pid, self::HISTORY_EVENT_LOCKED_POOL, $revision
+        ));
+        if ($stored_count !== $count) {
+            $wpdb->query('ROLLBACK');
+            return false;
+        }
+
+        update_post_meta($pid, self::META_LOCKED_POOL_REVISION, $revision);
+        update_post_meta($pid, self::META_LOCKED_POOL_COUNT, $count);
+        update_post_meta($pid, self::META_LOCKED_POOL_AT, $locked_at);
+        $wpdb->query('COMMIT');
+        return true;
+    }
+
+    /**
+     * Validate the active revision against immutable history and current active
+     * entries. Null denotes a legacy raffle with no snapshot; false denotes a
+     * corrupted or stale snapshot and must block public display and selection.
+     */
+    private static function validated_locked_pool($pid) {
+        global $wpdb;
+
+        $pid = absint($pid);
+        $revision = (string) get_post_meta($pid, self::META_LOCKED_POOL_REVISION, true);
+        if ($revision === '') return null;
+
+        $expected = absint(get_post_meta($pid, self::META_LOCKED_POOL_COUNT, true));
+        $history_table = $wpdb->prefix . self::HISTORY_TABLE;
+        $entries_table = $wpdb->prefix . self::ENTRY_TABLE;
+        $history_count = (int) $wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(*) FROM {$history_table}
+             WHERE product_id=%d AND event_type=%s AND reason=%s",
+            $pid, self::HISTORY_EVENT_LOCKED_POOL, $revision
+        ));
+        if ($history_count !== $expected) return false;
+
+        $rows = $wpdb->get_results($wpdb->prepare(
+            "SELECT h.entry_id AS id, h.order_id, h.order_item_id, h.product_id,
+                    h.user_id, h.entry_number
+             FROM {$history_table} h
+             INNER JOIN {$entries_table} e
+                ON e.id=h.entry_id
+               AND e.order_id=h.order_id
+               AND e.order_item_id=h.order_item_id
+               AND e.product_id=h.product_id
+               AND e.user_id=h.user_id
+               AND e.entry_number=h.entry_number
+               AND e.status='active'
+             WHERE h.product_id=%d AND h.event_type=%s AND h.reason=%s
+             ORDER BY h.entry_number ASC, h.entry_id ASC",
+            $pid, self::HISTORY_EVENT_LOCKED_POOL, $revision
+        ));
+        if (count($rows) !== $expected || self::claimed($pid) !== $expected) return false;
+
+        return [
+            'revision' => $revision,
+            'locked_at' => (string) get_post_meta($pid, self::META_LOCKED_POOL_AT, true),
+            'count' => $expected,
+            'rows' => $rows,
+        ];
+    }
+
+    private static function locked_pool_participant_name($order_id) {
+        $order = function_exists('wc_get_order') ? wc_get_order(absint($order_id)) : false;
+        if (!$order) return 'Participant ***';
+
+        $first = trim(wp_strip_all_tags((string) $order->get_billing_first_name()));
+        $last = trim(wp_strip_all_tags((string) $order->get_billing_last_name()));
+        if ($first === '') return 'Participant ***';
+
+        $first_parts = preg_split('/\s+/u', $first, -1, PREG_SPLIT_NO_EMPTY);
+        $first = $first_parts ? (string) $first_parts[0] : '';
+        if ($first === '') return 'Participant ***';
+
+        $first = function_exists('mb_convert_case')
+            ? mb_convert_case($first, MB_CASE_TITLE, 'UTF-8')
+            : ucwords(strtolower($first));
+        if ($last === '') return $first . ' ***';
+
+        if (function_exists('grapheme_substr')) {
+            $initial = grapheme_substr($last, 0, 1);
+        } elseif (function_exists('mb_substr')) {
+            $initial = mb_substr($last, 0, 1, 'UTF-8');
+        } else {
+            $initial = substr($last, 0, 1);
+        }
+        $initial = function_exists('mb_strtoupper')
+            ? mb_strtoupper((string)$initial, 'UTF-8')
+            : strtoupper((string)$initial);
+        return $initial !== '' ? $first . ' ' . $initial . '***' : $first . ' ***';
+    }
+
+    private static function format_public_entry_number($number) {
+        return '#' . str_pad((string) absint($number), 3, '0', STR_PAD_LEFT);
+    }
+
+    /**
+     * Read-only, privacy-minimal Selection Engine bridge. No internal IDs or
+     * account/order/payment metadata leave this method.
+     */
+    private static function public_locked_pool_page($pid, $page=1, $per_page=100, $entry_number=0) {
+        $pid = absint($pid);
+        $status = (string) get_post_meta($pid, self::META_DRAW_STATUS, true);
+        if (!in_array($status, ['ready_to_draw', 'winner_selected'], true)) return [];
+
+        $pool = self::validated_locked_pool($pid);
+        if (!is_array($pool)) return [];
+
+        $page = max(1, absint($page));
+        $per_page = min(100, max(1, absint($per_page)));
+        $entry_number = absint($entry_number);
+        $rows = $pool['rows'];
+        if ($entry_number > 0) {
+            $rows = array_values(array_filter($rows, static function($row) use ($entry_number) {
+                return absint($row->entry_number) === $entry_number;
+            }));
+        } else {
+            $rows = array_slice($rows, ($page - 1) * $per_page, $per_page);
+        }
+
+        $result = self::get_draw_result($pid);
+        $winner_entry = $result ? absint($result->entry_number) : 0;
+        $public_rows = [];
+        foreach ($rows as $row) {
+            $public_rows[] = [
+                'entry' => self::format_public_entry_number($row->entry_number),
+                'participant' => self::locked_pool_participant_name($row->order_id),
+                'winning' => $winner_entry > 0 && $winner_entry === absint($row->entry_number),
+            ];
+        }
+
+        return [
+            'revision' => (string) $pool['revision'],
+            'locked_at' => (string) $pool['locked_at'],
+            'total_locked' => absint($pool['count']),
+            'entries' => $public_rows,
+        ];
+    }
+
+    /**
+     * Privacy-minimal early-closure projection for Selection Engine. The
+     * internal reason, administrator identity, counts, and refund records are
+     * deliberately excluded from this bridge. Refund state is reduced to a
+     * two-value public projection so internal failure details remain private.
+     */
+    /**
+     * Returns the durable early-close outcome mode. Historical early closes
+     * predate this field, so infer them conservatively: any recorded result is
+     * a proceed-to-selection closure; any known Points-refund state is a
+     * cancellation; otherwise preserve the legacy proceed-to-selection model.
+     */
+    private static function early_close_mode($pid) {
+        $pid = absint($pid);
+        if (!$pid || get_post_meta($pid, self::META_EARLY_CLOSED, true) !== 'yes') return '';
+
+        $mode = sanitize_key((string) get_post_meta($pid, self::META_EARLY_CLOSE_MODE, true));
+        if (in_array($mode, ['selection', 'cancel_refund'], true)) return $mode;
+
+        if (self::get_draw_result($pid)) return 'selection';
+
+        $refund_status = sanitize_key((string) get_post_meta($pid, self::META_EARLY_CLOSE_REFUND_STATUS, true));
+        if (in_array($refund_status, ['processing', 'attention_required', 'complete'], true)
+            || get_post_meta($pid, '_rafflelb_early_close_refund_completed_at', true) !== '') {
+            return 'cancel_refund';
+        }
+
+        return 'selection';
+    }
+
+    private static function public_early_closure($pid) {
+        $pid = absint($pid);
+        if (!$pid || get_post_meta($pid, self::META_EARLY_CLOSED, true) !== 'yes') {
+            return ['closed_early' => false, 'note' => ''];
+        }
+
+        $note = sanitize_textarea_field((string) get_post_meta($pid, self::META_EARLY_CLOSE_PUBLIC_NOTE, true));
+        if ($note === '') {
+            $note = __('This raffle was closed before reaching its full entry allocation.', 'rafflelb-draw-engine');
+        }
+
+        $mode = self::early_close_mode($pid);
+        $public_refund_status = 'not_applicable';
+        if ($mode === 'cancel_refund') {
+            $private_refund_status = (string) get_post_meta($pid, self::META_EARLY_CLOSE_REFUND_STATUS, true);
+            $public_refund_status = $private_refund_status === 'complete' ? 'complete' : 'processing';
+        }
+
+        return [
+            'closed_early'  => true,
+            'mode'          => $mode === 'cancel_refund' ? 'cancel_refund' : 'selection',
+            'note'          => $note,
+            'refund_status' => $public_refund_status,
+        ];
+    }
+
+    /**
+     * Refund every paid entry in the authoritative locked revision. Values are
+     * aggregated per order, then converted by Referral & Points using its
+     * configured checkout valuation. Zero-value/complimentary lines never
+     * reach the credit API.
+     */
+    private static function process_early_close_points_refunds($pid) {
+        $pid = absint($pid);
+        if (!class_exists('RaffleLB_Referral_Points') || !method_exists('RaffleLB_Referral_Points', 'credit_refund')) {
+            return new WP_Error('rafflelb_points_refund_unavailable', 'RaffleLB Referral & Points refund service is unavailable.');
+        }
+
+        $pool = self::validated_locked_pool($pid);
+        if (!is_array($pool)) {
+            return new WP_Error('rafflelb_points_refund_pool', 'The authoritative locked entry pool could not be validated.');
+        }
+
+        $refunds = [];
+        foreach ($pool['rows'] as $row) {
+            $order_id = absint($row->order_id);
+            $item_id = absint($row->order_item_id);
+            $user_id = absint($row->user_id);
+            if (!$order_id || !$item_id || !$user_id) continue;
+
+            $order = wc_get_order($order_id);
+            $item = $order ? $order->get_item($item_id) : false;
+            if (!$order || !$item instanceof WC_Order_Item_Product) continue;
+
+            $mode = sanitize_key((string) $item->get_meta(self::ITEM_MODE_META, true));
+            if ($mode === '') $mode = sanitize_key((string) $item->get_meta('rafflelb_purchase_mode', true));
+            if ($mode !== 'raffle_entry') continue;
+
+            // Defence in depth: the actual paid line value is authoritative,
+            // while the private marker guarantees a nominal complimentary
+            // value can never be mistaken for money paid.
+            if ($item->get_meta('_rafflelb_complimentary', true) === 'yes') continue;
+            $quantity = max(1, absint($item->get_quantity()));
+            $unit_paid = max(0, (float) $item->get_total()) / $quantity;
+            if ($unit_paid <= 0) continue;
+
+            $key = $order_id . ':' . $user_id;
+            if (!isset($refunds[$key])) {
+                $refunds[$key] = ['order' => $order, 'order_id' => $order_id, 'user_id' => $user_id, 'amount' => 0.0];
+            }
+            $refunds[$key]['amount'] += $unit_paid;
+        }
+
+        $summary = ['credited' => 0, 'duplicates' => 0, 'points' => 0, 'errors' => []];
+        $title = wp_strip_all_tags((string) get_the_title($pid));
+        $description = 'Early raffle closure refund — ' . ($title !== '' ? $title : ('Raffle #' . $pid));
+        foreach ($refunds as $refund) {
+            $result = RaffleLB_Referral_Points::credit_refund(
+                $refund['user_id'],
+                $refund['amount'],
+                'early-raffle-closure:' . $pid . ':order:' . $refund['order_id'],
+                $description,
+                ['type' => 'early_raffle_closure_refund', 'raffle_id' => $pid, 'product_id' => $pid, 'order_id' => $refund['order_id']]
+            );
+            if (is_wp_error($result)) {
+                $summary['errors'][] = $result->get_error_message();
+                continue;
+            }
+            if (!empty($result['credited'])) {
+                $summary['credited']++;
+                $summary['points'] += absint($result['points'] ?? 0);
+                $refund['order']->update_meta_data('_rafflelb_early_close_points_refund_' . $pid, [
+                    'points' => absint($result['points'] ?? 0),
+                    'amount' => wc_format_decimal($refund['amount'], wc_get_price_decimals()),
+                    'credited_at' => current_time('mysql', true),
+                ]);
+                $refund['order']->add_order_note(sprintf(
+                    'RaffleLB Points refund: %d point(s) credited for early closure of %s.',
+                    absint($result['points'] ?? 0),
+                    $title !== '' ? $title : ('Raffle #' . $pid)
+                ));
+                $refund['order']->save();
+            } else {
+                $summary['duplicates']++;
+                $summary['points'] += absint($result['points'] ?? 0);
+            }
+        }
+        return $summary;
+    }
+
+    /**
+     * Build the private event payload used by customer-facing modules after a
+     * cancellation refund has completed. Only participant user IDs and the
+     * aggregate Points actually recorded on their orders are exposed to the
+     * hook; payment details and private participation metadata never leave the
+     * Draw Engine.
+     */
+    private static function early_cancel_notification_recipients($pid) {
+        $pid = absint($pid);
+        $pool = self::validated_locked_pool($pid);
+        if (!$pid || !is_array($pool) || empty($pool['rows'])) return [];
+
+        $by_user = [];
+        $seen_orders = [];
+        foreach ($pool['rows'] as $row) {
+            $user_id = absint($row->user_id ?? 0);
+            $order_id = absint($row->order_id ?? 0);
+            if (!$user_id) continue;
+
+            if (!isset($by_user[$user_id])) {
+                $by_user[$user_id] = ['user_id' => $user_id, 'points' => 0];
+                $seen_orders[$user_id] = [];
+            }
+            if (!$order_id || isset($seen_orders[$user_id][$order_id])) continue;
+            $seen_orders[$user_id][$order_id] = true;
+
+            $order = wc_get_order($order_id);
+            if (!$order) continue;
+            $refund = $order->get_meta('_rafflelb_early_close_points_refund_' . $pid, true);
+            if (is_array($refund)) {
+                $by_user[$user_id]['points'] += absint($refund['points'] ?? 0);
+            }
+        }
+
+        return array_values($by_user);
+    }
+
 
     private static function maybe_reopen_draw($pid) {
         $status = (string) get_post_meta($pid, self::META_DRAW_STATUS, true);
@@ -1545,7 +2022,7 @@ final class RaffleLB_Draw_Engine {
                 '<div style="font-size:11px;color:#8f9887;letter-spacing:.8px;text-transform:uppercase">Reason</div>' .
                 '<div style="margin-top:5px;color:#ffffff;font-size:14px;line-height:1.55">' . nl2br(esc_html($reason_text)) . '</div>' .
               '</div>' .
-              '<p style="margin:0 0 20px;color:#c7cec0;font-size:14px;line-height:1.65">The affected entry numbers are no longer valid for this draw and have been removed from the active entry pool.</p>' .
+              '<p style="margin:0 0 20px;color:#c7cec0;font-size:14px;line-height:1.65">The affected entry numbers are no longer valid for this raffle and have been removed from the active entry pool.</p>' .
               ($is_refund
                 ? '<p style="margin:0 0 20px;color:#c7cec0;font-size:13px;line-height:1.6"><strong style="color:#ffffff">Refund note:</strong> This message confirms the RaffleLB order status. Any actual payment return depends on the payment method and refund processing used for the order.</p>'
                 : '') .
@@ -1607,31 +2084,73 @@ final class RaffleLB_Draw_Engine {
             ? 'Admin reason: ' . $admin_void_reason
             : 'Order #' . absint($order_id) . ' changed to ' . $order->get_status();
 
+        $entries_by_product = [];
         foreach ($entries as $entry) {
-            $pid = absint($entry->product_id);
-            $draw_status = (string) get_post_meta($pid, self::META_DRAW_STATUS, true);
+            $entries_by_product[absint($entry->product_id)][] = $entry;
+        }
 
-            // Never rewrite a completed historical draw automatically.
-            if ($draw_status === 'winner_selected' || self::get_draw_result($pid)) {
-                $blocked_products[$pid] = true;
+        foreach ($entries_by_product as $pid => $product_entries) {
+            if (!self::acquire_raffle_lock($pid)) {
+                $order->add_order_note('RaffleLB: entry voiding could not acquire the raffle lock for ' . get_the_title($pid) . '.');
                 continue;
             }
 
-            self::archive_entry_event(
-                $entry,
-                'void',
-                $audit_reason
-            );
+            try {
+                $draw_status = (string) get_post_meta($pid, self::META_DRAW_STATUS, true);
+                // Never rewrite a completed historical draw automatically.
+                if ($draw_status === 'winner_selected' || self::get_draw_result($pid)) {
+                    $blocked_products[$pid] = true;
+                    continue;
+                }
 
-            $wpdb->update(
-                $table,
-                ['status' => 'void'],
-                ['id' => absint($entry->id)],
-                ['%s'],
-                ['%d']
-            );
+                $current_entries = $wpdb->get_results($wpdb->prepare(
+                    "SELECT * FROM {$table}
+                     WHERE order_id=%d AND product_id=%d AND status='active'
+                     ORDER BY id ASC",
+                    $order_id, $pid
+                ));
+                if (!$current_entries) continue;
 
-            $affected_products[$pid] = true;
+                $wpdb->query('START TRANSACTION');
+                $void_ok = true;
+                foreach ($current_entries as $entry) {
+                    if (!self::archive_entry_event($entry, 'void', $audit_reason)) {
+                        $void_ok = false;
+                        break;
+                    }
+                    $updated = $wpdb->update(
+                        $table,
+                        ['status' => 'void'],
+                        ['id' => absint($entry->id), 'status' => 'active'],
+                        ['%s'],
+                        ['%d', '%s']
+                    );
+                    if ((int)$updated !== 1) {
+                        $void_ok = false;
+                        break;
+                    }
+                }
+
+                if (!$void_ok) {
+                    $wpdb->query('ROLLBACK');
+                    $order->add_order_note('RaffleLB: entry voiding was rolled back for ' . get_the_title($pid) . '.');
+                    continue;
+                }
+                $wpdb->query('COMMIT');
+                $affected_products[$pid] = true;
+
+                $reopened = self::maybe_reopen_draw($pid);
+                if (!$reopened && get_post_meta($pid, self::META_DRAW_STATUS, true) === 'ready_to_draw') {
+                    if (!self::capture_locked_pool_snapshot($pid, 'refresh')) {
+                        $order->add_order_note(
+                            'RaffleLB: locked-pool revision refresh failed for ' . get_the_title($pid) .
+                            '; winner selection is blocked until the pool is repaired.'
+                        );
+                    }
+                }
+            } finally {
+                self::release_raffle_lock($pid);
+            }
         }
 
         if ($affected_products) {
@@ -1648,7 +2167,7 @@ final class RaffleLB_Draw_Engine {
             );
 
             foreach (array_keys($affected_products) as $pid) {
-                if (self::maybe_reopen_draw($pid)) {
+                if (get_post_meta($pid, self::META_DRAW_STATUS, true) === 'live') {
                     $order->add_order_note(
                         'RaffleLB: ' . get_the_title($pid) .
                         ' reopened because voided entries made slots available again.'
@@ -1694,37 +2213,78 @@ final class RaffleLB_Draw_Engine {
         ));
     }
 
-    private static function allocate($order_id,$item_id,$pid,$uid,$needed,$total) {
+    private static function allocate($order_id,$item_id,$pid,$uid,$needed,$total,$target_qty,&$failure_reason) {
         global $wpdb;
         $table=$wpdb->prefix.self::ENTRY_TABLE;
         $made=[];
+        $failure_reason = '';
 
-        // Entry records are immutable audit objects. A voided number remains
-        // visible as Void forever and is never reassigned to another order.
-        // Capacity is governed by the active-entry count, so allocate new,
-        // monotonically increasing ticket numbers when a void makes room.
-        $next_number = (int) $wpdb->get_var($wpdb->prepare(
-            "SELECT COALESCE(MAX(entry_number), 0) + 1 FROM {$table} WHERE product_id=%d",
-            $pid
-        ));
-
-        // A concurrent allocation can claim the same next number between the
-        // MAX() read and INSERT IGNORE. Advance and retry a bounded number of
-        // times so a database failure can never spin a request indefinitely.
-        $attempts = 0;
-        $max_attempts = max(10, $needed * 4);
-        while (count($made) < $needed && $attempts < $max_attempts) {
-            $attempts++;
-            $n = $next_number++;
-            $ok=$wpdb->query($wpdb->prepare(
-                "INSERT IGNORE INTO {$table}
-                (order_id,order_item_id,product_id,user_id,entry_number,status,created_at)
-                VALUES(%d,%d,%d,%d,%d,%s,%s)",
-                $order_id,$item_id,$pid,$uid,$n,'active',current_time('mysql')
-            ));
-            if((int)$ok===1) $made[]=$n;
+        // Defense in depth for every caller, including any future path that
+        // reaches allocate() without passing through the order-hook guard.
+        if (!self::raffle_accepts_new_entries($pid)) {
+            $failure_reason = 'closed';
+            return $made;
         }
-        return $made;
+
+        if (!self::acquire_raffle_lock($pid)) {
+            $failure_reason = 'lock';
+            return $made;
+        }
+
+        try {
+            // The lock serializes the final state, idempotency, capacity, and
+            // entry-number decisions for this raffle across PHP requests.
+            if (!self::raffle_accepts_new_entries($pid)) {
+                $failure_reason = 'closed';
+                return $made;
+            }
+
+            $needed = max(0, absint($target_qty) - self::count_item_entries($item_id));
+            if (!$needed) return $made;
+
+            $total = absint(get_post_meta($pid, self::META_TOTAL, true));
+            $claimed = self::claimed($pid);
+            if (!$total || $claimed + $needed > $total) {
+                $failure_reason = 'capacity';
+                return $made;
+            }
+
+            // Entry records are immutable audit objects. A voided number remains
+            // visible as Void forever and is never reassigned to another order.
+            // Capacity is governed by the active-entry count, so allocate new,
+            // monotonically increasing ticket numbers when a void makes room.
+            $next_number = (int) $wpdb->get_var($wpdb->prepare(
+                "SELECT COALESCE(MAX(entry_number), 0) + 1 FROM {$table} WHERE product_id=%d",
+                $pid
+            ));
+
+            // The raffle lock removes same-raffle number/capacity races. Keep
+            // the bounded INSERT IGNORE retry as existing database defense.
+            $attempts = 0;
+            $max_attempts = max(10, $needed * 4);
+            while (count($made) < $needed && $attempts < $max_attempts) {
+                // Retain the 0.34.18.39 close check immediately before INSERT.
+                if (!self::raffle_accepts_new_entries($pid)) {
+                    $failure_reason = 'closed';
+                    break;
+                }
+                $attempts++;
+                $n = $next_number++;
+                $ok=$wpdb->query($wpdb->prepare(
+                    "INSERT IGNORE INTO {$table}
+                    (order_id,order_item_id,product_id,user_id,entry_number,status,created_at)
+                    VALUES(%d,%d,%d,%d,%d,%s,%s)",
+                    $order_id,$item_id,$pid,$uid,$n,'active',current_time('mysql')
+                ));
+                if((int)$ok===1) $made[]=$n;
+            }
+            if ($made && self::claimed($pid) >= $total && !self::mark_ready_to_draw($pid, true)) {
+                $failure_reason = 'snapshot';
+            }
+            return $made;
+        } finally {
+            self::release_raffle_lock($pid);
+        }
     }
 
     private static function cart_is_raffle_only() {
@@ -2359,75 +2919,179 @@ final class RaffleLB_Draw_Engine {
             wp_die('You are not allowed to close RaffleLB raffles.');
         }
 
+        global $wpdb;
+
         $pid = isset($_POST['product_id']) ? absint($_POST['product_id']) : 0;
         $reason = isset($_POST['close_reason']) ? sanitize_textarea_field(wp_unslash($_POST['close_reason'])) : '';
+        $public_note = isset($_POST['public_close_note']) ? sanitize_textarea_field(wp_unslash($_POST['public_close_note'])) : '';
+        $requested_mode = isset($_POST['close_mode']) ? sanitize_key(wp_unslash($_POST['close_mode'])) : 'cancel_refund';
+        if (!in_array($requested_mode, ['selection', 'cancel_refund'], true)) $requested_mode = '';
         $redirect = self::redirect_target(admin_url('admin.php?page=rafflelb-entries'));
 
-        if (!$pid) {
+        if (!$pid || $requested_mode === '') {
             wp_safe_redirect(add_query_arg('rafflelb_draw', 'invalid', $redirect));
             exit;
         }
 
         check_admin_referer('rafflelb_close_raffle_early_' . $pid);
 
-        if ($reason === '') {
+        $already_early = get_post_meta($pid, self::META_EARLY_CLOSED, true) === 'yes';
+        $existing_mode = $already_early ? self::early_close_mode($pid) : '';
+        if ($already_early && $existing_mode !== $requested_mode) {
+            wp_safe_redirect(add_query_arg('rafflelb_draw', 'early_mode_locked', $redirect));
+            exit;
+        }
+        if (!$already_early && $reason === '') {
             wp_safe_redirect(add_query_arg('rafflelb_draw', 'early_reason_required', $redirect));
             exit;
         }
-
-        if (self::get_draw_result($pid) || get_post_meta($pid, self::META_DRAW_STATUS, true) === 'winner_selected') {
-            wp_safe_redirect(add_query_arg('rafflelb_draw', 'already_selected', $redirect));
+        if (!$already_early && strlen($public_note) < 20) {
+            wp_safe_redirect(add_query_arg('rafflelb_draw', 'early_public_note_required', $redirect));
+            exit;
+        }
+        if ($requested_mode === 'cancel_refund'
+            && (!class_exists('RaffleLB_Referral_Points') || !method_exists('RaffleLB_Referral_Points', 'credit_refund'))) {
+            wp_safe_redirect(add_query_arg('rafflelb_draw', 'early_refund_unavailable', $redirect));
             exit;
         }
 
-        $total = absint(get_post_meta($pid, self::META_TOTAL, true));
-        $claimed = self::claimed($pid);
-        $status = self::draw_status($pid);
-
-        if ($status !== 'live' || $total < 1 || $claimed < 1 || $claimed >= $total) {
-            wp_safe_redirect(add_query_arg('rafflelb_draw', 'early_not_available', $redirect));
+        if (!self::acquire_raffle_lock($pid)) {
+            wp_safe_redirect(add_query_arg('rafflelb_draw', 'early_lock_failed', $redirect));
             exit;
         }
 
-        $closed_at = current_time('mysql');
-        $admin_id = get_current_user_id();
+        $close_outcome = 'early_not_available';
+        $total = 0;
+        $claimed = 0;
+        $closed_at = '';
+        $admin_id = 0;
+        $mode = $requested_mode;
 
-        update_post_meta($pid, self::META_DRAW_STATUS, 'ready_to_draw');
-        update_post_meta($pid, self::META_CLOSED_AT, $closed_at);
-        update_post_meta($pid, self::META_EARLY_CLOSED, 'yes');
-        update_post_meta($pid, self::META_EARLY_CLOSE_REASON, $reason);
-        update_post_meta($pid, self::META_EARLY_CLOSED_BY, $admin_id);
-        update_post_meta($pid, self::META_EARLY_CLOSE_CLAIMED, $claimed);
+        try {
+            // The same per-raffle mutex used by allocation protects the final
+            // count and the immutable locked snapshot for both early-close
+            // outcomes.
+            if (get_post_meta($pid, self::META_EARLY_CLOSED, true) === 'yes') {
+                $close_outcome = 'early_already_closed';
+                $mode = self::early_close_mode($pid);
+                $claimed = absint(get_post_meta($pid, self::META_EARLY_CLOSE_CLAIMED, true));
+                $total = absint(get_post_meta($pid, self::META_TOTAL, true));
+                $closed_at = (string) get_post_meta($pid, self::META_CLOSED_AT, true);
+            } elseif (self::get_draw_result($pid) || get_post_meta($pid, self::META_DRAW_STATUS, true) === 'winner_selected') {
+                $close_outcome = 'already_selected';
+            } else {
+                $total = absint(get_post_meta($pid, self::META_TOTAL, true));
+                $claimed = self::claimed($pid);
+                $status = self::draw_status($pid);
 
-        // Closing early must immediately remove every temporary reservation so
-        // no pending cart can consume another raffle slot after closure.
-        global $wpdb;
-        $wpdb->delete(
-            $wpdb->prefix . self::HOLD_TABLE,
-            ['product_id' => $pid],
-            ['%d']
-        );
+                if ($status === 'live' && $total > 0 && $claimed > 0 && $claimed < $total) {
+                    $closed_at = current_time('mysql');
+                    $admin_id = get_current_user_id();
 
-        // Add the closure record to every currently eligible paid order so the
-        // audit trail is visible from both the raffle admin and WooCommerce.
+                    if (self::capture_locked_pool_snapshot($pid, 'early', $closed_at)) {
+                        // Keep the established ready_to_draw internal state so
+                        // the authoritative locked-pool path remains unchanged.
+                        // The separate mode meta decides whether selection is
+                        // allowed or this closure is a cancellation.
+                        update_post_meta($pid, self::META_DRAW_STATUS, 'ready_to_draw');
+                        update_post_meta($pid, self::META_CLOSED_AT, $closed_at);
+                        update_post_meta($pid, self::META_EARLY_CLOSED, 'yes');
+                        update_post_meta($pid, self::META_EARLY_CLOSE_MODE, $mode);
+                        update_post_meta($pid, self::META_EARLY_CLOSE_REASON, $reason);
+                        update_post_meta($pid, self::META_EARLY_CLOSE_PUBLIC_NOTE, $public_note);
+                        update_post_meta($pid, self::META_EARLY_CLOSED_BY, $admin_id);
+                        update_post_meta($pid, self::META_EARLY_CLOSE_CLAIMED, $claimed);
+
+                        if ($mode === 'cancel_refund') {
+                            update_post_meta($pid, self::META_EARLY_CLOSE_REFUND_STATUS, 'processing');
+                        } else {
+                            delete_post_meta($pid, self::META_EARLY_CLOSE_REFUND_STATUS);
+                            delete_post_meta($pid, '_rafflelb_early_close_refund_points');
+                            delete_post_meta($pid, '_rafflelb_early_close_refund_completed_at');
+                        }
+
+                        // Closing early immediately removes temporary holds.
+                        $wpdb->delete(
+                            $wpdb->prefix . self::HOLD_TABLE,
+                            ['product_id' => $pid],
+                            ['%d']
+                        );
+                        $close_outcome = 'early_closed';
+                    } else {
+                        $close_outcome = 'snapshot_failed';
+                    }
+                }
+            }
+        } finally {
+            self::release_raffle_lock($pid);
+        }
+
+        if (!in_array($close_outcome, ['early_closed', 'early_already_closed'], true)) {
+            wp_safe_redirect(add_query_arg('rafflelb_draw', $close_outcome, $redirect));
+            exit;
+        }
+
+        // Preserve one private closure audit note on first close only.
         $order_ids = $wpdb->get_col($wpdb->prepare(
             "SELECT DISTINCT order_id FROM {$wpdb->prefix}" . self::ENTRY_TABLE . "
              WHERE product_id=%d AND status='active' AND order_id>0",
             $pid
         ));
-        foreach ($order_ids as $order_id) {
+        foreach ($close_outcome === 'early_closed' ? $order_ids : [] as $order_id) {
             $order = wc_get_order(absint($order_id));
             if ($order) {
+                $mode_label = $mode === 'selection' ? 'PROCEED TO SELECTION' : 'CANCEL & REFUND';
                 $order->add_order_note(
-                    'RaffleLB RAFFLE CLOSED EARLY for ' . get_the_title($pid) .
-                    '. Eligible paid entries at closure: ' . $claimed . ' / ' . $total .
-                    '. Reason: ' . $reason .
+                    'RaffleLB RAFFLE CLOSED EARLY (' . $mode_label . ') for ' . get_the_title($pid) .
+                    '. Eligible entries at closure: ' . $claimed . ' / ' . $total .
+                    '. Internal reason: ' . $reason .
                     '. Closed by admin user ID ' . $admin_id . ' at ' . $closed_at . '.'
                 );
             }
         }
 
-        wp_safe_redirect(add_query_arg('rafflelb_draw', 'early_closed', $redirect));
+        // Proceed-to-selection closes here: no refund is issued.
+        if ($mode === 'selection') {
+            wp_safe_redirect(add_query_arg(
+                'rafflelb_draw',
+                $close_outcome === 'early_closed' ? 'early_closed_selection' : 'early_selection_already_closed',
+                $redirect
+            ));
+            exit;
+        }
+
+        // Cancellation path: idempotent Points refunds only.
+        $existing_refund_status = (string) get_post_meta($pid, self::META_EARLY_CLOSE_REFUND_STATUS, true);
+        if ($close_outcome === 'early_closed' || $existing_refund_status !== 'complete') {
+            update_post_meta($pid, self::META_EARLY_CLOSE_REFUND_STATUS, 'processing');
+        }
+
+        $refund_summary = self::process_early_close_points_refunds($pid);
+        if (is_wp_error($refund_summary) || !empty($refund_summary['errors'])) {
+            update_post_meta($pid, self::META_EARLY_CLOSE_REFUND_STATUS, 'attention_required');
+            wp_safe_redirect(add_query_arg('rafflelb_draw', 'early_refund_failed', $redirect));
+            exit;
+        }
+        update_post_meta($pid, self::META_EARLY_CLOSE_REFUND_STATUS, 'complete');
+        update_post_meta($pid, '_rafflelb_early_close_refund_points', absint($refund_summary['points']));
+        update_post_meta($pid, '_rafflelb_early_close_refund_completed_at', current_time('mysql', true));
+
+        /* Customer modules subscribe to this completion event rather than
+         * duplicating refund or entry logic. The hook is intentionally safe to
+         * fire again on an idempotent retry; subscribers must deduplicate by
+         * raffle/user, just as the Points credit already deduplicates by order. */
+        do_action(
+            'rafflelb_raffle_cancelled_refunded',
+            $pid,
+            self::early_cancel_notification_recipients($pid),
+            self::public_early_closure($pid)
+        );
+
+        wp_safe_redirect(add_query_arg(
+            'rafflelb_draw',
+            $close_outcome === 'early_closed' ? 'early_cancelled_refunded' : 'early_refunds_complete',
+            $redirect
+        ));
         exit;
     }
 
@@ -2446,8 +3110,26 @@ final class RaffleLB_Draw_Engine {
 
         $redirect = self::redirect_target(admin_url('admin.php?page=rafflelb-entries'));
 
+        if (self::early_close_mode($pid) === 'cancel_refund') {
+            wp_safe_redirect(add_query_arg('rafflelb_draw', 'selection_blocked_cancelled', $redirect));
+            exit;
+        }
+
         // Never allow a second draw for the same reward.
         if (self::get_draw_result($pid) || get_post_meta($pid, self::META_DRAW_STATUS, true) === 'winner_selected') {
+            wp_safe_redirect(add_query_arg('rafflelb_draw', 'already_selected', $redirect));
+            exit;
+        }
+
+        if (!self::acquire_raffle_lock($pid)) {
+            wp_safe_redirect(add_query_arg('rafflelb_draw', 'lock_failed', $redirect));
+            exit;
+        }
+
+        // Recheck after acquiring the same mutex used by allocation, closure
+        // and voiding; this is the authoritative selection boundary.
+        if (self::get_draw_result($pid) || get_post_meta($pid, self::META_DRAW_STATUS, true) === 'winner_selected') {
+            self::release_raffle_lock($pid);
             wp_safe_redirect(add_query_arg('rafflelb_draw', 'already_selected', $redirect));
             exit;
         }
@@ -2455,9 +3137,10 @@ final class RaffleLB_Draw_Engine {
         $total = absint(get_post_meta($pid, self::META_TOTAL, true));
         $claimed = self::claimed($pid);
         $status = self::draw_status($pid);
-        $early_closed = get_post_meta($pid, self::META_EARLY_CLOSED, true) === 'yes';
+        $early_selection = self::early_close_mode($pid) === 'selection';
 
-        if ($status !== 'ready_to_draw' || $total < 1 || $claimed < 1 || (!$early_closed && $claimed !== $total)) {
+        if ($status !== 'ready_to_draw' || $total < 1 || $claimed < 1 || (!$early_selection && $claimed !== $total)) {
+            self::release_raffle_lock($pid);
             wp_safe_redirect(add_query_arg('rafflelb_draw', 'not_ready', $redirect));
             exit;
         }
@@ -2466,16 +3149,27 @@ final class RaffleLB_Draw_Engine {
         $entries_table = $wpdb->prefix . self::ENTRY_TABLE;
         $results_table = $wpdb->prefix . self::RESULT_TABLE;
 
-        // Freeze the exact eligible pool at draw time: active paid entries only.
-        $eligible = $wpdb->get_results($wpdb->prepare(
-            "SELECT id, entry_number, order_id, user_id
-             FROM {$entries_table}
-             WHERE product_id=%d AND status='active'
-             ORDER BY entry_number ASC",
-            $pid
-        ));
+        // New raffles select strictly from the active immutable revision.
+        // Legacy raffles without a revision retain the 0.34.18.41 fallback.
+        $locked_pool = self::validated_locked_pool($pid);
+        if ($locked_pool === false) {
+            self::release_raffle_lock($pid);
+            wp_safe_redirect(add_query_arg('rafflelb_draw', 'pool_mismatch', $redirect));
+            exit;
+        }
+        $eligible = is_array($locked_pool)
+            ? $locked_pool['rows']
+            : $wpdb->get_results($wpdb->prepare(
+                "SELECT id, entry_number, order_id, user_id
+                 FROM {$entries_table}
+                 WHERE product_id=%d AND status='active'
+                 ORDER BY entry_number ASC",
+                $pid
+            ));
+        $selection_revision = is_array($locked_pool) ? (string)$locked_pool['revision'] : 'legacy';
 
         if (count($eligible) !== $claimed || count($eligible) < 1) {
+            self::release_raffle_lock($pid);
             wp_safe_redirect(add_query_arg('rafflelb_draw', 'pool_mismatch', $redirect));
             exit;
         }
@@ -2485,6 +3179,7 @@ final class RaffleLB_Draw_Engine {
             $winner_index = random_int(0, count($eligible) - 1);
             $rng_token = bin2hex(random_bytes(32));
         } catch (Exception $e) {
+            self::release_raffle_lock($pid);
             wp_safe_redirect(add_query_arg('rafflelb_draw', 'rng_error', $redirect));
             exit;
         }
@@ -2501,6 +3196,7 @@ final class RaffleLB_Draw_Engine {
             (string) $selected_at,
             (string) $rng_token,
             (string) $claimed,
+            $selection_revision,
         ]);
         $audit_hash = hash_hmac('sha256', $audit_payload, wp_salt('auth'));
 
@@ -2526,6 +3222,7 @@ final class RaffleLB_Draw_Engine {
 
         if (!$inserted) {
             $wpdb->query('ROLLBACK');
+            self::release_raffle_lock($pid);
             wp_safe_redirect(add_query_arg('rafflelb_draw', 'save_error', $redirect));
             exit;
         }
@@ -2536,6 +3233,7 @@ final class RaffleLB_Draw_Engine {
         update_post_meta($pid, self::META_WINNER_SELECTED_AT, $selected_at);
 
         $wpdb->query('COMMIT');
+        self::release_raffle_lock($pid);
 
         // Lets listeners (e.g. RaffleLB Notifications) react to a completed
         // draw without this plugin knowing anything about delivery. The first
@@ -2590,6 +3288,11 @@ final class RaffleLB_Draw_Engine {
         check_admin_referer('rafflelb_choose_winner_' . $pid);
         $redirect = self::redirect_target(admin_url('admin.php?page=rafflelb-entries'));
 
+        if (self::early_close_mode($pid) === 'cancel_refund') {
+            wp_safe_redirect(add_query_arg('rafflelb_draw', 'selection_blocked_cancelled', $redirect));
+            exit;
+        }
+
         if (self::get_draw_result($pid) || get_post_meta($pid, self::META_DRAW_STATUS, true) === 'winner_selected') {
             wp_safe_redirect(add_query_arg('rafflelb_draw', 'already_selected', $redirect));
             exit;
@@ -2597,8 +3300,8 @@ final class RaffleLB_Draw_Engine {
 
         $total = absint(get_post_meta($pid, self::META_TOTAL, true));
         $claimed = self::claimed($pid);
-        $early_closed = get_post_meta($pid, self::META_EARLY_CLOSED, true) === 'yes';
-        if (self::draw_status($pid) !== 'ready_to_draw' || $total < 1 || $claimed < 1 || (!$early_closed && $claimed !== $total)) {
+        $early_selection = self::early_close_mode($pid) === 'selection';
+        if (self::draw_status($pid) !== 'ready_to_draw' || $total < 1 || $claimed < 1 || (!$early_selection && $claimed !== $total)) {
             wp_safe_redirect(add_query_arg('rafflelb_draw', 'not_ready', $redirect));
             exit;
         }
@@ -2608,19 +3311,57 @@ final class RaffleLB_Draw_Engine {
             exit;
         }
 
+        if (!self::acquire_raffle_lock($pid)) {
+            wp_safe_redirect(add_query_arg('rafflelb_draw', 'lock_failed', $redirect));
+            exit;
+        }
+
+        if (self::get_draw_result($pid)
+            || get_post_meta($pid, self::META_DRAW_STATUS, true) === 'winner_selected') {
+            self::release_raffle_lock($pid);
+            wp_safe_redirect(add_query_arg('rafflelb_draw', 'already_selected', $redirect));
+            exit;
+        }
+        $claimed = self::claimed($pid);
+        $early_selection = self::early_close_mode($pid) === 'selection';
+        if (self::draw_status($pid) !== 'ready_to_draw' || $claimed < 1 || (!$early_selection && $claimed !== $total)) {
+            self::release_raffle_lock($pid);
+            wp_safe_redirect(add_query_arg('rafflelb_draw', 'not_ready', $redirect));
+            exit;
+        }
+
         global $wpdb;
         $entries_table = $wpdb->prefix . self::ENTRY_TABLE;
         $results_table = $wpdb->prefix . self::RESULT_TABLE;
 
-        $winner = $wpdb->get_row($wpdb->prepare(
-            "SELECT id, entry_number, order_id, user_id
-             FROM {$entries_table}
-             WHERE product_id=%d AND entry_number=%d AND status='active'
-             LIMIT 1",
-            $pid, $entry_number
-        ));
+        $locked_pool = self::validated_locked_pool($pid);
+        if ($locked_pool === false) {
+            self::release_raffle_lock($pid);
+            wp_safe_redirect(add_query_arg('rafflelb_draw', 'pool_mismatch', $redirect));
+            exit;
+        }
+        $winner = null;
+        if (is_array($locked_pool)) {
+            foreach ($locked_pool['rows'] as $candidate) {
+                if (absint($candidate->entry_number) === $entry_number) {
+                    $winner = $candidate;
+                    break;
+                }
+            }
+        } else {
+            // Historical raffle without a snapshot: preserve 0.34.18.41.
+            $winner = $wpdb->get_row($wpdb->prepare(
+                "SELECT id, entry_number, order_id, user_id
+                 FROM {$entries_table}
+                 WHERE product_id=%d AND entry_number=%d AND status='active'
+                 LIMIT 1",
+                $pid, $entry_number
+            ));
+        }
+        $selection_revision = is_array($locked_pool) ? (string)$locked_pool['revision'] : 'legacy';
 
         if (!$winner) {
+            self::release_raffle_lock($pid);
             wp_safe_redirect(add_query_arg('rafflelb_draw', 'manual_entry_invalid', $redirect));
             exit;
         }
@@ -2630,7 +3371,8 @@ final class RaffleLB_Draw_Engine {
         $audit_payload = implode('|', [
             (string)$pid, (string)$winner->id, (string)$winner->entry_number,
             (string)$winner->order_id, (string)$winner->user_id, (string)$selected_at,
-            'manual', (string)$selected_by, (string)$reason, (string)$claimed
+            'manual', (string)$selected_by, (string)$reason, (string)$claimed,
+            $selection_revision
         ]);
         $audit_hash = hash_hmac('sha256', $audit_payload, wp_salt('auth'));
 
@@ -2656,6 +3398,7 @@ final class RaffleLB_Draw_Engine {
 
         if (!$inserted) {
             $wpdb->query('ROLLBACK');
+            self::release_raffle_lock($pid);
             wp_safe_redirect(add_query_arg('rafflelb_draw', 'save_error', $redirect));
             exit;
         }
@@ -2665,6 +3408,7 @@ final class RaffleLB_Draw_Engine {
         update_post_meta($pid, self::META_WINNER_ENTRY_ID, absint($winner->id));
         update_post_meta($pid, self::META_WINNER_SELECTED_AT, $selected_at);
         $wpdb->query('COMMIT');
+        self::release_raffle_lock($pid);
 
         // Same backward-compatible event contract as Secure Random Draw.
         do_action(
@@ -2725,40 +3469,55 @@ final class RaffleLB_Draw_Engine {
         }
 
         $pid = absint($entry->product_id);
-        if (self::get_draw_result($pid)
-            || get_post_meta($pid, self::META_DRAW_STATUS, true) === 'winner_selected') {
-            wp_safe_redirect(add_query_arg('rafflelb_entry_void', 'winner_locked', $redirect));
+        if (!self::acquire_raffle_lock($pid)) {
+            wp_safe_redirect(add_query_arg('rafflelb_entry_void', 'lock_failed', $redirect));
             exit;
         }
 
-        // The history table records the original order/customer, event time,
-        // and a precise administrator audit note. The WooCommerce order is
-        // intentionally not edited by this per-entry administrative action.
-        $audit_reason = 'Per-entry administrative void. Admin user ID: ' . get_current_user_id();
-        $wpdb->query('START TRANSACTION');
+        $outcome = 'save_error';
+        try {
+            $entry = $wpdb->get_row($wpdb->prepare(
+                "SELECT * FROM {$table} WHERE id=%d AND status='active' LIMIT 1",
+                $entry_id
+            ));
+            if (!$entry) {
+                $outcome = 'not_active';
+            } elseif (self::get_draw_result($pid)
+                || get_post_meta($pid, self::META_DRAW_STATUS, true) === 'winner_selected') {
+                $outcome = 'winner_locked';
+            } else {
+                // The history table records the original order/customer, event
+                // time and administrator audit note. WooCommerce is untouched.
+                $audit_reason = 'Per-entry administrative void. Admin user ID: ' . get_current_user_id();
+                $wpdb->query('START TRANSACTION');
+                $archived = self::archive_entry_event($entry, 'void', $audit_reason);
+                $updated = $wpdb->update(
+                    $table,
+                    ['status' => 'void'],
+                    ['id' => $entry_id, 'status' => 'active'],
+                    ['%s'],
+                    ['%d', '%s']
+                );
 
-        $archived = self::archive_entry_event($entry, 'void', $audit_reason);
-        $updated = $wpdb->update(
-            $table,
-            ['status' => 'void'],
-            ['id' => $entry_id, 'status' => 'active'],
-            ['%s'],
-            ['%d', '%s']
-        );
-
-        if (!$archived || $updated !== 1) {
-            $wpdb->query('ROLLBACK');
-            wp_safe_redirect(add_query_arg('rafflelb_entry_void', 'save_error', $redirect));
-            exit;
+                if (!$archived || (int)$updated !== 1) {
+                    $wpdb->query('ROLLBACK');
+                } else {
+                    $wpdb->query('COMMIT');
+                    $reopened = self::maybe_reopen_draw($pid);
+                    if (!$reopened && get_post_meta($pid, self::META_DRAW_STATUS, true) === 'ready_to_draw') {
+                        $outcome = self::capture_locked_pool_snapshot($pid, 'refresh')
+                            ? 'success'
+                            : 'snapshot_failed';
+                    } else {
+                        $outcome = 'success';
+                    }
+                }
+            }
+        } finally {
+            self::release_raffle_lock($pid);
         }
 
-        $wpdb->query('COMMIT');
-
-        // A full raffle becomes reservable again after one active entry is
-        // voided, unless a deliberate early close or historical winner locks it.
-        self::maybe_reopen_draw($pid);
-
-        wp_safe_redirect(add_query_arg('rafflelb_entry_void', 'success', $redirect));
+        wp_safe_redirect(add_query_arg('rafflelb_entry_void', $outcome, $redirect));
         exit;
     }
 
@@ -2897,9 +3656,18 @@ final class RaffleLB_Draw_Engine {
         $messages = [
             'success'          => ['success', 'Winner selected and permanently recorded.'],
             'manual_success'   => ['success', 'Manual/external winner recorded and permanently audited.'],
-            'early_closed'     => ['success', 'Raffle closed early. New raffle entries are now blocked and the current paid-entry pool is frozen for winner selection.'],
+            'early_closed_selection' => ['success', 'Raffle closed early. The eligible pool is locked and this raffle will proceed to Selection. No Points refund was issued.'],
+            'early_selection_already_closed' => ['warning', 'This raffle was already closed early to proceed to Selection. No Points refund was issued.'],
+            'early_cancelled_refunded' => ['success', 'Raffle cancelled early. New entries are blocked and eligible paid entry value was returned as Raffle Points.'],
+            'early_lock_failed' => ['error', 'RaffleLB could not safely lock this raffle for early close. Nothing was changed; please try again.'],
             'early_reason_required' => ['error', 'Closing a raffle early requires an admin reason.'],
-            'early_not_available' => ['error', 'This raffle cannot be closed early. It must be live, partially filled, and have at least one eligible paid entry.'],
+            'early_public_note_required' => ['error', 'Add a public early-closure explanation of at least 20 characters. The internal reason remains private.'],
+            'early_mode_locked' => ['error', 'This raffle is already closed early and its closure outcome cannot be changed.'],
+            'selection_blocked_cancelled' => ['error', 'Selection is blocked because this raffle was cancelled early and participants were refunded.'],
+            'early_refund_unavailable' => ['error', 'RaffleLB Referral & Points 1.2.18 or newer is required before this raffle can be cancelled early with Points refunds.'],
+            'early_refund_failed' => ['error', 'The raffle is closed, but one or more Points refunds need attention. Use Retry Points Refunds on the Ready to Draw record. Already completed credits will not be duplicated.'],
+            'early_refunds_complete' => ['success', 'Early-closure Points refunds were verified. Existing credits were not duplicated.'],
+            'early_not_available' => ['error', 'This raffle cannot be closed early. It must be live, partially filled, and have at least one eligible entry.'],
             'already_selected' => ['warning', 'A winner has already been selected for this reward. A second draw was blocked.'],
             'manual_reason_required' => ['error', 'Manual winner selection requires a reason or external draw reference.'],
             'manual_entry_invalid'   => ['error', 'The chosen entry is not an active paid entry for this reward.'],
@@ -2940,7 +3708,7 @@ final class RaffleLB_Draw_Engine {
         if ($early_close_products) {
             echo '<div style="margin:18px 0 24px;padding:18px 20px;border-left:5px solid #dba617;background:#fff;border-radius:8px;box-shadow:0 1px 3px rgba(0,0,0,.08)">';
             echo '<h2 style="margin:0 0 6px">Active Raffles — Early Close</h2>';
-            echo '<p style="margin:0 0 14px;color:#646970"><strong>Admin only.</strong> Closing early immediately blocks new raffle entries and freezes the current active paid-entry pool. Buy Now remains available if enabled. A reason is mandatory and the closure is recorded in the audit trail.</p>';
+            echo '<p style="margin:0 0 14px;color:#646970"><strong>Admin only.</strong> Closing early immediately blocks new raffle entries, freezes the current active paid-entry pool, and returns each paid entry value as Raffle Points. The internal reason and separate public explanation are mandatory. Buy Now remains available if enabled.</p>';
             echo '<table class="widefat striped"><thead><tr><th>Reward</th><th>Paid Entries</th><th>Remaining</th><th>Action</th></tr></thead><tbody>';
             foreach ($early_close_products as $live_pid) {
                 $live_total = absint(get_post_meta($live_pid, self::META_TOTAL, true));
@@ -2950,12 +3718,16 @@ final class RaffleLB_Draw_Engine {
                 echo '<td><strong>'.esc_html($live_claimed).'</strong> / '.esc_html($live_total).'</td>';
                 echo '<td>'.esc_html(max(0,$live_total-$live_claimed)).'</td>';
                 echo '<td style="min-width:360px">';
-                echo '<form method="post" action="'.esc_url(admin_url('admin-post.php')).'" onsubmit="return confirm(\'Close this raffle early now? New raffle entries will be blocked immediately. This action prepares the current paid entries for winner selection.\');">';
+                echo '<form method="post" action="'.esc_url(admin_url('admin-post.php')).'">';
                 echo '<input type="hidden" name="action" value="rafflelb_close_raffle_early">';
                 echo '<input type="hidden" name="product_id" value="'.esc_attr($live_pid).'">';
                 wp_nonce_field('rafflelb_close_raffle_early_' . $live_pid);
-                echo '<textarea name="close_reason" rows="2" required placeholder="Required reason for early closure" style="width:100%;max-width:340px;margin-bottom:7px"></textarea>';
-                echo '<br><button type="submit" class="button" style="border-color:#b7791f;color:#7a4b00;font-weight:700">CLOSE RAFFLE EARLY</button>';
+                echo '<label style="display:block;margin-bottom:9px"><strong>Internal closure reason</strong><br><textarea name="close_reason" rows="2" required placeholder="Private admin/audit reason" style="width:100%;max-width:340px;margin-top:4px"></textarea><br><small>This stays private.</small></label>';
+                echo '<label style="display:block;margin-bottom:9px"><strong>Public Early Closure Note</strong><br><textarea name="public_close_note" rows="3" required minlength="20" maxlength="1000" placeholder="Explain why the raffle closed early, without internal details" style="width:100%;max-width:340px;margin-top:4px"></textarea><br><small>Describe why the raffle closed. Refund status is added automatically on the public Selection Engine page.</small></label>';
+                echo '<div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:12px">';
+                echo '<button type="submit" name="close_mode" value="selection" class="button button-primary" onclick="return confirm(\'Close early and continue to Selection using the locked eligible pool? No Raffle Points refund will be issued.\');">CLOSE EARLY &amp; PROCEED TO SELECTION</button>';
+                echo '<button type="submit" name="close_mode" value="cancel_refund" class="button" style="border-color:#b7791f;color:#7a4b00;font-weight:700" onclick="return confirm(\'Cancel this raffle early and refund eligible paid entry value as Raffle Points? No winner will be selected.\');">CANCEL RAFFLE &amp; REFUND PARTICIPANTS</button>';
+                echo '</div>';
                 echo '</form>';
                 echo '</td></tr>';
             }
@@ -2974,14 +3746,16 @@ final class RaffleLB_Draw_Engine {
         if ($ready_products) {
             echo '<div style="margin:18px 0 24px;padding:18px 20px;border-left:5px solid #9cff00;background:#fff;border-radius:8px;box-shadow:0 1px 3px rgba(0,0,0,.08)">';
             echo '<h2 style="margin:0 0 6px">Ready to Draw</h2>';
-            echo '<p style="margin:0 0 14px;color:#646970">Use <strong>Secure Random Draw</strong> for an automatic draw from the frozen eligible paid-entry pool. <strong>Record Chosen Winner</strong> lets an administrator explicitly choose one eligible paid entry; it requires a reason/reference and is permanently labeled in the audit record.</p>';
+            echo '<p style="margin:0 0 14px;color:#646970">Use <strong>Secure Random Draw</strong> for an automatic selection from the frozen eligible entry pool. <strong>Record Chosen Winner</strong> lets an administrator explicitly choose one eligible paid entry; it requires a reason/reference and is permanently labeled in the audit record.</p>';
             echo '<table class="widefat striped"><thead><tr><th>Reward</th><th>Final Entries</th><th>Status</th><th>Closed At</th><th>Action</th></tr></thead><tbody>';
             foreach ($ready_products as $ready_pid) {
                 $ready_total = absint(get_post_meta($ready_pid, self::META_TOTAL, true));
                 $ready_claimed = self::claimed($ready_pid);
                 $closed_at = get_post_meta($ready_pid, self::META_CLOSED_AT, true);
                 $early_closed = get_post_meta($ready_pid, self::META_EARLY_CLOSED, true) === 'yes';
+                $early_mode = self::early_close_mode($ready_pid);
                 $early_reason = (string) get_post_meta($ready_pid, self::META_EARLY_CLOSE_REASON, true);
+                $early_public_note = (string) get_post_meta($ready_pid, self::META_EARLY_CLOSE_PUBLIC_NOTE, true);
                 $eligible_rows = $wpdb->get_results($wpdb->prepare(
                     "SELECT id, entry_number, order_id, user_id FROM {$wpdb->prefix}" . self::ENTRY_TABLE . "
                      WHERE product_id=%d AND status='active' ORDER BY entry_number ASC",
@@ -2990,9 +3764,17 @@ final class RaffleLB_Draw_Engine {
 
                 echo '<tr><td><strong>'.esc_html(get_the_title($ready_pid)).'</strong></td>';
                 echo '<td>'.esc_html($ready_claimed).' / '.esc_html($ready_total).'</td>';
-                echo '<td><strong style="color:#4d7600">READY TO DRAW</strong>' . ($early_closed ? '<br><small style="color:#a15c00">CLOSED EARLY</small>' : '') . '</td>';
+                echo '<td><strong style="color:#4d7600">' . esc_html($early_mode === 'cancel_refund' ? 'CANCELLED / REFUNDED' : 'READY TO DRAW') . '</strong>' . ($early_closed ? '<br><small style="color:#a15c00">CLOSED EARLY</small>' : '') . '</td>';
                 echo '<td>'.esc_html($closed_at ?: '—').'</td>';
                 echo '<td style="min-width:330px">';
+                if ($early_closed && $early_mode === 'cancel_refund') {
+                    echo '<form method="post" action="'.esc_url(admin_url('admin-post.php')).'" style="margin:0 0 10px" onsubmit="return confirm(\'Verify or retry this raffle\'s early-closure Points refunds? Already completed credits cannot be duplicated.\');">';
+                    echo '<input type="hidden" name="action" value="rafflelb_close_raffle_early"><input type="hidden" name="product_id" value="'.esc_attr($ready_pid).'">';
+                    echo '<input type="hidden" name="close_mode" value="cancel_refund"><input type="hidden" name="close_reason" value="'.esc_attr($early_reason).'"><input type="hidden" name="public_close_note" value="'.esc_attr($early_public_note).'">';
+                    wp_nonce_field('rafflelb_close_raffle_early_' . $ready_pid);
+                    echo '<button type="submit" class="button" style="border-color:#8aa51e;color:#536b00;font-weight:700">RETRY / VERIFY POINTS REFUNDS</button></form>';
+                }
+                if ($early_mode !== 'cancel_refund') {
                 echo '<form method="post" action="'.esc_url(admin_url('admin-post.php')).'" style="margin:0 0 10px" onsubmit="return confirm(\'Run the secure random draw now? This result is permanent.\');">';
                 echo '<input type="hidden" name="action" value="rafflelb_select_winner">';
                 echo '<input type="hidden" name="product_id" value="'.esc_attr($ready_pid).'">';
@@ -3004,8 +3786,9 @@ final class RaffleLB_Draw_Engine {
                 echo '<input type="hidden" name="action" value="rafflelb_choose_winner">';
                 echo '<input type="hidden" name="product_id" value="'.esc_attr($ready_pid).'">';
                 wp_nonce_field('rafflelb_choose_winner_' . $ready_pid);
-                if ($early_closed && $early_reason !== '') echo '<p style="margin:8px 0;color:#7a4b00"><small><strong>Early-close reason:</strong> '.esc_html($early_reason).'</small></p>';
-                echo '<p><label><strong>Choose eligible winning entry</strong><br><select name="entry_number" required style="width:100%;max-width:310px"><option value="">Select paid entry…</option>';
+                if ($early_closed && $early_reason !== '') echo '<p style="margin:8px 0;color:#7a4b00"><small><strong>Internal early-close reason:</strong> '.esc_html($early_reason).'</small></p>';
+                if ($early_closed && $early_public_note !== '') echo '<p style="margin:8px 0;color:#4d7600"><small><strong>Public Early Closure Note:</strong> '.esc_html($early_public_note).'</small></p>';
+                echo '<p><label><strong>Choose eligible winning entry</strong><br><select name="entry_number" required style="width:100%;max-width:310px"><option value="">Select eligible entry…</option>';
                 foreach ($eligible_rows as $eligible_row) {
                     $eligible_user = $eligible_row->user_id ? get_user_by('id', absint($eligible_row->user_id)) : false;
                     $eligible_order = wc_get_order(absint($eligible_row->order_id));
@@ -3018,6 +3801,9 @@ final class RaffleLB_Draw_Engine {
                 echo '<p><label><strong>Reason / external draw reference</strong><br><textarea name="selection_note" rows="2" required style="width:100%;max-width:310px"></textarea></label></p>';
                 echo '<button type="submit" class="button">RECORD CHOSEN WINNER</button>';
                 echo '</form></details>';
+                } else {
+                    echo '<p style="margin:8px 0;color:#7a4b00"><strong>Selection disabled:</strong> this raffle was cancelled early and participants were refunded.</p>';
+                }
                 echo '</td></tr>';
             }
             echo '</tbody></table></div>';
@@ -3617,7 +4403,7 @@ final class RaffleLB_Draw_Engine {
                 '<div style="font-size:11px;color:#8f9887;letter-spacing:.8px;text-transform:uppercase">Order Total</div>' .
                 '<div style="margin-top:5px;color:#ffffff;font-size:18px;font-weight:800">' . wp_kses_post($order->get_formatted_order_total()) . '</div>' .
               '</div>' .
-              '<p style="margin:0 0 20px;color:#c7cec0;font-size:14px;line-height:1.65">Keep your entry numbers safe. You can view your active entries and draw results at any time from your RaffleLB account.</p>' .
+              '<p style="margin:0 0 20px;color:#c7cec0;font-size:14px;line-height:1.65">Keep your entry numbers safe. You can view your active entries and selection results at any time from your RaffleLB account.</p>' .
               '<a href="' . esc_url($account_url) . '" style="display:inline-block;padding:13px 18px;border-radius:9px;background:#caff16;color:#080908;text-decoration:none;font-weight:800;font-size:13px">VIEW MY ENTRIES</a>' .
             '</div>' .
           '</div>' .
@@ -4130,15 +4916,18 @@ final class RaffleLB_Draw_Engine {
                     <div class="rlwin-intro">
                         <span class="rlwin-eyebrow">VERIFIED RAFFLELB RESULTS</span>
                         <h1>Our Winners</h1>
-                        <p class="rlwin-lede">The full record of every completed draw — winner, prize, ticket and date.</p>
-                        <a class="rlwin-play" href="<?php echo esc_url('https://rafflelb.com/shop/?rl_view=raffle#rl-shop-controls'); ?>">RAFFLE NOW <span aria-hidden="true">→</span></a>
+                        <p class="rlwin-lede">The full record of every completed selection — winner, prize, ticket and date.</p>
                         <?php if ($count): ?>
-                        <div class="rlwin-tally"><strong><?php echo esc_html($count); ?></strong><span>draw<?php echo $count === 1 ? '' : 's'; ?> completed and verified</span></div>
+                        <div class="rlwin-hero-stats" aria-label="Verified results summary">
+                            <div><strong><?php echo esc_html($count); ?></strong><span>Completed Selection<?php echo $count === 1 ? '' : 's'; ?></span></div>
+                            <div><strong>VERIFIED</strong><span>Published Results</span></div>
+                        </div>
                         <?php endif; ?>
+                        <a class="rlwin-play" href="<?php echo esc_url('https://rafflelb.com/shop/?rl_view=raffle#rl-shop-controls'); ?>">RAFFLE NOW <span aria-hidden="true">→</span></a>
                     </div>
 
                     <?php if ($count && isset($cards[0])): $latest = $cards[0]; ?>
-                    <a class="rlwin-spotlight" href="<?php echo esc_url($latest['url']); ?>" aria-label="View <?php echo esc_attr($latest['title']); ?> draw result">
+                    <a class="rlwin-spotlight" href="<?php echo esc_url($latest['url']); ?>" aria-label="View <?php echo esc_attr($latest['title']); ?> selection result">
                         <span class="rlwin-spotlight-tag">MOST RECENT WIN</span>
                         <div class="rlwin-spotlight-media">
                             <?php if ($latest['image']): ?>
@@ -4148,9 +4937,11 @@ final class RaffleLB_Draw_Engine {
                             <?php endif; ?>
                         </div>
                         <div class="rlwin-spotlight-body">
-                            <span class="rlwin-spotlight-date"><?php echo esc_html($latest['date']); ?></span>
-                            <h2><?php echo esc_html($latest['winner']); ?></h2>
-                            <p><?php echo esc_html($latest['title']); ?></p>
+                            <div class="rlwin-spotlight-facts">
+                                <div><span>Selection Date</span><strong><?php echo esc_html($latest['date']); ?></strong></div>
+                                <div><span>Winner</span><h2><?php echo esc_html($latest['winner']); ?></h2></div>
+                                <div><span>Prize</span><p><?php echo esc_html($latest['title']); ?></p></div>
+                            </div>
                             <div class="rlwin-spotlight-stub"><span>Winning Ticket</span><strong><?php echo esc_html($latest['entry']); ?></strong></div>
                         </div>
                     </a>
@@ -4161,7 +4952,7 @@ final class RaffleLB_Draw_Engine {
             <section class="rlwin-directory">
                 <div class="rlwin-directory-inner">
                     <div class="rlwin-directory-head<?php echo $count ? '' : ' is-empty'; ?>">
-                        <div><span>LATEST RESULTS</span><h2>Meet our winners</h2><p>Search completed draws or browse by prize category.</p></div>
+                        <div><span>LATEST RESULTS</span><h2>Meet our winners</h2><p>Search completed selections or browse by prize category.</p></div>
                         <?php if ($count): ?>
                         <div class="rlwin-tools">
                             <label class="rlwin-search">
@@ -4193,13 +4984,13 @@ final class RaffleLB_Draw_Engine {
                             $search_text = strtolower(wp_strip_all_tags($card['title'].' '.$card['winner'].' '.$card['location']));
                         ?>
                         <article class="rlwin-card" data-category="<?php echo esc_attr($card['category']); ?>" data-search="<?php echo esc_attr($search_text); ?>" data-date="<?php echo esc_attr($card['stamp']); ?>" data-title="<?php echo esc_attr(strtolower($card['title'])); ?>">
-                            <a class="rlwin-media" href="<?php echo esc_url($card['url']); ?>" aria-label="View <?php echo esc_attr($card['title']); ?> draw result">
+                            <a class="rlwin-media" href="<?php echo esc_url($card['url']); ?>" aria-label="View <?php echo esc_attr($card['title']); ?> selection result">
                                 <?php if ($card['image']): ?>
                                     <img src="<?php echo esc_url($card['image']); ?>" alt="<?php echo esc_attr($card['title']); ?>" loading="lazy">
                                 <?php else: ?>
                                     <span class="rlwin-placeholder" aria-hidden="true">R</span>
                                 <?php endif; ?>
-                                <span class="rlwin-verified"><b aria-hidden="true">✓</b> Verified Draw</span>
+                                <span class="rlwin-verified"><b aria-hidden="true">✓</b> Verified Selection</span>
                             </a>
                             <div class="rlwin-card-body">
                                 <h3><a href="<?php echo esc_url($card['url']); ?>"><?php echo esc_html($card['title']); ?></a></h3>
@@ -4207,8 +4998,8 @@ final class RaffleLB_Draw_Engine {
                                     <span class="rlwin-avatar" aria-hidden="true"><?php echo esc_html($card['initials']); ?></span>
                                     <div><strong><?php echo esc_html($card['winner']); ?></strong><small><i aria-hidden="true">⌖</i> <?php echo esc_html($card['location']); ?></small></div>
                                 </div>
-                                <div class="rlwin-result-meta"><span>Draw Date: <strong><?php echo esc_html($card['date']); ?></strong></span><span>Winning Ticket: <strong><?php echo esc_html($card['entry']); ?></strong></span></div>
-                                <a class="rlwin-details" href="<?php echo esc_url($card['url']); ?>">View Draw Details <span aria-hidden="true">→</span></a>
+                                <div class="rlwin-result-meta"><span>Selection Date: <strong><?php echo esc_html($card['date']); ?></strong></span><span>Winning Ticket: <strong><?php echo esc_html($card['entry']); ?></strong></span></div>
+                                <a class="rlwin-details" href="<?php echo esc_url($card['url']); ?>">View Selection Details <span aria-hidden="true">→</span></a>
                             </div>
                         </article>
                         <?php endforeach; ?>
@@ -4217,18 +5008,18 @@ final class RaffleLB_Draw_Engine {
                     <?php else: ?>
                     <div class="rlwin-empty">
                         <div class="rlwin-empty-mark" aria-hidden="true"><span>✓</span></div>
-                        <div><span>THE WINNERS WALL IS READY</span><h3>Our first winner will appear here.</h3><p>Completed RaffleLB draws are published automatically with the verified winning ticket and result date.</p><a href="<?php echo esc_url('https://rafflelb.com/shop/?rl_view=raffle#rl-shop-controls'); ?>">EXPLORE LIVE RAFFLES <b aria-hidden="true">→</b></a></div>
+                        <div><span>THE WINNERS WALL IS READY</span><h3>Our first winner will appear here.</h3><p>Completed RaffleLB selections are published automatically with the verified winning ticket and result date.</p><a href="<?php echo esc_url('https://rafflelb.com/shop/?rl_view=raffle#rl-shop-controls'); ?>">EXPLORE LIVE RAFFLES <b aria-hidden="true">→</b></a></div>
                     </div>
                     <?php endif; ?>
                 </div>
             </section>
         </main>
 
-        <style id="rafflelb-winners-premium-v0341835">
+        <style id="rafflelb-winners-premium-v0341838">
         body.rafflelb-winners-public-page .main-page-wrapper,body.rafflelb-winners-public-page .site-content,body.rafflelb-winners-public-page .wd-content-layout,body.rafflelb-winners-public-page .content-layout-wrapper{background:#070907!important}
         body.rafflelb-winners-public-page .main-page-wrapper,body.rafflelb-winners-public-page .site-content{padding-top:0!important;padding-bottom:0!important}
-        /* Uses the same Inter UI stack as the RaffleLB navigation, Shop and My Account. */
-        .rlwin,.rlwin *{box-sizing:border-box}.rlwin{--lime:#baff00;--bg:#070907;--panel:#0c100c;--line:#293128;--display:Inter,"Segoe UI",Arial,sans-serif;position:relative;left:50%;width:100vw;max-width:none;margin-left:-50vw;overflow-x:hidden;background:var(--bg);color:#fff;font-family:var(--display)!important;-webkit-font-smoothing:antialiased}.rlwin a{text-decoration:none!important}
+        /* Winners-owned layout uses the active RaffleLB Design System font token. */
+        .rlwin,.rlwin *{box-sizing:border-box}.rlwin{--lime:#baff00;--bg:#070907;--panel:#0c100c;--line:#293128;--display:var(--rl-font,"Manrope",sans-serif);position:relative;left:50%;width:100vw;max-width:none;margin-left:-50vw;overflow-x:hidden;background:var(--bg);color:#fff;font-family:var(--display)!important;-webkit-font-smoothing:antialiased}.rlwin a{text-decoration:none!important}
         .rlwin-hero{position:relative;overflow:hidden;border-bottom:1px solid rgba(255,255,255,.07);background:radial-gradient(circle at 76% 0,rgba(186,255,0,.075),transparent 31%),linear-gradient(135deg,#050705,#090c09)}
         .rlwin-hero-inner{position:relative;z-index:2;display:grid;grid-template-columns:minmax(400px,.86fr) minmax(400px,.9fr);align-items:center;gap:52px;max-width:1560px;margin:0 auto;padding:56px 34px 60px}
         .rlwin-hero-inner.is-empty{grid-template-columns:1fr;max-width:760px;text-align:center}.rlwin-hero-inner.is-empty .rlwin-eyebrow{justify-content:center}
@@ -4270,7 +5061,7 @@ final class RaffleLB_Draw_Engine {
         .rlwin-directory-head.is-empty{justify-content:center;max-width:640px;margin-left:auto;margin-right:auto;text-align:center}
         .rlwin-directory-head.is-empty>div:first-child>span{text-align:center}
         .rlwin-tools{display:grid;grid-template-columns:minmax(220px,1fr) minmax(168px,190px);gap:12px;width:min(100%,590px);flex:0 1 590px;min-width:0;align-items:center}.rlwin-search{position:relative;display:block;min-width:0}.rlwin-search>span{position:absolute;z-index:2;left:15px;top:50%;width:14px;height:14px;border:1.7px solid #aab2a8;border-radius:50%;transform:translateY(-55%)}.rlwin-search>span:after{content:"";position:absolute;width:6px;height:1.7px;right:-5px;bottom:-2px;background:#aab2a8;transform:rotate(45deg)}.rlwin-search input,.rlwin-sort select{height:43px!important;margin:0!important;border:1px solid #303830!important;border-radius:10px!important;background:#0d110d!important;color:#fff!important;-webkit-text-fill-color:#fff!important;font-family:var(--display)!important;font-size:12px!important;box-shadow:none!important}.rlwin-search input{width:100%!important;min-width:0!important;padding:0 15px 0 43px!important}.rlwin-search input::placeholder{color:#7f887d!important;opacity:1}.rlwin-sort{display:block;min-width:0}.rlwin-sort select{width:100%!important;min-width:168px!important;padding:0 36px 0 14px!important;cursor:pointer}.rlwin-search input:focus,.rlwin-sort select:focus{outline:2px solid rgba(186,255,0,.7)!important;outline-offset:2px;border-color:var(--lime)!important}
-        .rlwin-filters{display:flex;gap:0;margin:0 0 15px;overflow-x:auto;border-bottom:1px solid #252c25;scrollbar-width:none}.rlwin-filters::-webkit-scrollbar{display:none}.rlwin-filters button{position:relative;flex:0 0 auto;min-height:43px;padding:0 18px;border:0!important;background:transparent!important;color:#b9c0b7!important;font-family:Inter,"Segoe UI",Arial,sans-serif!important;font-size:12px!important;font-weight:650!important;white-space:nowrap;cursor:pointer}.rlwin-filters button span{margin-left:4px;color:inherit!important}.rlwin-filters button.is-active{color:var(--lime)!important}.rlwin-filters button.is-active:after{content:"";position:absolute;left:8px;right:8px;bottom:0;height:3px;border-radius:3px 3px 0 0;background:var(--lime)}
+        .rlwin-filters{display:flex;gap:0;margin:0 0 15px;overflow-x:auto;border-bottom:1px solid #252c25;scrollbar-width:none}.rlwin-filters::-webkit-scrollbar{display:none}.rlwin-filters button{position:relative;flex:0 0 auto;min-height:43px;padding:0 18px;border:0!important;background:transparent!important;color:#b9c0b7!important;font-family:var(--display)!important;font-size:12px!important;font-weight:650!important;white-space:nowrap;cursor:pointer}.rlwin-filters button span{margin-left:4px;color:inherit!important}.rlwin-filters button.is-active{color:var(--lime)!important}.rlwin-filters button.is-active:after{content:"";position:absolute;left:8px;right:8px;bottom:0;height:3px;border-radius:3px 3px 0 0;background:var(--lime)}
         .rlwin-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px}.rlwin-card{min-width:0;overflow:hidden;border:1px solid var(--line);border-radius:12px;background:linear-gradient(180deg,#101410,#0b0e0b);box-shadow:0 12px 30px rgba(0,0,0,.2);transition:transform .2s,border-color .2s,box-shadow .2s}.rlwin-card:hover{transform:translateY(-3px);border-color:rgba(186,255,0,.46);box-shadow:0 18px 38px rgba(0,0,0,.31)}.rlwin-card[hidden]{display:none!important}
         .rlwin-media{position:relative;display:flex!important;height:185px;align-items:center;justify-content:center;overflow:hidden;border-bottom:1px solid #242b24;background:#070a07}.rlwin-media:after{content:"";position:absolute;inset:55% 0 0;background:linear-gradient(transparent,rgba(0,0,0,.42));pointer-events:none}.rlwin-media img{display:block!important;width:100%!important;height:100%!important;object-fit:contain!important;object-position:center!important;transition:transform .25s}.rlwin-card:hover .rlwin-media img{transform:none}.rlwin-placeholder{color:var(--lime)!important;font-size:56px!important;font-weight:900!important}.rlwin-verified{position:absolute;z-index:3;top:10px;right:10px;display:inline-flex;min-height:27px;align-items:center;gap:5px;padding:0 9px;border:1px solid rgba(186,255,0,.45);border-radius:999px;background:rgba(7,10,7,.92);color:var(--lime)!important;font-size:10px!important;font-weight:750!important}.rlwin-verified b{display:inline-flex;width:15px;height:15px;align-items:center;justify-content:center;border-radius:50%;background:var(--lime);color:#050705!important;font-size:9px!important}
         .rlwin-card-body{padding:12px}.rlwin-card h3{min-height:39px;margin:0 0 10px!important;color:#fff!important;font-size:15px!important;line-height:1.3!important;font-weight:750!important;letter-spacing:-.01em!important}.rlwin-card h3 a{color:#fff!important}.rlwin-person{display:flex;align-items:center;gap:9px;margin-bottom:9px}.rlwin-avatar{display:flex;width:37px;height:37px;flex:0 0 37px;align-items:center;justify-content:center;border:1px solid #414841;border-radius:50%;background:linear-gradient(145deg,#444a44,#252a25);color:#fff!important;font-size:11px!important;font-weight:750!important}.rlwin-person>div{min-width:0}.rlwin-person strong{display:block;overflow:hidden;color:#fff!important;font-size:12px!important;line-height:1.2!important;font-weight:700!important;text-overflow:ellipsis;white-space:nowrap}.rlwin-person small{display:block;margin-top:4px;overflow:hidden;color:#9da69b!important;font-size:10px!important;line-height:1.2!important;text-overflow:ellipsis;white-space:nowrap}.rlwin-person small i{color:var(--lime)!important;font-style:normal}
@@ -4328,6 +5119,23 @@ final class RaffleLB_Draw_Engine {
             .rlwin-card-body{grid-column:2;grid-row:1;padding:34px 12px 8px!important;min-width:0}.rlwin-card h3{margin:0 0 6px!important;font-size:16px!important;line-height:1.2!important;max-width:none!important;overflow:visible!important;text-overflow:clip!important;white-space:normal!important;overflow-wrap:anywhere;word-break:normal}.rlwin-person{gap:7px;margin-bottom:6px!important}.rlwin-avatar{width:28px;height:28px;flex-basis:28px;font-size:10px!important}.rlwin-person strong{font-size:14px!important}.rlwin-person small{margin-top:1px;font-size:11px!important}
             .rlwin-result-meta{display:flex;flex-direction:column;gap:2px;margin:0;padding-top:6px}.rlwin-result-meta span{display:flex;font-size:11px!important;line-height:1.25!important}.rlwin-result-meta strong{display:inline;margin:0;white-space:nowrap}.rlwin-details{position:absolute;right:10px;bottom:0;left:10px;width:auto!important;min-height:42px;font-size:13px!important;white-space:nowrap}
         }
+        /* v0.34.18.38: premium hero balance and pure-black featured product stage. */
+        .rlwin-hero-inner{grid-template-columns:minmax(380px,.92fr) minmax(520px,1.08fr);gap:64px;max-width:1540px;padding-top:54px;padding-bottom:54px}
+        .rlwin-intro{max-width:540px}.rlwin-intro h1{font-size:clamp(48px,4.1vw,68px)!important;font-weight:800!important;letter-spacing:-.035em!important}.rlwin-lede{max-width:500px;margin:18px 0 0!important;color:#b8c0b5!important;line-height:1.65!important}
+        .rlwin-hero-stats{display:flex;align-items:stretch;gap:0;width:min(100%,470px);margin:28px 0 24px;padding:16px 0;border-top:1px solid rgba(255,255,255,.11);border-bottom:1px solid rgba(255,255,255,.11)}
+        .rlwin-hero-stats>div{display:flex;min-width:0;flex:1;flex-direction:column;gap:5px;padding:0 20px}.rlwin-hero-stats>div:first-child{padding-left:0}.rlwin-hero-stats>div+div{border-left:1px solid rgba(255,255,255,.11)}
+        .rlwin-hero-stats strong{color:var(--lime)!important;font-size:21px!important;font-weight:800!important;line-height:1!important;letter-spacing:-.01em!important}.rlwin-hero-stats span{color:#aeb7ab!important;font-size:11px!important;font-weight:700!important;line-height:1.3!important;letter-spacing:.075em!important;text-transform:uppercase}
+        .rlwin-play{min-height:48px;border-radius:10px;font-size:13px!important;letter-spacing:.025em!important}
+        .rlwin-spotlight{display:grid;grid-template-columns:minmax(240px,.88fr) minmax(300px,1.12fr);min-height:360px;border-radius:18px;background:#0c100c}
+        .rlwin-spotlight-media{height:auto;min-height:360px;padding:30px!important;background:#000!important}
+        .rlwin-spotlight-media img{width:100%!important;height:100%!important;max-width:360px!important;max-height:300px!important;padding:0!important;object-fit:contain!important;object-position:center center!important}
+        .rlwin-spotlight-body{display:flex;min-width:0;flex-direction:column;justify-content:center;padding:58px 34px 30px!important}
+        .rlwin-spotlight-facts{display:grid;gap:17px}.rlwin-spotlight-facts>div>span{display:block;margin-bottom:5px;color:#929b90!important;font-size:10px!important;font-weight:800!important;line-height:1.2!important;letter-spacing:.1em!important;text-transform:uppercase}
+        .rlwin-spotlight-facts strong{color:#d8ded5!important;font-size:13px!important;font-weight:700!important;line-height:1.3!important}.rlwin-spotlight-facts h2{overflow-wrap:anywhere}.rlwin-spotlight-facts p{margin:0!important;color:#c0c7bd!important;font-size:15px!important;font-weight:600!important;line-height:1.4!important;overflow-wrap:anywhere}
+        .rlwin-spotlight-stub{margin-top:20px}.rlwin-spotlight-stub:before,.rlwin-spotlight-stub:after{display:none}
+        @media(max-width:1080px){.rlwin-hero-inner{grid-template-columns:1fr;max-width:720px;gap:34px}.rlwin-intro{max-width:620px}.rlwin-spotlight{max-width:none}}
+        @media(max-width:767px){.rlwin-hero-inner{gap:28px;padding:34px 15px 32px}.rlwin-intro h1{font-size:clamp(38px,11vw,44px)!important;line-height:1.02!important}.rlwin-lede{font-size:14px!important}.rlwin-hero-stats{margin:24px 0 20px}.rlwin-hero-stats>div{padding:0 13px}.rlwin-hero-stats strong{font-size:18px!important}.rlwin-hero-stats span{font-size:9px!important}.rlwin-play{min-height:48px}.rlwin-spotlight{display:grid;grid-template-columns:38% minmax(0,62%);grid-template-rows:1fr;width:100%;height:auto;min-height:218px}.rlwin-spotlight-media{grid-column:1;grid-row:1;min-height:218px;padding:18px 10px!important;background:#000!important}.rlwin-spotlight-media img{width:100%!important;height:100%!important;max-width:150px!important;max-height:170px!important}.rlwin-spotlight-tag{top:14px;left:calc(38% + 14px);font-size:9px!important}.rlwin-spotlight-body{grid-column:2;grid-row:1;padding:50px 14px 14px!important}.rlwin-spotlight-facts{gap:10px}.rlwin-spotlight-facts>div>span{margin-bottom:3px;font-size:8px!important}.rlwin-spotlight-facts strong{font-size:11px!important}.rlwin-spotlight-facts h2{font-size:20px!important;line-height:1.12!important}.rlwin-spotlight-facts p{font-size:12px!important;line-height:1.3!important}.rlwin-spotlight-stub{margin-top:11px;padding-top:10px}.rlwin-spotlight-stub span{font-size:9px!important}.rlwin-spotlight-stub strong{font-size:15px!important}}
+        @media(max-width:390px){.rlwin-hero-stats span{letter-spacing:.045em!important}.rlwin-spotlight{grid-template-columns:36% minmax(0,64%)}.rlwin-spotlight-tag{left:calc(36% + 12px)}.rlwin-spotlight-body{padding-right:12px!important;padding-left:12px!important}}
         </style>
 
         <?php if ($count): ?>
@@ -4367,7 +5175,7 @@ final class RaffleLB_Draw_Engine {
                     <p>Every completed RaffleLB draw is recorded transparently with the winner, winning entry and draw details.</p>
 
                     <div class="rafflelb-winners-stats">
-                        <div><strong><?php echo esc_html($count); ?></strong><span>COMPLETED DRAWS</span></div>
+                        <div><strong><?php echo esc_html($count); ?></strong><span>COMPLETED SELECTIONS</span></div>
                         <div><strong><?php echo esc_html($count); ?></strong><span>WINNERS RECORDED</span></div>
                         <div><strong>100%</strong><span>RESULTS TRACKED</span></div>
                     </div>
@@ -4383,7 +5191,7 @@ final class RaffleLB_Draw_Engine {
 
                 <?php if (!$results): ?>
                     <div class="rafflelb-winners-empty">
-                        <strong>No completed draws yet.</strong>
+                        <strong>No completed selections yet.</strong>
                         <span>Completed RaffleLB winners will appear here automatically.</span>
                     </div>
                 <?php else: ?>
@@ -4394,8 +5202,8 @@ final class RaffleLB_Draw_Engine {
                             $winner_name = self::winner_masked_name($result);
                             $entry = '#' . str_pad((string)absint($result->entry_number), 3, '0', STR_PAD_LEFT);
                             $method = (!empty($result->selection_method) && $result->selection_method === 'manual')
-                                ? 'Manual / External Result'
-                                : 'Secure Random Draw';
+                                ? 'Official Selection'
+                                : 'Secure Random Selection';
                             $image = $product ? wp_get_attachment_image_url($product->get_image_id(), 'large') : '';
                             $url = get_permalink($pid);
                         ?>
@@ -4410,7 +5218,7 @@ final class RaffleLB_Draw_Engine {
 
                             <div class="rafflelb-winner-card-body">
                                 <div class="rafflelb-winner-card-top">
-                                    <span>DRAW COMPLETE</span>
+                                    <span>SELECTION COMPLETE</span>
                                     <small><?php echo esc_html(mysql2date('M j, Y', $result->selected_at)); ?></small>
                                 </div>
 
@@ -7474,7 +8282,7 @@ final class RaffleLB_Draw_Engine {
                 <div class="rafflelb-live-panel" style="--rl-progress:100%;">
                   <div class="rlp-top">
                     <span class="rlp-status">🏆 WINNER SELECTED</span>
-                    <span class="rlp-percent">DRAW COMPLETE</span>
+                    <span class="rlp-percent">SELECTION COMPLETE</span>
                   </div>
                   <div class="rlp-winner-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:18px 0 14px">
                     <div class="rlp-winner-box">
@@ -7603,7 +8411,7 @@ final class RaffleLB_Draw_Engine {
 
         ob_start(); ?>
         <div class="rafflelb-live-panel" style="--rl-progress:<?php echo esc_attr($s['percent']); ?>%;">
-          <div class="rlp-top"><span class="rlp-status"><i></i><?php echo (in_array($s['status'],['ready_to_draw','winner_selected'],true) || $s['left']<=0)?'DRAW CLOSED':'LIVE NOW'; ?></span><span class="rlp-percent"><?php echo esc_html($s['percent']); ?>% CLAIMED</span></div>
+          <div class="rlp-top"><span class="rlp-status"><i></i><?php echo (in_array($s['status'],['ready_to_draw','winner_selected'],true) || $s['left']<=0)?'RAFFLE CLOSED':'LIVE NOW'; ?></span><span class="rlp-percent"><?php echo esc_html($s['percent']); ?>% CLAIMED</span></div>
           <div class="rlp-counts"><div><strong><?php echo esc_html($s['claimed']); ?></strong><span>ENTRIES CLAIMED</span></div><div class="rlp-right"><strong><?php echo esc_html($s['available']); ?></strong><span>AVAILABLE NOW</span></div></div>
           <div class="rlp-bar"><span></span></div>
           <div class="rlp-foot"><span><?php echo esc_html($s['left']); ?> left total</span><strong><?php echo esc_html($s['total']); ?> TOTAL ENTRIES</strong></div>

@@ -1,5 +1,10 @@
 RAFFLELB PREMIUM MOBILE MENU
-Version 1.1.7
+Version 1.1.8
+
+1.1.8
+- Premium typography pass using the RaffleLB Design System Manrope variable.
+- Main drawer labels use 16px/700 with clean tracking; referral supporting text is now at least 11px and higher contrast.
+- Drawer geometry, icons, link order/destinations, logo, animation, overlay, scrolling, body lock, account/cart behavior, and JavaScript are unchanged.
 
 1.1.7
 
@@ -41,3 +46,8 @@ Appearance > RaffleLB Mobile Menu
 ROLLBACK
 
 Deactivate this plugin. The original Woodmart mobile menu will immediately be used again.
+
+Version 1.1.9
+- Adds Selection Engine to the premium mobile navigation after Winners.
+- Links to /selection-engine/ and highlights the item on both the Selection Engine hub and individual /selection/{slug}/ status pages.
+- Adds a matching line-style Selection Engine icon.

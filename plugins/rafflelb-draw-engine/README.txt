@@ -1,3 +1,45 @@
+v0.34.18.45 — Split early-close outcomes
+
+- Adds a durable early-close mode while preserving the existing authoritative locked-pool snapshot and internal ready-to-draw compatibility state.
+- `Close Early & Proceed to Selection` locks the current eligible pool, issues no Raffle Points refund, and permits the existing Selection flow on that locked pool.
+- `Cancel Raffle & Refund Participants` locks the record, keeps winner selection blocked, and runs the existing idempotent Points-refund workflow.
+- The public closure bridge exposes only `selection` or `cancel_refund`, the sanitized public note, and a privacy-safe refund status; internal reason/admin/refund details remain private.
+- A raffle's early-close outcome cannot be changed after closure.
+- Adds `EARLY_CLOSE_MODE_VERSION = 1` so admin clients can safely detect the split-mode capability during upgrades.
+
+v0.34.18.44 — Privacy-safe public refund status
+
+- Adds only `complete` or `processing` to the public early-closure bridge; private failure and attention states remain internal.
+- Marks new or retried refunds as processing before the existing idempotent refund pass and complete only after success.
+- Keeps the approved locked-pool calculations, complimentary exclusion, and idempotency behavior unchanged.
+
+v0.34.18.43 — Public early-close record and idempotent Points refunds
+
+- Requires separate internal and public notes for new explicit early closures.
+- Exposes only a sanitized public closure note through the read-only Selection bridge.
+- Refunds each authoritative locked paid-entry value through Referral & Points; zero-value and complimentary lines are excluded.
+- Replays and admin retries are safe because each raffle/order refund uses a durable idempotency key.
+
+v0.34.18.42 — Immutable locked-pool revisions and read-only Selection bridge
+
+- Captures every new full or early closure as an immutable `locked_pool` revision in the existing entry-history table while holding the established per-raffle advisory lock.
+- Random and manual selection use the active validated revision; legacy raffles with no snapshot retain the 0.34.18.41 selection fallback.
+- Post-lock voids create a new active revision when the raffle remains early-closed; full raffles preserve their existing reopen behavior and create a fresh revision on their next closure.
+- Adds one privacy-minimal read-only bridge returning only formatted entry number, server-masked participant name, locked count, revision/timestamp, and winning boolean.
+- No schema migration; entry creation, capacity, checkout, result rows, hooks, and internal compatibility VERSION 0.34.18 remain unchanged.
+
+v0.34.18.40 — Per-raffle allocation/early-close mutex
+
+- Paid entry allocation and administrative early close now share a bounded, per-raffle MySQL/MariaDB advisory lock, making the frozen early-close snapshot deterministic under concurrent requests.
+- Allocation rechecks closed state, order-item idempotency, and active capacity while holding the lock; lock failure creates no entry and leaves a private manual-review order note.
+- No schema migration; internal compatibility VERSION remains 0.34.18 and winner selection, hooks, frontend assets, holds, and result contracts are unchanged.
+
+v0.34.18.39 — Early-close paid-entry integrity guard
+
+- Paid-order entry generation now rejects early-closed, ready-to-draw, winner-selected, and permanently resulted raffles before allocation, with a second guard immediately before each authoritative entry insert.
+- Late-paid orders are preserved and receive a private WooCommerce order note; no entry is created and the frozen eligible pool is not expanded.
+- Existing early close, full-capacity closure, entry idempotency/capacity, random/manual winner selection, hooks, tables, and internal schema compatibility VERSION 0.34.18 are unchanged.
+
 v0.34.18.37 — Fulfillment status event bridge
 
 - Prize fulfillment storage remains owned exclusively by Draw Engine; existing pending/contacted/claimed/fulfilled states, notes, timestamps, order notes, and result-table columns are unchanged.
@@ -631,3 +673,9 @@ v0.34.18.36 — Winners mobile product titles
 - Mobile All Winners cards now show the complete product name instead of truncating it with an ellipsis.
 - Long names wrap naturally; the compact horizontal card grows only as much as needed to preserve the full title.
 - No draw, entry, order, notification, schema, or winner-selection logic changed.
+v0.34.18.38 — Winners hero presentation refinement
+- Rebalanced the public Winners hero, replaced the single tally line with a compact summary using the existing result count, and preserved the established raffle CTA destination.
+- Reworked only the Most Recent Win presentation hierarchy while retaining the same latest result, masked winner name, prize, draw date, ticket, and product link.
+- Set the featured product image stage to pure black (#000000) with centered contain sizing and protected safe space; no product media is cropped.
+- Adopted the active RaffleLB Design System Manrope token for Winners-owned typography.
+- Draw selection, entries, holds, fulfillment, database schema, AJAX filters, and schema compatibility remain unchanged.

@@ -167,9 +167,14 @@ final class RaffleLB_Admin_Navigation {
         return array(
             'raffles' => self::find_destination(array('Raffles', 'All Raffles')) ?: 'admin.php?page=rafflelb-raffles',
             'orders' => self::find_destination(array('Orders'), $woo) ?: 'admin.php?page=wc-orders',
+            // Private pilot payment bridge. Its page is owned by the Whish Bridge plugin.
+            'whish_bridge' => class_exists('RLB_Whish_Admin') ? 'admin.php?page=rlb-whish-bridge' : '',
             // Product Studio is optional. Keep the established WooCommerce route
             // when its owning plugin is inactive so navigation never fatals.
             'products' => class_exists('RaffleLB_Products') ? 'admin.php?page=rafflelb-products' : 'edit.php?post_type=product',
+            // Owned by RaffleLB Shop. The page itself is hidden from Advanced Mode;
+            // the simplified RaffleLB Mode menu exposes it here.
+            'store_banners' => class_exists('RaffleLB_Shop') ? 'admin.php?page=rafflelb-shop-banners' : '',
             'cart_manager' => self::find_destination(array('Cart Manager', 'RaffleLB Cart Manager')) ?: 'admin.php?page=rafflelb-cart-manager',
             'customers' => 'users.php',
             'reviews' => self::find_destination(array('RaffleLB Reviews', 'Product Reviews', 'Reviews'), $woo) ?: 'edit.php?post_type=product&page=product-reviews',
@@ -212,7 +217,9 @@ final class RaffleLB_Admin_Navigation {
         self::add_link(__('Dashboard', 'rafflelb-admin'), 'index.php?page=' . self::ROOT_SLUG);
         self::add_link(__('Raffles', 'rafflelb-admin'), $dest['raffles']);
         self::add_link(__('Orders', 'rafflelb-admin'), $dest['orders']);
+        self::add_link(__('Whish Bridge', 'rafflelb-admin'), $dest['whish_bridge']);
         self::add_link(__('Products', 'rafflelb-admin'), $dest['products']);
+        self::add_link(__('Store Banners', 'rafflelb-admin'), $dest['store_banners']);
         self::add_link(__('Cart Manager', 'rafflelb-admin'), $dest['cart_manager']);
         self::add_link(__('Customers', 'rafflelb-admin'), $dest['customers']);
         self::add_link(__('Reviews', 'rafflelb-admin'), $dest['reviews']);

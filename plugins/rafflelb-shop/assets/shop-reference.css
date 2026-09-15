@@ -35,12 +35,14 @@ body.rafflelb-raffle-archive.rl-store-reference .rl-raffle-card :is(.wd-product-
 body.rafflelb-raffle-archive.rl-store-reference .rl-raffle-card :is(.wd-product-cats,.product-categories) a{font-size:inherit!important;color:inherit!important}
 body.rafflelb-raffle-archive.rl-store-reference .rl-raffle-card :is(.wd-entities-title,.product-title,h3){grid-column:2!important;grid-row:2!important;font-size:14px!important;line-height:1.35!important;font-weight:700!important;text-align:left!important;min-height:0!important;height:auto!important;max-height:none!important;margin:0!important;display:block!important;overflow:visible!important;-webkit-line-clamp:unset!important}
 body.rafflelb-raffle-archive.rl-store-reference .rl-raffle-card :is(.wd-entities-title,.product-title,h3) a{color:#f5f7f2!important;display:block!important;text-align:left!important;overflow:visible!important;-webkit-line-clamp:unset!important}
-body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices{grid-column:2!important;grid-row:3!important;display:grid!important;grid-template-columns:1fr 1fr!important;gap:7px!important;margin:0!important;padding:0!important;border:0!important;background:none!important}
-body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices>div{min-width:0!important;padding:9px 8px!important;border:1px solid #2e382d!important;border-radius:8px!important;background:#0c130e!important}
-body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices small{display:block!important;color:#a6afa0!important;font-size:9px!important;line-height:1.3!important;margin-bottom:4px!important}
-body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices strong,body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices strong *{font-size:18px!important;line-height:1.2!important;letter-spacing:-.025em!important}
-body.rafflelb-raffle-archive.rl-store-reference .rl-shop-price-raffle strong,body.rafflelb-raffle-archive.rl-store-reference .rl-shop-price-raffle strong *{color:#baff00!important;font-size:17px!important}
-body.rafflelb-raffle-archive.rl-store-reference .rl-shop-price-raffle em{font-size:9px!important;font-style:normal!important}
+/* Solo-price defaults. Store + Raffle dual pricing is defined once in the
+   versioned component at the end of this file. */
+body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices:not(.is-dual-price){grid-column:2!important;grid-row:3!important;display:grid!important;grid-template-columns:1fr!important;gap:7px!important;margin:0!important;padding:0!important;border:0!important;background:none!important}
+body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices:not(.is-dual-price)>div{min-width:0!important;padding:9px 8px!important;border:1px solid #2e382d!important;border-radius:8px!important;background:#0c130e!important}
+body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices:not(.is-dual-price) small{display:block!important;color:#a6afa0!important;font-size:9px!important;line-height:1.3!important;margin-bottom:4px!important}
+body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices:not(.is-dual-price) strong,body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices:not(.is-dual-price) strong *{font-size:18px!important;line-height:1.2!important;letter-spacing:-.025em!important}
+body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices:not(.is-dual-price) .rl-shop-price-raffle strong,body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices:not(.is-dual-price) .rl-shop-price-raffle strong *{color:#baff00!important;font-size:17px!important}
+body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices:not(.is-dual-price) .rl-shop-price-raffle em{font-size:9px!important;font-style:normal!important}
 body.rafflelb-raffle-archive.rl-store-reference .rl-shop-raffle-box{grid-column:2!important;grid-row:4!important;align-self:end!important;padding:8px!important;margin:0!important;border:1px solid #263621!important;border-radius:8px!important;background:#0c150b!important}
 body.rafflelb-raffle-archive.rl-store-reference .rl-shop-raffle-line{gap:5px!important;flex-wrap:wrap!important}
 body.rafflelb-raffle-archive.rl-store-reference .rl-shop-raffle-live,body.rafflelb-raffle-archive.rl-store-reference .rl-shop-raffle-line strong,body.rafflelb-raffle-archive.rl-store-reference .rl-shop-raffle-line strong *{font-size:8px!important;line-height:1.3!important}
@@ -60,7 +62,7 @@ body.rafflelb-raffle-archive.rl-store-reference .rl-shop-enter.is-muted{border-c
 body.rafflelb-raffle-archive.rl-store-reference .rl-shop-enter.is-muted span{color:#adb5a7!important}
 body.rafflelb-raffle-archive.rl-store-reference a:focus-visible,body.rafflelb-raffle-archive.rl-store-reference button:focus-visible,body.rafflelb-raffle-archive.rl-store-reference select:focus-visible{outline:2px solid #baff00!important;outline-offset:3px!important}
 @media(max-width:1199px){body.rafflelb-raffle-archive.rl-store-reference .products{grid-template-columns:repeat(2,minmax(0,1fr))!important}body.rafflelb-raffle-archive.rl-store-reference .rl-shop-assurances{display:none!important}body.rafflelb-raffle-archive.rl-store-reference .rl-shop-toolbar-spacer{flex:1 1 100%!important}body.rafflelb-raffle-archive.rl-store-reference .rl-shop-toolbar-divider{display:none!important}body.rafflelb-raffle-archive.rl-store-reference .rl-shop-toolbar{justify-content:space-between!important}}
-@media(max-width:640px){body.rafflelb-raffle-archive.rl-store-reference .products{grid-template-columns:1fr!important;gap:12px!important}body.rafflelb-raffle-archive.rl-store-reference .rl-shop-hero{padding:22px 4px!important}body.rafflelb-raffle-archive.rl-store-reference .rl-shop-title-row h1{font-size:44px!important}body.rafflelb-raffle-archive.rl-store-reference .rl-shop-toolbar{padding:14px!important;gap:14px!important}body.rafflelb-raffle-archive.rl-store-reference .rl-shop-mode-block{width:100%!important}body.rafflelb-raffle-archive.rl-store-reference .rl-shop-view-modes{gap:6px!important}body.rafflelb-raffle-archive.rl-store-reference .rl-shop-view-mode{flex:1!important;padding:10px 5px!important;font-size:9px!important;text-align:center!important}body.rafflelb-raffle-archive.rl-store-reference .rl-shop-toolbar-actions{width:100%!important}body.rafflelb-raffle-archive.rl-store-reference .rl-shop-sort{flex:1!important;min-width:0!important}body.rafflelb-raffle-archive.rl-store-reference .rl-shop-sort select{width:100%!important}body.rafflelb-raffle-archive.rl-store-reference .rl-raffle-card .product-element-top{min-height:190px!important}body.rafflelb-raffle-archive.rl-store-reference .rl-raffle-card .product-wrapper{gap:8px 10px!important;padding:10px!important}body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices strong,body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices strong *{font-size:16px!important}body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices small{font-size:8px!important}body.rafflelb-raffle-archive.rl-store-reference .rl-shop-enter-label,body.rafflelb-raffle-archive.rl-store-reference .rl-shop-enter-price,body.rafflelb-raffle-archive.rl-store-reference .rl-shop-enter-price *{font-size:9px!important}}
+@media(max-width:640px){body.rafflelb-raffle-archive.rl-store-reference .products{grid-template-columns:1fr!important;gap:12px!important}body.rafflelb-raffle-archive.rl-store-reference .rl-shop-hero{padding:22px 4px!important}body.rafflelb-raffle-archive.rl-store-reference .rl-shop-title-row h1{font-size:44px!important}body.rafflelb-raffle-archive.rl-store-reference .rl-shop-toolbar{padding:14px!important;gap:14px!important}body.rafflelb-raffle-archive.rl-store-reference .rl-shop-mode-block{width:100%!important}body.rafflelb-raffle-archive.rl-store-reference .rl-shop-view-modes{gap:6px!important}body.rafflelb-raffle-archive.rl-store-reference .rl-shop-view-mode{flex:1!important;padding:10px 5px!important;font-size:9px!important;text-align:center!important}body.rafflelb-raffle-archive.rl-store-reference .rl-shop-toolbar-actions{width:100%!important}body.rafflelb-raffle-archive.rl-store-reference .rl-shop-sort{flex:1!important;min-width:0!important}body.rafflelb-raffle-archive.rl-store-reference .rl-shop-sort select{width:100%!important}body.rafflelb-raffle-archive.rl-store-reference .rl-raffle-card .product-element-top{min-height:190px!important}body.rafflelb-raffle-archive.rl-store-reference .rl-raffle-card .product-wrapper{gap:8px 10px!important;padding:10px!important}body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices:not(.is-dual-price) strong,body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices:not(.is-dual-price) strong *{font-size:16px!important}body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices:not(.is-dual-price) small{font-size:8px!important}body.rafflelb-raffle-archive.rl-store-reference .rl-shop-enter-label,body.rafflelb-raffle-archive.rl-store-reference .rl-shop-enter-price,body.rafflelb-raffle-archive.rl-store-reference .rl-shop-enter-price *{font-size:9px!important}}
 @media(prefers-reduced-motion:reduce){body.rafflelb-raffle-archive.rl-store-reference .rl-raffle-card *{transition:none!important}}
 
 body.rafflelb-raffle-archive.rl-store-reference .rl-raffle-card .price,body.rafflelb-raffle-archive.rl-store-reference .rl-raffle-card .wrap-price{display:contents!important}
@@ -68,18 +70,18 @@ body.rafflelb-raffle-archive.rl-store-reference .rl-raffle-card .product-wrapper
 body.rafflelb-raffle-archive.rl-store-reference .rl-shop-mode-block{display:flex!important;flex-direction:column!important;align-items:center!important;gap:8px!important}
 body.rafflelb-raffle-archive.rl-store-reference .rl-shop-mode-eyebrow{display:block!important;margin:0!important}
 body.rafflelb-raffle-archive.rl-store-reference .rl-shop-enter:not(.is-muted){display:flex!important;flex-direction:column!important;gap:2px!important;line-height:1.15!important}
-body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices>div{text-align:left!important}
+body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices:not(.is-dual-price)>div{text-align:left!important}
 body.rafflelb-raffle-archive.rl-store-reference .rl-shop-hero::after{display:none!important}
 body.rafflelb-raffle-archive.rl-store-reference .rl-shop-title-row{gap:24px!important}
 body.rafflelb-raffle-archive.rl-store-reference .rl-shop-assurances{flex-shrink:0!important;overflow:visible!important}
 body.rafflelb-raffle-archive.rl-store-reference .rl-shop-assurances span{white-space:normal!important;flex:1!important}
 body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices.is-raffle-only,body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices.is-retail-only{grid-template-columns:1fr!important}
-@media(max-width:400px){body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices>div{padding:8px 5px!important}body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices strong,body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices strong *{font-size:14px!important;white-space:nowrap!important}body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices small{letter-spacing:0!important}}
-@media(max-width:350px){body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices{grid-template-columns:1fr!important}}
+@media(max-width:400px){body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices:not(.is-dual-price)>div{padding:8px 5px!important}body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices:not(.is-dual-price) strong,body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices:not(.is-dual-price) strong *{font-size:14px!important;white-space:nowrap!important}body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices:not(.is-dual-price) small{letter-spacing:0!important}}
+@media(max-width:350px){body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices:not(.is-dual-price){grid-template-columns:1fr!important}}
 
 /* v0.34.18: plain readable product typography and aligned mobile controls. */
 body.rafflelb-raffle-archive.rl-store-reference .rl-raffle-card,body.rafflelb-raffle-archive.rl-store-reference .rl-raffle-card *{
-  font-family:Arial,Helvetica,sans-serif!important;
+  font-family:var(--rl-font,"Manrope",sans-serif)!important;
   text-shadow:none!important;
   -webkit-text-stroke:0!important;
   -webkit-text-fill-color:currentColor!important;
@@ -90,9 +92,9 @@ body.rafflelb-raffle-archive.rl-store-reference .rl-raffle-card,body.rafflelb-ra
 }
 body.rafflelb-raffle-archive.rl-store-reference .rl-raffle-card :is(.wd-entities-title,.product-title,h3),body.rafflelb-raffle-archive.rl-store-reference .rl-raffle-card :is(.wd-entities-title,.product-title,h3) a{font-size:16px!important;font-weight:600!important;line-height:1.4!important;color:#f5f7f2!important;opacity:1!important}
 body.rafflelb-raffle-archive.rl-store-reference .rl-raffle-card :is(.wd-product-cats,.product-categories),body.rafflelb-raffle-archive.rl-store-reference .rl-raffle-card :is(.wd-product-cats,.product-categories) a{font-size:11px!important;font-weight:500!important;line-height:1.4!important;color:#bac4b4!important;opacity:1!important}
-body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices small{font-size:11px!important;font-weight:500!important;line-height:1.35!important;color:#c5cebf!important}
-body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices strong,body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices strong *{font-size:20px!important;font-weight:700!important;line-height:1.25!important}
-body.rafflelb-raffle-archive.rl-store-reference .rl-shop-price-raffle em{font-size:11px!important;font-weight:400!important;color:#c5cebf!important}
+body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices:not(.is-dual-price) small{font-size:11px!important;font-weight:500!important;line-height:1.35!important;color:#c5cebf!important}
+body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices:not(.is-dual-price) strong,body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices:not(.is-dual-price) strong *{font-size:20px!important;font-weight:700!important;line-height:1.25!important}
+body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices:not(.is-dual-price) .rl-shop-price-raffle em{font-size:11px!important;font-weight:400!important;color:#c5cebf!important}
 body.rafflelb-raffle-archive.rl-store-reference .rl-shop-raffle-live,body.rafflelb-raffle-archive.rl-store-reference .rl-shop-raffle-line strong,body.rafflelb-raffle-archive.rl-store-reference .rl-shop-raffle-line strong *{font-size:10px!important;font-weight:600!important;line-height:1.4!important}
 body.rafflelb-raffle-archive.rl-store-reference .rl-shop-raffle-meta,body.rafflelb-raffle-archive.rl-store-reference .rl-shop-raffle-meta *{font-size:10px!important;font-weight:500!important;line-height:1.4!important;color:#d2dacb!important}
 body.rafflelb-raffle-archive.rl-store-reference .rl-shop-raffle-line{row-gap:5px!important}
@@ -108,22 +110,22 @@ body.rafflelb-raffle-archive.rl-store-reference .rl-shop-filter-toggle,body.raff
  body.rafflelb-raffle-archive.rl-store-reference .rl-shop-toolbar-spacer:empty{display:none!important}
  body.rafflelb-raffle-archive.rl-store-reference .rl-shop-mode-block{width:100%!important;max-width:none!important;align-self:stretch!important;margin:0!important;padding:0!important}
  body.rafflelb-raffle-archive.rl-store-reference .rl-shop-view-modes{display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr))!important;width:100%!important;gap:6px!important;margin:0!important;padding:0!important}
- body.rafflelb-raffle-archive.rl-store-reference .rl-shop-view-mode{display:flex!important;align-items:center!important;justify-content:center!important;width:100%!important;min-width:0!important;max-width:none!important;min-height:46px!important;height:auto!important;margin:0!important;padding:10px 4px!important;text-align:center!important;font:600 11px/1.3 Arial,Helvetica,sans-serif!important;letter-spacing:0!important;text-shadow:none!important;transform:none!important;white-space:normal!important}
+ body.rafflelb-raffle-archive.rl-store-reference .rl-shop-view-mode{display:flex!important;align-items:center!important;justify-content:center!important;width:100%!important;min-width:0!important;max-width:none!important;min-height:46px!important;height:auto!important;margin:0!important;padding:10px 4px!important;text-align:center!important;font-family:var(--rl-font,"Manrope",sans-serif)!important;font-size:11px!important;font-weight:600!important;line-height:1.3!important;letter-spacing:0!important;text-shadow:none!important;transform:none!important;white-space:normal!important}
  body.rafflelb-raffle-archive.rl-store-reference .rl-shop-toolbar-actions{display:grid!important;grid-template-columns:minmax(0,1fr) minmax(0,1.5fr)!important;gap:10px!important;width:100%!important;align-items:stretch!important;margin:0!important;padding:0!important}
  body.rafflelb-raffle-archive.rl-store-reference .rl-shop-clear-filters{grid-column:1/-1!important}
  body.rafflelb-raffle-archive.rl-store-reference .rl-shop-filter-toggle{display:flex!important;align-items:center!important;justify-content:center!important;gap:8px!important;min-width:0!important;width:100%!important;padding:0 8px!important;font-size:12px!important}
  body.rafflelb-raffle-archive.rl-store-reference .rl-shop-sort{display:block!important;min-width:0!important;width:100%!important;height:46px!important;margin:0!important;padding:0!important}
  body.rafflelb-raffle-archive.rl-store-reference .rl-shop-sort .woocommerce-ordering select{width:100%!important;min-width:0!important;font-size:11px!important;padding:0 25px 0 10px!important;text-align:left!important}
- body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices strong,body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices strong *{font-size:17px!important}
- body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices small{font-size:10px!important}
+ body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices:not(.is-dual-price) strong,body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices:not(.is-dual-price) strong *{font-size:17px!important}
+ body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices:not(.is-dual-price) small{font-size:10px!important}
  body.rafflelb-raffle-archive.rl-store-reference .rl-shop-enter-label,body.rafflelb-raffle-archive.rl-store-reference .rl-shop-enter-price,body.rafflelb-raffle-archive.rl-store-reference .rl-shop-enter-price *{font-size:11px!important}
 }
-@media(max-width:400px){body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices strong,body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices strong *{font-size:15px!important}body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices small{font-size:9px!important}}
-body.rafflelb-raffle-archive.rl-store-reference .rl-raffle-card .product-wrapper *{font-family:Arial,Helvetica,sans-serif!important;text-shadow:none!important;-webkit-text-stroke:0!important;filter:none!important;letter-spacing:normal!important}
+@media(max-width:400px){body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices:not(.is-dual-price) strong,body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices:not(.is-dual-price) strong *{font-size:15px!important}body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices:not(.is-dual-price) small{font-size:9px!important}}
+body.rafflelb-raffle-archive.rl-store-reference .rl-raffle-card .product-wrapper *{font-family:var(--rl-font,"Manrope",sans-serif)!important;text-shadow:none!important;-webkit-text-stroke:0!important;filter:none!important;letter-spacing:normal!important}
 body.rafflelb-raffle-archive.rl-store-reference .rl-raffle-card .product-wrapper :is(.wd-entities-title,.product-title,h3) a{height:auto!important;max-height:none!important;min-height:0!important;white-space:normal!important;display:block!important}
 @media(max-width:767px){body.rafflelb-raffle-archive.rl-store-reference .rl-shop-view-mode{height:52px!important;min-height:52px!important;max-height:52px!important;align-self:stretch!important}}
-body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices strong{white-space:nowrap!important}
-@media(min-width:768px){body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices strong,body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices strong *{font-size:18px!important}}
+body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices:not(.is-dual-price) strong{white-space:nowrap!important}
+@media(min-width:768px){body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices:not(.is-dual-price) strong,body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices:not(.is-dual-price) strong *{font-size:18px!important}}
 
 /* RaffleLB Shop 0.1.1 — premium hierarchy + mobile-first card polish.
    Presentation only: shopping modes, filtering, purchase and raffle logic are unchanged. */
@@ -230,7 +232,6 @@ body.rafflelb-raffle-archive.rl-store-reference .rl-shop-sort .woocommerce-order
 /* Cards: quieter frame, stronger product hierarchy. */
 body.rafflelb-raffle-archive.rl-store-reference .products{gap:18px!important}
 body.rafflelb-raffle-archive.rl-store-reference .rl-raffle-card .product-wrapper{
-  grid-template-columns:minmax(0,43%) minmax(0,1fr)!important;
   gap:10px 13px!important;
   padding:13px!important;
   border-color:#273128!important;
@@ -259,26 +260,26 @@ body.rafflelb-raffle-archive.rl-store-reference .rl-raffle-card :is(.wd-entities
   font-weight:700!important;
   line-height:1.35!important;
 }
-body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices{gap:8px!important}
-body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices>div{
+body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices:not(.is-dual-price){gap:8px!important}
+body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices:not(.is-dual-price)>div{
   padding:10px 9px!important;
   border-color:#2a352b!important;
   border-radius:9px!important;
   background:#0b110d!important;
 }
-body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices small{
+body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices:not(.is-dual-price) small{
   color:#9da79a!important;
   font-size:9px!important;
   font-weight:600!important;
   text-transform:uppercase!important;
 }
-body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices strong,
-body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices strong *{
+body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices:not(.is-dual-price) strong,
+body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices:not(.is-dual-price) strong *{
   font-size:18px!important;
   font-weight:800!important;
 }
-body.rafflelb-raffle-archive.rl-store-reference .rl-shop-price-raffle strong,
-body.rafflelb-raffle-archive.rl-store-reference .rl-shop-price-raffle strong *{color:#baff00!important}
+body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices:not(.is-dual-price) .rl-shop-price-raffle strong,
+body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices:not(.is-dual-price) .rl-shop-price-raffle strong *{color:#baff00!important}
 body.rafflelb-raffle-archive.rl-store-reference .rl-shop-raffle-box{
   padding:9px 10px!important;
   border-color:#263428!important;
@@ -430,7 +431,7 @@ body.rafflelb-raffle-archive.rl-store-reference .rl-shop-enter:not(.is-muted):ho
     font-size:18px!important;
     line-height:1.32!important;
   }
-  body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices{
+  body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices:not(.is-dual-price){
     grid-column:1!important;
     grid-row:4!important;
     grid-template-columns:repeat(2,minmax(0,1fr))!important;
@@ -440,14 +441,14 @@ body.rafflelb-raffle-archive.rl-store-reference .rl-shop-enter:not(.is-muted):ho
   body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices.is-raffle-only{
     grid-template-columns:1fr!important;
   }
-  body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices>div{
+  body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices:not(.is-dual-price)>div{
     padding:10px!important;
   }
-  body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices small{
+  body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices:not(.is-dual-price) small{
     font-size:9px!important;
   }
-  body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices strong,
-  body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices strong *{
+  body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices:not(.is-dual-price) strong,
+  body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices:not(.is-dual-price) strong *{
     font-size:18px!important;
   }
   body.rafflelb-raffle-archive.rl-store-reference .rl-shop-raffle-box{
@@ -500,8 +501,8 @@ body.rafflelb-raffle-archive.rl-store-reference .rl-shop-enter:not(.is-muted):ho
   body.rafflelb-raffle-archive.rl-store-reference .rl-raffle-card .product-element-top{aspect-ratio:4/3!important}
   body.rafflelb-raffle-archive.rl-store-reference .rl-raffle-card :is(.wd-entities-title,.product-title,h3),
   body.rafflelb-raffle-archive.rl-store-reference .rl-raffle-card :is(.wd-entities-title,.product-title,h3) a{font-size:17px!important}
-  body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices strong,
-  body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices strong *{font-size:17px!important}
+  body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices:not(.is-dual-price) strong,
+  body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices:not(.is-dual-price) strong *{font-size:17px!important}
 }
 
 /* RaffleLB Shop 0.1.2 — mobile control alignment fixes.
@@ -685,5 +686,156 @@ body.rafflelb-raffle-archive.rl-store-reference .rl-shop-enter:not(.is-muted):ho
   }
   #rl-shop-controls .rl-shop-sort-trigger[aria-expanded="true"] .rl-shop-sort-caret{
     transform:translateY(-50%) rotate(180deg)!important;
+  }
+}
+
+
+/* 0.2.4 — public Selection Status action in dedicated RAFFLE ONLY cards */
+body.rafflelb-raffle-archive.rl-store-reference .rl-shop-actions-raffle .rl-shop-selection-status{display:flex!important;align-items:center!important;justify-content:center!important;gap:8px!important;width:100%!important;min-height:36px!important;box-sizing:border-box!important;margin:0!important;padding:7px 12px!important;border:1px solid #3d4935!important;border-radius:8px!important;background:#090d09!important;color:#baff00!important;text-decoration:none!important;font-size:10px!important;font-weight:750!important;letter-spacing:.045em!important;line-height:1.2!important;text-align:center!important}
+body.rafflelb-raffle-archive.rl-store-reference .rl-shop-actions-raffle .rl-shop-selection-status:hover,body.rafflelb-raffle-archive.rl-store-reference .rl-shop-actions-raffle .rl-shop-selection-status:focus{border-color:#baff00!important;background:#0d140a!important;color:#d3ff63!important;text-decoration:none!important}
+body.rafflelb-raffle-archive.rl-store-reference .rl-shop-actions-raffle .rl-shop-selection-status b{font-size:13px!important;font-weight:700!important;line-height:1!important}
+
+/* RaffleLB Shop 0.2.28 — restore the original 0.2.16 Store + Raffle card layout.
+   PRESENTATION ONLY. This intentionally restores only the approved Store + Raffle
+   product-card proportions and dual-price layout from the first plugin supplied in
+   this chat. Store Only / Raffle Only styling and all PHP/business logic stay on
+   the current 0.2.26 code path. */
+
+/* Original desktop/tablet Store + Raffle card proportions. */
+@media (min-width:768px){
+  body.rafflelb-raffle-archive.rl-store-reference.rl-shop-view-both .rl-raffle-card.rl-shop-card-both .product-wrapper{
+    grid-template-columns:minmax(0,43%) minmax(0,1fr)!important;
+    gap:10px 13px!important;
+    padding:13px!important;
+  }
+}
+
+/* Original dual-price row: two equal boxes, same visual treatment as 0.2.16. */
+body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices.is-dual-price{
+  grid-column:2!important;
+  grid-row:3!important;
+  display:grid!important;
+  grid-template-columns:repeat(2,minmax(0,1fr))!important;
+  gap:8px!important;
+  align-items:stretch!important;
+  min-width:0!important;
+  margin:0!important;
+  padding:0!important;
+  border:0!important;
+  background:none!important;
+}
+body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices.is-dual-price>div{
+  min-width:0!important;
+  padding:10px 9px!important;
+  border:1px solid #2a352b!important;
+  border-radius:9px!important;
+  background:#0b110d!important;
+  box-sizing:border-box!important;
+  text-align:left!important;
+  overflow:hidden!important;
+}
+body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices.is-dual-price small{
+  display:block!important;
+  margin:0 0 4px!important;
+  color:#9da79a!important;
+  font-size:9px!important;
+  font-weight:600!important;
+  line-height:1.3!important;
+  text-transform:uppercase!important;
+  white-space:nowrap!important;
+}
+body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices.is-dual-price .rl-shop-price-main strong,
+body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices.is-dual-price .rl-shop-price-main strong *,
+body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices.is-dual-price .rl-shop-price-main .woocommerce-Price-amount,
+body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices.is-dual-price .rl-shop-price-main bdi{
+  display:inline!important;
+  width:auto!important;
+  max-width:100%!important;
+  margin:0!important;
+  color:#f7faf5!important;
+  font-size:18px!important;
+  font-weight:800!important;
+  line-height:1.2!important;
+  letter-spacing:-.025em!important;
+  white-space:nowrap!important;
+}
+body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices.is-dual-price .woocommerce-Price-currencySymbol{
+  display:inline!important;
+  margin:0!important;
+  padding:0!important;
+  font-size:inherit!important;
+  line-height:inherit!important;
+  white-space:nowrap!important;
+}
+body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices.is-dual-price .rl-shop-price-raffle .rl-shop-entry-value{
+  display:flex!important;
+  align-items:baseline!important;
+  justify-content:flex-start!important;
+  flex-wrap:nowrap!important;
+  gap:4px!important;
+  width:100%!important;
+  min-width:0!important;
+  max-width:100%!important;
+  margin:0!important;
+  overflow:hidden!important;
+  white-space:nowrap!important;
+  direction:ltr!important;
+}
+body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices.is-dual-price .rl-shop-price-raffle .rl-shop-entry-value strong,
+body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices.is-dual-price .rl-shop-price-raffle .rl-shop-entry-value strong *{
+  flex:0 1 auto!important;
+  min-width:0!important;
+  margin:0!important;
+  padding:0!important;
+  color:#baff00!important;
+  font-size:18px!important;
+  font-weight:800!important;
+  line-height:1.2!important;
+  letter-spacing:-.025em!important;
+  white-space:nowrap!important;
+}
+body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices.is-dual-price .rl-shop-price-raffle .rl-shop-entry-value em{
+  flex:0 0 auto!important;
+  display:inline!important;
+  margin:0!important;
+  padding:0!important;
+  color:#c5cebf!important;
+  font-size:11px!important;
+  font-weight:400!important;
+  line-height:1.1!important;
+  font-style:normal!important;
+  white-space:nowrap!important;
+}
+
+/* Original 0.2.16 mobile placement. */
+@media (max-width:767px){
+  body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices.is-dual-price{
+    grid-column:1!important;
+    grid-row:4!important;
+    grid-template-columns:repeat(2,minmax(0,1fr))!important;
+    gap:8px!important;
+  }
+  body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices.is-dual-price>div{
+    padding:10px!important;
+  }
+  body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices.is-dual-price small{
+    font-size:9px!important;
+  }
+  body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices.is-dual-price .rl-shop-price-main strong,
+  body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices.is-dual-price .rl-shop-price-main strong *,
+  body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices.is-dual-price .rl-shop-price-raffle .rl-shop-entry-value strong,
+  body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices.is-dual-price .rl-shop-price-raffle .rl-shop-entry-value strong *{
+    font-size:18px!important;
+  }
+}
+@media (max-width:390px){
+  body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices.is-dual-price .rl-shop-price-main strong,
+  body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices.is-dual-price .rl-shop-price-main strong *,
+  body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices.is-dual-price .rl-shop-price-raffle .rl-shop-entry-value strong,
+  body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices.is-dual-price .rl-shop-price-raffle .rl-shop-entry-value strong *{
+    font-size:17px!important;
+  }
+  body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices.is-dual-price .rl-shop-price-raffle .rl-shop-entry-value em{
+    font-size:9px!important;
   }
 }

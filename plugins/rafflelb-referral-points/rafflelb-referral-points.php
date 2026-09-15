@@ -2,7 +2,7 @@
 /**
  * Plugin Name: RaffleLB Referral & Points
  * Description: Referral links, Raffle Points rewards, and a WooCommerce "Pay with Raffle Points" payment method for RaffleLB.
- * Version: 1.2.15
+ * Version: 1.2.18
  * Author: RaffleLB
  * Text Domain: rafflelb-referral-points
  */
@@ -10,7 +10,7 @@
 if (!defined('ABSPATH')) exit;
 
 final class RaffleLB_Referral_Points {
-    const VERSION = '1.2.15';
+    const VERSION = '1.2.18';
     const ENDPOINT = 'refer-and-earn';
     const COOKIE = 'rafflelb_ref';
     const OPT = 'rafflelb_referral_settings';
@@ -187,6 +187,129 @@ final class RaffleLB_Referral_Points {
         $settings = self::settings();
         $rate = max(0.01, (float) $settings['spend_points_per_dollar']);
         return (int) ceil(max(0, (float) $amount) * $rate);
+    }
+
+    /**
+     * Credit a monetary-value refund as Raffle Points exactly once.
+     *
+     * The caller supplies a stable, private idempotency key. A unique row in
+     * wp_options, the balance mutation, and the immutable ledger row are
+     * committed in one database transaction while a per-user advisory lock is
+     * held. Retrying the same key therefore returns the original record and
+     * cannot issue the credit twice.
+     */
+    public static function credit_refund($user_id, $amount, $idempotency_key, $description, $context = []) {
+        $user_id = absint($user_id);
+        $amount = max(0, (float) $amount);
+        $idempotency_key = sanitize_text_field((string) $idempotency_key);
+        $description = sanitize_text_field((string) $description);
+        $points = self::points_required_for_amount($amount);
+
+        if (!$user_id || !get_userdata($user_id)) {
+            return new WP_Error('rafflelb_points_invalid_user', __('A valid customer is required for this Points refund.', 'rafflelb-referral-points'));
+        }
+        if ($amount <= 0 || $points <= 0) {
+            return new WP_Error('rafflelb_points_zero_refund', __('The refundable paid amount must be greater than zero.', 'rafflelb-referral-points'));
+        }
+        if ($idempotency_key === '' || $description === '') {
+            return new WP_Error('rafflelb_points_invalid_refund', __('The refund key and ledger description are required.', 'rafflelb-referral-points'));
+        }
+
+        global $wpdb;
+        $marker_name = '_rafflelb_points_credit_' . hash('sha256', $idempotency_key);
+        $lock_name = 'rafflelb_points_user_' . $user_id;
+        $locked = (int) $wpdb->get_var($wpdb->prepare('SELECT GET_LOCK(%s, %d)', $lock_name, 5));
+        if ($locked !== 1) {
+            return new WP_Error('rafflelb_points_refund_lock', __('The Points account is busy. Please retry the refund.', 'rafflelb-referral-points'));
+        }
+
+        try {
+            $wpdb->query('START TRANSACTION');
+            $existing_value = $wpdb->get_var($wpdb->prepare(
+                "SELECT option_value FROM {$wpdb->options} WHERE option_name=%s LIMIT 1 FOR UPDATE",
+                $marker_name
+            ));
+            if ($existing_value !== null) {
+                $wpdb->query('COMMIT');
+                $existing = maybe_unserialize($existing_value);
+                return [
+                    'credited'  => false,
+                    'duplicate' => true,
+                    'points'    => absint(is_array($existing) ? ($existing['points'] ?? 0) : 0),
+                    'record'    => is_array($existing) ? $existing : [],
+                ];
+            }
+
+            $balance_row = $wpdb->get_row($wpdb->prepare(
+                "SELECT umeta_id, meta_value FROM {$wpdb->usermeta}
+                 WHERE user_id=%d AND meta_key=%s ORDER BY umeta_id ASC LIMIT 1 FOR UPDATE",
+                $user_id,
+                '_rafflelb_ref_points'
+            ));
+            $before = $balance_row ? max(0, (int) $balance_row->meta_value) : 0;
+            $after = $before + $points;
+
+            if ($balance_row) {
+                $balance_saved = $wpdb->query($wpdb->prepare(
+                    "UPDATE {$wpdb->usermeta} SET meta_value=%s WHERE user_id=%d AND meta_key=%s",
+                    (string) $after,
+                    $user_id,
+                    '_rafflelb_ref_points'
+                ));
+                $balance_saved = $balance_saved !== false;
+            } else {
+                $balance_saved = (bool) $wpdb->insert(
+                    $wpdb->usermeta,
+                    ['user_id' => $user_id, 'meta_key' => '_rafflelb_ref_points', 'meta_value' => (string) $after],
+                    ['%d', '%s', '%s']
+                );
+            }
+
+            $private_context = [];
+            foreach (['raffle_id', 'product_id', 'order_id'] as $key) {
+                if (isset($context[$key])) $private_context[$key] = absint($context[$key]);
+            }
+            $record = [
+                'version'     => 1,
+                'type'        => sanitize_key((string) ($context['type'] ?? 'refund')),
+                'points'      => $points,
+                'amount'      => wc_format_decimal($amount, function_exists('wc_get_price_decimals') ? wc_get_price_decimals() : 2),
+                'before'      => $before,
+                'after'       => $after,
+                'description' => $description,
+                'context'     => $private_context,
+                'created_at'  => current_time('mysql', true),
+            ];
+            $marker_saved = (bool) $wpdb->insert(
+                $wpdb->options,
+                ['option_name' => $marker_name, 'option_value' => maybe_serialize($record), 'autoload' => 'no'],
+                ['%s', '%s', '%s']
+            );
+            $ledger_saved = (bool) $wpdb->insert(
+                $wpdb->usermeta,
+                ['user_id' => $user_id, 'meta_key' => '_rafflelb_points_ledger_entry', 'meta_value' => maybe_serialize($record)],
+                ['%d', '%s', '%s']
+            );
+
+            if (!$balance_saved || !$marker_saved || !$ledger_saved) {
+                $wpdb->query('ROLLBACK');
+                return new WP_Error('rafflelb_points_refund_save', __('The Points refund could not be committed. No credit was issued.', 'rafflelb-referral-points'));
+            }
+
+            $wpdb->query('COMMIT');
+            clean_user_cache($user_id);
+            wp_cache_delete($marker_name, 'options');
+            do_action('rafflelb_points_refund_credited', $user_id, $points, $amount, $description, $private_context);
+
+            return [
+                'credited'  => true,
+                'duplicate' => false,
+                'points'    => $points,
+                'record'    => $record,
+            ];
+        } finally {
+            $wpdb->get_var($wpdb->prepare('SELECT RELEASE_LOCK(%s)', $lock_name));
+        }
     }
 
     public static function maybe_award_order_points($order_id) {
@@ -762,9 +885,20 @@ final class RaffleLB_Referral_Points {
             font-size:9px;font-weight:800;letter-spacing:.45px;opacity:.72;
         }
         @media(max-width:767px){
-            .rl-ref-float{left:14px;bottom:18px;min-height:46px;padding:5px 12px 5px 6px;gap:8px}
-            .rl-ref-float-icon{width:34px;height:34px;flex-basis:34px;font-size:14px}
-            .rl-ref-float-label{font-size:10px}
+            .rl-ref-float{
+                left:max(12px,env(safe-area-inset-left));
+                bottom:calc(18px + env(safe-area-inset-bottom));
+                width:132px;min-width:132px;max-width:132px;
+                height:44px;min-height:44px;max-height:44px;
+                padding:4px 10px 4px 4px;gap:7px;
+                justify-content:flex-start;
+                border-radius:999px;
+                box-sizing:border-box;
+                box-shadow:0 6px 18px rgba(0,0,0,.26);
+                pointer-events:auto;
+            }
+            .rl-ref-float-icon{width:34px;height:34px;flex:0 0 34px;font-size:15px}
+            .rl-ref-float-label{position:static!important;display:block!important;width:auto!important;height:auto!important;max-width:none!important;margin:0!important;padding:0!important;overflow:visible!important;clip:auto!important;clip-path:none!important;white-space:nowrap!important;color:#050605!important;-webkit-text-fill-color:#050605!important;font-size:10px!important;font-weight:900!important;line-height:1!important;letter-spacing:.25px!important}
             .rl-ref-float-label:after{display:none}
         }
         </style>';

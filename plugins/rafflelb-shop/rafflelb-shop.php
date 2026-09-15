@@ -2,14 +2,16 @@
 /**
  * Plugin Name: RaffleLB Shop
  * Description: Existing RaffleLB catalog and product presentation with reversible Draw Engine delegation.
- * Version: 0.1.94
+ * Version: 0.2.28
  * Author: RaffleLB
  * Requires PHP: 7.4
  */
 if (!defined('ABSPATH')) { exit; }
 require_once plugin_dir_path(__FILE__) . 'includes/class-rafflelb-store-only-renderer.php';
 final class RaffleLB_Shop {
-    const VERSION = '0.1.94';
+    const VERSION = '0.2.28';
+    private static $selection_entry_form_context = false;
+    private static $public_banners_rendered = false;
     public static function ready() {
         return class_exists('RaffleLB\\Core\\Contracts')
             && version_compare(\RaffleLB\Core\Contracts::VERSION, '0.1.0', '>=')
@@ -30,6 +32,16 @@ final class RaffleLB_Shop {
         }
         return wp_login_url($return_url ?: home_url('/'));
     }
+    private static function selection_status_url($product) {
+        $product = $product instanceof WC_Product ? $product : wc_get_product(absint($product));
+        if (!$product) return '';
+        if (class_exists('RaffleLB_Selection_Adapter') && method_exists('RaffleLB_Selection_Adapter', 'selection_url')) {
+            return (string) RaffleLB_Selection_Adapter::selection_url($product);
+        }
+        $slug = $product->get_slug();
+        return $slug !== '' ? home_url('/selection/' . rawurlencode($slug) . '/') : '';
+    }
+
     public static function shop_footer_widget_repair() {
         if (is_admin()) return;
         if (!function_exists('is_shop') || !is_shop()) return;
@@ -255,7 +267,7 @@ final class RaffleLB_Shop {
         @media(max-width:1450px){.rlrm3140-grid{grid-template-columns:repeat(5,minmax(0,1fr))}.rlrm3140-media{height:210px}}
         @media(max-width:1250px){.rlrm3140-grid{grid-template-columns:repeat(4,minmax(0,1fr))}}
         @media(max-width:900px){.rlrm3140-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.rlrm3140-media{height:200px}}
-        @media(max-width:767px){.rlrm3140{padding:42px 12px 50px}.rlrm3140-head{align-items:flex-start;margin-bottom:24px}.rlrm3140 h2{font-size:31px!important}.rlrm3140-head p{font-size:13px!important;line-height:1.55!important}.rlrm3140-kicker{font-size:10px}.rlrm3140-count{min-width:76px;padding:10px}.rlrm3140-count strong{font-size:22px}.rlrm3140-count span{font-size:8px}.rlrm3140-filters{gap:7px;padding-bottom:16px}.rlrm3140-filters button{padding:10px 14px;font-size:9px}.rlrm3140-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}.rlrm3140-media{height:138px;min-height:138px}.rlrm3140-img{object-fit:contain!important;object-position:center!important;padding:0!important;transform:scale(1.55)!important}.rlrm3140-card:hover .rlrm3140-img{transform:scale(1.55)!important}.rlrm3140-cat{font-size:7.5px;padding:5px 7px}.rlrm3140-body{padding:10px 9px 11px;display:flex;flex-direction:column;flex:1}.rlrm3140-body h3{min-height:46px!important;margin-bottom:8px!important;font-size:11.5px!important;line-height:1.32!important;white-space:normal!important;overflow:visible!important;text-overflow:clip!important}.rlrm3140-body h3 a{display:block!important;white-space:normal!important;overflow:visible!important;text-overflow:clip!important;word-break:normal!important;overflow-wrap:anywhere!important}.rlrm3140-price{margin-bottom:9px}.rlrm3140-price small{font-size:8px!important}.rlrm3140-price strong,.rlrm3140-price strong *,.rlrm3140-price .woocommerce-Price-amount,.rlrm3140-price .woocommerce-Price-currencySymbol{font-size:18px!important}.rlrm3140-meta{font-size:10px!important;margin-top:8px;margin-bottom:12px}.rlrm3140-meta strong{font-size:10.5px!important}.rlrm3140-enter{height:38px;margin-top:auto;font-size:8.5px}}
+        @media(max-width:767px){.rlrm3140{padding:42px 12px 50px}.rlrm3140-head{align-items:flex-start;margin-bottom:24px}.rlrm3140 h2{font-size:31px!important}.rlrm3140-head p{font-size:13px!important;line-height:1.55!important}.rlrm3140-kicker{font-size:10px}.rlrm3140-count{min-width:76px;padding:10px}.rlrm3140-count strong{font-size:22px}.rlrm3140-count span{font-size:8px}.rlrm3140-filters{gap:7px;padding-bottom:16px}.rlrm3140-filters button{padding:10px 14px;font-size:9px}.rlrm3140-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}.rlrm3140-media{height:138px;min-height:138px}.rlrm3140-img{object-fit:contain!important;object-position:center!important;padding:0!important;transform:scale(1.55)!important}.rlrm3140-card:hover .rlrm3140-img{transform:scale(1.55)!important}.rlrm3140-cat{font-size:7.5px;padding:5px 7px}.rlrm3140-body{padding:10px 9px 11px;display:flex;flex-direction:column;flex:1}.rlrm3140-body h3{min-height:var(--rl-banner-height,46px)!important;margin-bottom:8px!important;font-size:11.5px!important;line-height:1.32!important;white-space:normal!important;overflow:visible!important;text-overflow:clip!important}.rlrm3140-body h3 a{display:block!important;white-space:normal!important;overflow:visible!important;text-overflow:clip!important;word-break:normal!important;overflow-wrap:anywhere!important}.rlrm3140-price{margin-bottom:9px}.rlrm3140-price small{font-size:8px!important}.rlrm3140-price strong,.rlrm3140-price strong *,.rlrm3140-price .woocommerce-Price-amount,.rlrm3140-price .woocommerce-Price-currencySymbol{font-size:18px!important}.rlrm3140-meta{font-size:10px!important;margin-top:8px;margin-bottom:12px}.rlrm3140-meta strong{font-size:10.5px!important}.rlrm3140-enter{height:38px;margin-top:auto;font-size:8.5px}}
         @media(max-width:420px){.rlrm3140{padding-left:9px;padding-right:9px}.rlrm3140-media{height:125px;min-height:125px}.rlrm3140-img{transform:scale(1.42)!important}.rlrm3140-card:hover .rlrm3140-img{transform:scale(1.42)!important}.rlrm3140-body h3{font-size:10.5px!important;line-height:1.3!important;white-space:normal!important;overflow:visible!important;text-overflow:clip!important}.rlrm3140-meta{font-size:9px!important;margin-bottom:11px}.rlrm3140-meta strong{font-size:9.5px!important}.rlrm3140-filters button{padding:9px 12px;font-size:8.5px}}
         </style>
         <script>
@@ -319,7 +331,7 @@ final class RaffleLB_Shop {
 
         $product_mode = self::shop_product_mode($product);
         $is_raffle = $product_mode !== 'retail';
-        $retail = $product_mode === 'both' ? RaffleLB_Draw_Engine::shop_bridge_buy_now_price($product) : 0;
+        $retail = self::is_raffle_product($product) && in_array($product_mode, ['both', 'retail'], true) ? RaffleLB_Draw_Engine::shop_bridge_buy_now_price($product) : 0;
         $entry  = (float) wc_get_price_to_display($product);
 
         /* On the single raffle product page the two purchase routes are already
@@ -341,7 +353,7 @@ final class RaffleLB_Shop {
 
         if ($mode === 'raffle') {
             if (!$is_raffle) return '';
-            return '<div class="rl-shop-prices is-raffle-only"><div class="rl-shop-price-raffle"><small>RAFFLE ENTRY</small><span class="rl-shop-entry-value"><strong>' . wp_kses_post(wc_price($entry)) . '</strong><em>&nbsp;/&nbsp;entry</em></span></div></div>';
+            return '<div class="rl-shop-prices is-raffle-only"><div class="rl-shop-price-raffle"><small>RAFFLE ENTRY</small><span class="rl-shop-entry-value"><strong>' . wp_kses_post(wc_price($entry)) . '</strong><em>/ entry</em></span></div></div>';
         }
 
         if (!$is_raffle) {
@@ -349,33 +361,98 @@ final class RaffleLB_Shop {
                its real WooCommerce price in the same solo price-box shape a
                Raffle Only card uses below, instead of the raw theme markup,
                so the price row lines up with every other card. */
-            return '<div class="rl-shop-prices is-retail-only"><div class="rl-shop-price-main"><small>RETAIL PRICE</small><strong>' . wp_kses_post(wc_price($product->get_price())) . '</strong></div></div>';
+            $retail_display = $retail > 0 ? $retail : (float) $product->get_price();
+            return '<div class="rl-shop-prices is-retail-only"><div class="rl-shop-price-main"><small>RETAIL PRICE</small><strong>' . wp_kses_post(wc_price($retail_display)) . '</strong></div></div>';
         }
         if ($retail <= 0) {
             /* Genuine Raffle Only card in the default ALL PRODUCTS view: use
                the same solo raffle-price markup as rl_view=raffle, not the
                generic dual-price container the CSS treats as the Store +
                Raffle grid. $entry is the authoritative WooCommerce price. */
-            return '<div class="rl-shop-prices is-raffle-only"><div class="rl-shop-price-raffle"><small>RAFFLE ENTRY</small><span class="rl-shop-entry-value"><strong>' . wp_kses_post(wc_price($entry)) . '</strong><em>&nbsp;/&nbsp;entry</em></span></div></div>';
+            return '<div class="rl-shop-prices is-raffle-only"><div class="rl-shop-price-raffle"><small>RAFFLE ENTRY</small><span class="rl-shop-entry-value"><strong>' . wp_kses_post(wc_price($entry)) . '</strong><em>/ entry</em></span></div></div>';
         }
 
-        return '<div class="rl-shop-prices">'
+        return '<div class="rl-shop-prices is-dual-price">'
             . '<div class="rl-shop-price-main"><small>RETAIL PRICE</small><strong>' . wp_kses_post(wc_price($retail)) . '</strong></div>'
-            . '<div class="rl-shop-price-raffle"><small>RAFFLE ENTRY</small><span class="rl-shop-entry-value"><strong>' . wp_kses_post(wc_price($entry)) . '</strong><em>&nbsp;/&nbsp;entry</em></span></div>'
+            . '<div class="rl-shop-price-raffle"><small>RAFFLE ENTRY</small><span class="rl-shop-entry-value"><strong>' . wp_kses_post(wc_price($entry)) . '</strong><em>/ entry</em></span></div>'
             . '</div>';
     }
 
     public static function raffle_product_availability_text($text, $product) {
+        if (self::$selection_entry_form_context && self::is_raffle_product($product)) {
+            return '';
+        }
         if (function_exists('is_product') && is_product() && self::is_raffle_product($product)) {
             return '';
         }
         return $text;
     }
 
+    public static function is_selection_entry_form_context() {
+        return self::$selection_entry_form_context;
+    }
+
     public static function raffle_quantity_label() {
+        if (self::$selection_entry_form_context) return;
         $product = self::current_product();
         if (!self::is_raffle_product($product)) return;
         echo '<div class="rl-entry-label">SELECT NUMBER OF ENTRIES</div>';
+    }
+
+    /**
+     * Shared public entry component for non-product raffle surfaces.
+     *
+     * The form itself is WooCommerce's native single-product form. Draw Engine's
+     * existing hooks therefore remain the sole owners of quantity limits,
+     * capacity validation, cart metadata, reservations, checkout and paid-entry
+     * generation. This method only supplies Shop-owned presentation and account
+     * gating around that native form.
+     */
+    public static function selection_entry_form($product, $return_url = '') {
+        $product = self::current_product($product);
+        if (!$product instanceof WC_Product || !self::is_raffle_product($product)) return '';
+        if (!function_exists('woocommerce_template_single_add_to_cart')) return '';
+
+        $draw_id = RaffleLB_Draw_Engine::shop_bridge_draw_id($product);
+        $stats = $draw_id ? RaffleLB_Draw_Engine::shop_bridge_stats($draw_id, true) : false;
+        if (!$stats || (string) $stats['status'] !== 'live' || absint($stats['available']) < 1) return '';
+
+        $return_url = $return_url ?: get_permalink($product->get_id());
+        $entry_price = (float) wc_get_price_to_display($product);
+
+        ob_start();
+        echo '<section class="rlse-entry-panel" data-rlse-entry-panel aria-labelledby="rlse-entry-title">';
+        echo '<div class="rlse-entry-panel-copy"><span class="rlse-entry-open-state"><i aria-hidden="true"></i>RAFFLE OPEN</span><h2 id="rlse-entry-title">Enter This Raffle</h2></div>';
+        echo '<div class="rlse-entry-panel-action">';
+        echo '<div class="rlse-entry-panel-price"><small>ENTRY PRICE</small><strong>' . wp_kses_post(wc_price($entry_price)) . '</strong><span>per entry</span></div>';
+
+        $account_required = self::account_required();
+        if ($account_required) {
+            echo '<a class="button alt rlse-entry-login" href="' . esc_url(self::account_login_url($return_url)) . '">LOGIN / REGISTER TO ENTER</a>';
+        }
+
+        if (!$account_required) {
+            $had_product = array_key_exists('product', $GLOBALS);
+            $previous_product = $had_product ? $GLOBALS['product'] : null;
+            $previous_context = self::$selection_entry_form_context;
+            $GLOBALS['product'] = $product;
+            self::$selection_entry_form_context = true;
+            echo '<div class="rlse-native-entry-form">';
+            try {
+                woocommerce_template_single_add_to_cart();
+            } finally {
+                self::$selection_entry_form_context = $previous_context;
+                if ($had_product) {
+                    $GLOBALS['product'] = $previous_product;
+                } else {
+                    unset($GLOBALS['product']);
+                }
+            }
+            echo '</div>';
+        }
+
+        echo '</div></section>';
+        return ob_get_clean();
     }
 
     /*
@@ -902,11 +979,12 @@ final class RaffleLB_Shop {
     }
 
     public static function raffle_entry_trust() {
+        if (self::$selection_entry_form_context) return;
         global $product;
         if (!self::is_raffle_product($product)) return;
         echo '<div class="rl-entry-trust" aria-label="Raffle entry assurances">';
         echo '<span><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 3 4 6v5c0 5.2 3.4 8.5 8 10 4.6-1.5 8-4.8 8-10V6l-8-3Zm-3 9 2 2 4-4"/></svg><b>Secure entry</b><small>Your information is safe</small></span>';
-        echo '<span><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M20 11a8 8 0 1 1-3-6.2M8 12l2.5 2.5L21 4"/></svg><b>Verified draw</b><small>100% transparent</small></span>';
+        echo '<span><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M20 11a8 8 0 1 1-3-6.2M8 12l2.5 2.5L21 4"/></svg><b>Verified selection</b><small>100% transparent</small></span>';
         echo '<span><svg aria-hidden="true" viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="7" ry="3"/><path d="M5 5v7c0 1.7 3.1 3 7 3s7-1.3 7-3V5m-14 7v7c0 1.7 3.1 3 7 3s7-1.3 7-3v-7"/></svg><b>Entries saved to my raffles</b><small>Track your entries anytime</small></span>';
         echo '</div>';
     }
@@ -926,6 +1004,27 @@ final class RaffleLB_Shop {
         remove_action('woocommerce_single_product_summary', 'woocommerce_template_single_excerpt', 20);
     }
 
+    private static function raffle_header_badge($product) {
+        $fallback = [
+            'class' => $product->is_in_stock() ? 'is-in-stock' : 'is-out-of-stock',
+            'label' => $product->is_in_stock() ? 'IN STOCK' : 'OUT OF STOCK',
+        ];
+        $draw_id = RaffleLB_Draw_Engine::shop_bridge_draw_id($product);
+        $stats = $draw_id ? RaffleLB_Draw_Engine::shop_bridge_stats($draw_id, false) : false;
+        if (!$stats) return $fallback;
+
+        $status = (string) $stats['status'];
+        $has_result = method_exists('RaffleLB_Draw_Engine', 'homepage_get_draw_result')
+            && RaffleLB_Draw_Engine::homepage_get_draw_result($draw_id);
+        if ($has_result || $status === 'winner_selected') {
+            return ['class' => 'is-selection-complete', 'label' => 'SELECTION COMPLETE'];
+        }
+        if ($status !== 'live') {
+            return ['class' => 'is-raffle-closed', 'label' => 'RAFFLE CLOSED'];
+        }
+        return $fallback;
+    }
+
     public static function raffle_short_description() {
         global $product;
         if (!self::is_raffle_product($product)) return;
@@ -938,7 +1037,8 @@ final class RaffleLB_Shop {
             $terms = wc_get_product_terms($product->get_id(), $taxonomy, ['fields' => 'names']);
             if (!empty($terms) && !is_wp_error($terms)) { $classes[] = implode(', ', $terms); break; }
         }
-        echo '<div class="rl-product-meta-row"><span class="rl-stock-badge' . ($product->is_in_stock() ? ' is-in-stock' : ' is-out-of-stock') . '"><i aria-hidden="true"></i>' . esc_html($product->is_in_stock() ? 'IN STOCK' : 'OUT OF STOCK') . '</span>';
+        $badge = self::raffle_header_badge($product);
+        echo '<div class="rl-product-meta-row"><span class="rl-stock-badge ' . esc_attr($badge['class']) . '"><i aria-hidden="true"></i>' . esc_html($badge['label']) . '</span>';
         if ($classes) echo '<span class="rl-product-classification">' . esc_html(implode(' / ', array_filter($classes))) . '</span>';
         echo '</div>';
         $short = trim((string) $product->get_short_description());
@@ -995,7 +1095,7 @@ final class RaffleLB_Shop {
                     <div class="rl-raffle-detail-col">
                         <h3>WINNER</h3>
                         <ul class="rl-raffle-detail-list" role="list">
-                            <li>The winner is selected according to the RaffleLB draw process once the raffle closes.</li>
+                            <li>The winner is selected according to the RaffleLB selection process once the raffle closes.</li>
                             <li>The verified result is published on the Winners page.</li>
                         </ul>
                     </div>
@@ -1003,7 +1103,7 @@ final class RaffleLB_Shop {
                     <div class="rl-raffle-detail-col">
                         <h3>IMPORTANT</h3>
                         <ul class="rl-raffle-detail-list" role="list">
-                            <li>Review the raffle details and draw terms before entering.</li>
+                            <li>Review the raffle details and selection terms before entering.</li>
                             <li>Entries are recorded to your RaffleLB account after a successful order.</li>
                         </ul>
                     </div>
@@ -1045,8 +1145,10 @@ final class RaffleLB_Shop {
         if (!$post_id || get_post_type($post_id) !== 'product') return $classes;
 
         $mode = self::shop_view_mode();
-        if (self::shop_mode_includes_product($mode, self::shop_product_mode($post_id))) {
+        $product_mode = self::shop_product_mode($post_id);
+        if (self::shop_mode_includes_product($mode, $product_mode)) {
             $classes[] = 'rl-raffle-card';
+            $classes[] = 'rl-shop-card-' . $product_mode;
         }
         return $classes;
     }
@@ -1153,7 +1255,303 @@ final class RaffleLB_Shop {
         <?php
     }
 
+    /** Customer-safe cancellation state exposed by Draw Engine. */
+    private static function shop_public_early_closure($product_id) {
+        $product_id = absint($product_id);
+        if (!$product_id || !class_exists('RaffleLB_Draw_Engine') || !method_exists('RaffleLB_Draw_Engine', 'selection_bridge_public_closure')) return null;
+        $closure = RaffleLB_Draw_Engine::selection_bridge_public_closure($product_id);
+        return is_array($closure) && !empty($closure['closed_early']) ? $closure : null;
+    }
+
+    private static function shop_raffle_cancelled($product_id) {
+        $closure = self::shop_public_early_closure($product_id);
+        return is_array($closure) && sanitize_key((string) ($closure['mode'] ?? '')) === 'cancel_refund';
+    }
+
+    /**
+     * Give The SEO Framework a useful generated description for WooCommerce
+     * products when no manual TSF description was saved for that product.
+     *
+     * TSF already generates a good branded product title from the WooCommerce
+     * product name, so RaffleLB only replaces the generated description source.
+     * A hand-written `_genesis_description` always wins and is left untouched.
+     *
+     * The wording is mode-aware so a future Store Only or Raffle Only item does
+     * not advertise a purchase/Selection route that the customer cannot use.
+     */
+    public static function tsf_product_description_excerpt($excerpt, $args = null) {
+        if (!function_exists('wc_get_product')) return $excerpt;
+
+        $product_id = 0;
+        if (is_array($args) && !empty($args['id'])) {
+            $product_id = absint($args['id']);
+        }
+        if (!$product_id && function_exists('get_queried_object_id')) {
+            $product_id = absint(get_queried_object_id());
+        }
+        if (!$product_id && function_exists('get_the_ID')) {
+            $product_id = absint(get_the_ID());
+        }
+
+        if (!$product_id || get_post_type($product_id) !== 'product') return $excerpt;
+
+        /* Preserve every manually authored TSF product description. */
+        $manual = trim((string) get_post_meta($product_id, '_genesis_description', true));
+        if ($manual !== '') return $excerpt;
+
+        $product = wc_get_product($product_id);
+        if (!$product instanceof WC_Product) return $excerpt;
+
+        $name = trim(wp_strip_all_tags((string) $product->get_name()));
+        if ($name === '') return $excerpt;
+
+        /* If Core is unavailable, fall back to a neutral store description. */
+        $mode = class_exists('RaffleLB\\Core\\Contracts') ? self::shop_product_mode($product) : 'retail';
+
+        if ($mode === 'both') {
+            return sprintf(
+                'Shop %s at RaffleLB. Buy directly or join the live Selection for a chance to win.',
+                $name
+            );
+        }
+
+        if ($mode === 'raffle') {
+            return sprintf(
+                'Discover %s at RaffleLB. Join the live Selection, track your entries, and follow the result transparently.',
+                $name
+            );
+        }
+
+        return sprintf(
+            'Shop %s at RaffleLB. View product details, availability, and direct purchase options.',
+            $name
+        );
+    }
+
     /* Product type is distinct from the overlapping customer shopping views. */
+    /**
+     * Keep public ecommerce schema aligned with the real direct-purchase route.
+     *
+     * Raffle products intentionally use WooCommerce's native product price as
+     * the Selection entry price. That value must never be exposed to Google as
+     * though it were the retail selling price of the prize. Store + Raffle (or
+     * a cancelled raffle that remains directly purchasable) therefore exports
+     * the configured Buy Now price, while Raffle Only removes the Merchant
+     * Offer entirely and leaves the Product entity itself indexable.
+     */
+    private static function structured_data_retail_price($product) {
+        if (!$product instanceof WC_Product || !self::is_raffle_product($product)) return 0.0;
+
+        $mode = self::shop_product_mode($product);
+        if (!in_array($mode, ['both', 'retail'], true)) return 0.0;
+
+        $retail = (float) RaffleLB_Draw_Engine::shop_bridge_buy_now_price($product);
+        return $retail > 0 ? $retail : 0.0;
+    }
+
+    /**
+     * Replace WooCommerce's Selection-entry Offer with the real Buy Now offer.
+     * Shipping/returns/seller fields added by WooCommerce or another integration
+     * are preserved; only price-bearing fields are normalised to the retail
+     * amount so Merchant listings cannot advertise an entry fee as item price.
+     */
+    public static function structured_data_product_offer($offer, $product) {
+        if (!is_array($offer) || !$product instanceof WC_Product) return $offer;
+
+        $retail = self::structured_data_retail_price($product);
+        if ($retail <= 0) return $offer;
+
+        $tax_display = get_option('woocommerce_tax_display_shop');
+        if (function_exists('wc_tax_enabled') && wc_tax_enabled()) {
+            $retail = $tax_display === 'incl'
+                ? (float) wc_get_price_including_tax($product, ['price' => $retail])
+                : (float) wc_get_price_excluding_tax($product, ['price' => $retail]);
+        }
+
+        $price = wc_format_decimal($retail, wc_get_price_decimals());
+        $currency = get_woocommerce_currency();
+        $valid_through = gmdate('Y-12-31', time() + (defined('YEAR_IN_SECONDS') ? YEAR_IN_SECONDS : 31536000));
+
+        $price_spec = [
+            '@type'         => 'UnitPriceSpecification',
+            'price'         => $price,
+            'priceCurrency' => $currency,
+            'validThrough'  => $valid_through,
+        ];
+
+        if (function_exists('wc_tax_enabled') && wc_tax_enabled()) {
+            $price_spec['valueAddedTaxIncluded'] = $tax_display === 'incl';
+        }
+
+        /* A raffle entry can carry sale/range semantics that have no meaning
+         * for the independently configured direct-purchase price. */
+        $offer['@type'] = 'Offer';
+        unset($offer['lowPrice'], $offer['highPrice'], $offer['offerCount']);
+        $offer['priceSpecification'] = [$price_spec];
+        $offer['price'] = $price;
+        $offer['priceCurrency'] = $currency;
+        $offer['priceValidUntil'] = $valid_through;
+
+        return self::structured_data_direct_purchase_policies($offer, $product);
+    }
+
+    /**
+     * Add RaffleLB's current physical-delivery and direct-purchase return policy
+     * to Google/WooCommerce Merchant Offer markup. Existing schema supplied by
+     * WooCommerce, a shipping integration, or another trusted plugin always wins.
+     *
+     * Current public policy:
+     * - Delivery within Lebanon only.
+     * - Flat delivery fee: USD 4.50.
+     * - Typical delivery: 1–3 days.
+     * - Direct-purchase returns: 7 days from delivery, subject to the published
+     *   Shipping & Returns conditions.
+     *
+     * Clearly digital products are intentionally excluded because vouchers
+     * and digital codes can have different fulfilment/return rules. RaffleLB
+     * raffle-enabled physical products may be WooCommerce-virtual for entry-flow
+     * reasons, so the virtual flag alone must not suppress delivery schema.
+     */
+    /**
+     * RaffleLB raffle-enabled products can be marked virtual in WooCommerce for
+     * entry/checkout behaviour even when the prize is a physical item that is
+     * delivered after a direct Buy Now purchase. Do not use is_virtual() as the
+     * Merchant-schema shipping signal for those products.
+     *
+     * Only clearly digital fulfilment is excluded here: downloadable products
+     * and products assigned to RaffleLB's vouchers/gift-cards catalog category.
+     */
+    private static function structured_data_is_digital_product($product) {
+        if (!$product instanceof WC_Product) return false;
+        if ($product->is_downloadable()) return true;
+
+        $product_id = $product->get_id();
+        if (!$product_id) return false;
+
+        $digital_slugs = [
+            'vouchers-and-gift-cards',
+            'vouchers-gift-cards',
+            'gift-cards',
+            'gift-card',
+            'digital-vouchers',
+            'digital-codes',
+        ];
+
+        foreach ($digital_slugs as $slug) {
+            if (has_term($slug, 'product_cat', $product_id)) return true;
+        }
+
+        return false;
+    }
+
+    private static function structured_data_direct_purchase_policies($offer, $product) {
+        if (!is_array($offer) || !$product instanceof WC_Product) return $offer;
+
+        $is_direct_purchase = true;
+        if (self::is_raffle_product($product)) {
+            $mode = self::shop_product_mode($product);
+            $is_direct_purchase = in_array($mode, ['both', 'retail'], true)
+                && self::structured_data_retail_price($product) > 0;
+        } else {
+            $is_direct_purchase = $product->is_purchasable() && (float) $product->get_price() > 0;
+        }
+
+        if (!$is_direct_purchase || self::structured_data_is_digital_product($product)) {
+            return $offer;
+        }
+
+        $currency = get_woocommerce_currency();
+        $shipping_rate = (float) apply_filters('rafflelb_shop_schema_shipping_rate', 4.50, $product);
+        $delivery_min = max(0, absint(apply_filters('rafflelb_shop_schema_delivery_min_days', 1, $product)));
+        $delivery_max = max($delivery_min, absint(apply_filters('rafflelb_shop_schema_delivery_max_days', 3, $product)));
+        $return_days = max(1, absint(apply_filters('rafflelb_shop_schema_return_days', 7, $product)));
+        $country = strtoupper(sanitize_text_field((string) apply_filters('rafflelb_shop_schema_country', 'LB', $product)));
+        if (!preg_match('/^[A-Z]{2}$/', $country)) $country = 'LB';
+
+        if (empty($offer['shippingDetails'])) {
+            $offer['shippingDetails'] = [
+                '@type' => 'OfferShippingDetails',
+                'shippingDestination' => [
+                    '@type' => 'DefinedRegion',
+                    'addressCountry' => $country,
+                ],
+                'shippingRate' => [
+                    '@type' => 'MonetaryAmount',
+                    'value' => wc_format_decimal(max(0, $shipping_rate), 2),
+                    'currency' => $currency,
+                ],
+                'deliveryTime' => [
+                    '@type' => 'ShippingDeliveryTime',
+                    'transitTime' => [
+                        '@type' => 'QuantitativeValue',
+                        'minValue' => $delivery_min,
+                        'maxValue' => $delivery_max,
+                        'unitCode' => 'DAY',
+                    ],
+                ],
+            ];
+        }
+
+        if (empty($offer['hasMerchantReturnPolicy'])) {
+            $offer['hasMerchantReturnPolicy'] = [
+                '@type' => 'MerchantReturnPolicy',
+                'applicableCountry' => $country,
+                'returnPolicyCategory' => 'https://schema.org/MerchantReturnFiniteReturnWindow',
+                'merchantReturnDays' => $return_days,
+            ];
+        }
+
+        return $offer;
+    }
+
+    /**
+     * Ensure the same shipping/returns enrichment also applies to any future
+     * Store Only WooCommerce product whose native price does not need RaffleLB's
+     * retail-price substitution.
+     */
+    public static function structured_data_product_offer_policies($offer, $product) {
+        return self::structured_data_direct_purchase_policies($offer, $product);
+    }
+
+    /**
+     * Raffle Only pages remain indexable as ordinary web pages, but they must
+     * not be emitted as Google Product/Merchant rich-result data. This avoids
+     * both a false retail Offer and an invalid Product snippet with no genuine
+     * purchase offer. Store Only and Store + Raffle keep WooCommerce Product
+     * structured data.
+     */
+    public static function structured_data_types_for_page($types) {
+        if (!is_array($types) || !function_exists('is_product') || !is_product()) return $types;
+
+        $product = self::current_product();
+        if (!$product instanceof WC_Product || !self::is_raffle_product($product)) return $types;
+
+        $mode = self::shop_product_mode($product);
+        if (in_array($mode, ['raffle', 'cancelled'], true)) {
+            $types = array_values(array_diff($types, ['product', 'review']));
+        }
+
+        return $types;
+    }
+
+    /**
+     * Defense in depth for any consumer that reads WooCommerce's generated
+     * Product data directly instead of using its normal page-type output list.
+     * Raffle Only must never carry a Merchant Offer based on an entry fee.
+     */
+    public static function structured_data_product($markup, $product) {
+        if (!is_array($markup) || !$product instanceof WC_Product || !self::is_raffle_product($product)) {
+            return $markup;
+        }
+
+        $mode = self::shop_product_mode($product);
+        if (in_array($mode, ['raffle', 'cancelled'], true)) {
+            unset($markup['offers']);
+        }
+
+        return $markup;
+    }
+
     private static function shop_product_mode($product) {
         $product_id = $product instanceof WC_Product ? $product->get_id() : absint($product);
         if (!$product_id) return '';
@@ -1163,6 +1561,14 @@ final class RaffleLB_Shop {
 
         $buy_now_enabled = get_post_meta($product_id, \RaffleLB\Core\Contracts::META_BUY_NOW_ENABLED, true) === 'yes';
         $buy_now_price = (float) get_post_meta($product_id, \RaffleLB\Core\Contracts::META_BUY_NOW_PRICE, true);
+
+        /* A cancelled raffle is no longer a raffle-shopping route. If the same
+         * product genuinely supports direct purchase, keep only that retail
+         * route; otherwise remove it from customer catalogue views entirely. */
+        if (self::shop_raffle_cancelled($product_id)) {
+            return $buy_now_enabled && $buy_now_price > 0 ? 'retail' : 'cancelled';
+        }
+
         return $buy_now_enabled && $buy_now_price > 0 ? 'both' : 'raffle';
     }
 
@@ -1172,7 +1578,7 @@ final class RaffleLB_Shop {
         /* 'both' is the default Shopping Mode and is now the complete
            catalogue: Store Only, Raffle Only and Store + Raffle are all
            visible, so category/shop views never appear falsely empty. */
-        return true;
+        return $product_mode !== 'cancelled';
     }
 
     private static function shop_mode_meta_query($mode) {
@@ -1203,7 +1609,7 @@ final class RaffleLB_Shop {
         $mode = in_array($mode, ['both', 'retail', 'raffle'], true) ? $mode : 'both';
         $request_uri = isset($_SERVER['REQUEST_URI']) ? wp_unslash($_SERVER['REQUEST_URI']) : '/shop/';
         $url = home_url($request_uri);
-        $url = remove_query_arg(['rl_view', 'min_price', 'max_price', 'paged', 'product-page', 'orderby'], $url);
+        $url = remove_query_arg(['rl_view', 'rl_search_scope', 'min_price', 'max_price', 'paged', 'product-page', 'orderby'], $url);
         if ($mode !== 'both') {
             $url = add_query_arg('rl_view', $mode, $url);
         }
@@ -1239,6 +1645,7 @@ final class RaffleLB_Shop {
         if (!self::shop_query_is_catalog($query)) return;
 
         $mode = self::shop_view_mode();
+        $query->set('rafflelb_cancelled_catalog_scope', $mode);
         $meta_query = $query->get('meta_query');
         if (!is_array($meta_query)) $meta_query = [];
 
@@ -1317,6 +1724,42 @@ final class RaffleLB_Shop {
         );
 
         $clauses['where'] .= " AND /* rafflelb_store_catalog_scope */ ((NOT {$is_raffle}) OR ({$is_buyable_raffle})) AND ((NOT {$is_raffle}) OR NOT {$winner_selected})";
+        return $clauses;
+    }
+
+    /**
+     * Cancelled raffles disappear from RAFFLE ONLY. In the default combined
+     * catalogue they remain only when a genuine direct-purchase route exists,
+     * in which case the card is rendered as Store Only.
+     */
+    public static function shop_cancelled_catalog_clauses($clauses, $query) {
+        if (!$query instanceof WP_Query || !$query->is_main_query()) return $clauses;
+        if (!self::shop_query_is_catalog($query)) return $clauses;
+        $mode = sanitize_key((string) $query->get('rafflelb_cancelled_catalog_scope'));
+        if (!in_array($mode, ['both', 'raffle'], true)) return $clauses;
+        if (strpos((string) ($clauses['where'] ?? ''), 'rafflelb_cancelled_catalog_scope') !== false) return $clauses;
+
+        global $wpdb;
+        $id = "{$wpdb->posts}.ID";
+        $cancelled = "(EXISTS (SELECT 1 FROM {$wpdb->postmeta} rl_cancel_closed WHERE rl_cancel_closed.post_id = {$id} AND rl_cancel_closed.meta_key = '_rafflelb_early_closed' AND rl_cancel_closed.meta_value = 'yes')
+"
+            . " AND EXISTS (SELECT 1 FROM {$wpdb->postmeta} rl_cancel_mode WHERE rl_cancel_mode.post_id = {$id} AND rl_cancel_mode.meta_key = '_rafflelb_early_close_mode' AND rl_cancel_mode.meta_value = 'cancel_refund'))";
+
+        if ($mode === 'raffle') {
+            $clauses['where'] .= " AND /* rafflelb_cancelled_catalog_scope */ NOT {$cancelled}";
+            return $clauses;
+        }
+
+        $buy_enabled = \RaffleLB\Core\Contracts::META_BUY_NOW_ENABLED;
+        $buy_price = \RaffleLB\Core\Contracts::META_BUY_NOW_PRICE;
+        $buyable = $wpdb->prepare(
+            "EXISTS (SELECT 1 FROM {$wpdb->postmeta} rl_cancel_buy_enabled WHERE rl_cancel_buy_enabled.post_id = {$id} AND rl_cancel_buy_enabled.meta_key = %s AND rl_cancel_buy_enabled.meta_value = 'yes')
+"
+            . " AND EXISTS (SELECT 1 FROM {$wpdb->postmeta} rl_cancel_buy_price WHERE rl_cancel_buy_price.post_id = {$id} AND rl_cancel_buy_price.meta_key = %s AND CAST(rl_cancel_buy_price.meta_value AS DECIMAL(18,4)) > 0)",
+            $buy_enabled,
+            $buy_price
+        );
+        $clauses['where'] .= " AND /* rafflelb_cancelled_catalog_scope */ (NOT {$cancelled} OR ({$buyable}))";
         return $clauses;
     }
 
@@ -1411,17 +1854,65 @@ final class RaffleLB_Shop {
         if (!is_array($options)) $options = [];
         if (!self::shop_query_is_catalog()) return $options;
 
+        /* Raffle discovery belongs in the public Store, not Raffle Manager.
+         * Keep normal WooCommerce sorting everywhere else and expose raffle-
+         * specific choices only while the shopper is in RAFFLE ONLY mode. */
         if (self::shop_view_mode() === 'raffle') {
             return [
+                'menu_order' => 'Recommended',
+                'rl_closest' => 'Closest to full',
+                'date'       => 'Newest raffles',
                 'price'      => 'Entry price: low to high',
                 'price-desc' => 'Entry price: high to low',
             ];
         }
 
-        return [
-            'rl_retail_asc'  => 'Price: low to high',
-            'rl_retail_desc' => 'Price: high to low',
-        ];
+        return $options;
+    }
+
+    public static function shop_catalog_ordering_args($args, $orderby = '', $order = '') {
+        if (!is_array($args) || !self::shop_query_is_catalog() || self::shop_view_mode() !== 'raffle') return $args;
+        $requested = sanitize_key((string) $orderby);
+        if ($requested === '' && isset($_GET['orderby'])) {
+            $requested = sanitize_key(wp_unslash($_GET['orderby']));
+        }
+        if ($requested === 'rl_closest') {
+            /* Give WooCommerce a valid base ordering. posts_clauses below
+             * replaces it with the authoritative raffle-capacity ordering. */
+            $args['orderby'] = 'date';
+            $args['order'] = 'DESC';
+        }
+        return $args;
+    }
+
+    public static function shop_raffle_closest_sort($clauses, $query) {
+        if (!$query instanceof WP_Query || !self::shop_query_is_catalog($query)) return $clauses;
+        if (self::shop_view_mode() !== 'raffle') return $clauses;
+
+        $requested = isset($_GET['orderby']) ? sanitize_key(wp_unslash($_GET['orderby'])) : '';
+        if ($requested !== 'rl_closest') return $clauses;
+        if (strpos((string) ($clauses['join'] ?? ''), 'rl_raffle_sort_total') !== false) return $clauses;
+
+        global $wpdb;
+        $entry_table = $wpdb->prefix . 'rafflelb_entries';
+        $total_key = '_rafflelb_total_entries';
+
+        $clauses['join'] .= $wpdb->prepare(
+            " LEFT JOIN {$wpdb->postmeta} rl_raffle_sort_total ON rl_raffle_sort_total.post_id = {$wpdb->posts}.ID AND rl_raffle_sort_total.meta_key = %s ",
+            $total_key
+        );
+        $clauses['join'] .= " LEFT JOIN (SELECT product_id, COUNT(*) AS claimed FROM {$entry_table} WHERE status = 'active' GROUP BY product_id) rl_raffle_sort_entries ON rl_raffle_sort_entries.product_id = {$wpdb->posts}.ID ";
+
+        $total = "CAST(COALESCE(rl_raffle_sort_total.meta_value, '0') AS UNSIGNED)";
+        $claimed = "COALESCE(rl_raffle_sort_entries.claimed, 0)";
+        $remaining = "GREATEST({$total} - {$claimed}, 0)";
+        $fill_ratio = "CASE WHEN {$total} > 0 THEN ({$claimed} / {$total}) ELSE 0 END";
+
+        /* Fewest confirmed entries left first. Fill percentage breaks ties so
+         * a nearly-complete larger raffle wins over a less-complete one, then
+         * newest product provides deterministic ordering. */
+        $clauses['orderby'] = "CASE WHEN {$total} > 0 THEN {$remaining} ELSE 2147483647 END ASC, {$fill_ratio} DESC, {$wpdb->posts}.post_date DESC";
+        return $clauses;
     }
 
     public static function shop_native_price_filter_sql($sql, $meta_query_sql, $tax_query_sql) {
@@ -1508,10 +1999,11 @@ final class RaffleLB_Shop {
         global $product;
         if (!$product instanceof WC_Product) return;
 
-        if (!self::is_raffle_product($product)) {
-            /* Genuine Store Only card in the default ALL PRODUCTS view: fill
-               the same status slot a raffle card uses here instead of
-               leaving it blank, without inventing any raffle information. */
+        $product_mode = self::shop_product_mode($product);
+        if ($product_mode === 'cancelled') return;
+        if ($product_mode === 'retail') {
+            /* Genuine Store Only products and cancelled raffles that still
+               support direct purchase share the same direct-purchase card. */
             if (self::shop_view_mode() === 'both') {
                 echo '<div class="rl-shop-store-status" aria-label="Direct purchase">'
                     . '<span class="rl-shop-store-status-badge">STORE ONLY</span>'
@@ -1599,7 +2091,7 @@ final class RaffleLB_Shop {
                         echo '<form class="rl-shop-buy-form" method="post" action="' . esc_url($url) . '">';
                             echo '<input type="hidden" name="add-to-cart" value="' . esc_attr($pid) . '">';
                             echo '<input type="hidden" name="quantity" value="1">';
-                            if ($product_mode === 'both') echo '<input type="hidden" name="rafflelb_purchase_mode" value="buy_now">';
+                            if (self::is_raffle_product($product) && $has_retail) echo '<input type="hidden" name="rafflelb_purchase_mode" value="buy_now">';
                             echo '<button type="submit" class="rl-shop-buy"><span class="rl-shop-buy-label">BUY NOW</span><span class="rl-shop-buy-bag" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><path d="M6.5 8V6.5a5.5 5.5 0 0 1 11 0V8M4.5 8h15l1 13h-17l1-13Z"/></svg></span></button>';
                         echo '</form>';
                     }
@@ -1622,25 +2114,24 @@ final class RaffleLB_Shop {
                 } else {
                     echo '<a class="rl-shop-enter is-muted" href="' . esc_url($url) . '">RAFFLE DETAILS <span>VIEW</span></a>';
                 }
+
+                // Dedicated RAFFLE ONLY mode also exposes the public status
+                // page directly beneath the primary raffle action. The link is
+                // public/read-only and does not depend on login state.
+                if ($mode === 'raffle') {
+                    $selection_url = self::selection_status_url($product);
+                    if ($selection_url !== '') {
+                        echo '<a class="rl-shop-selection-status" href="' . esc_url($selection_url) . '"><span>VIEW SELECTION STATUS</span><b aria-hidden="true">→</b></a>';
+                    }
+                }
             }
 
         echo '</div>';
     }
 
     public static function shop_enqueue_inter_font() {
-        if (is_admin()) return;
-
-        // Load Inter sitewide: dozens of premium UI blocks across the shop,
-        // homepage, checkout, and account pages already declare
-        // font-family:Inter as their primary face, but the stylesheet was
-        // never fetched outside the Shop catalogue, so those pages silently
-        // fell back to the browser's plain system font.
-        wp_enqueue_style(
-            'rafflelb-shop-inter',
-            'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap',
-            [],
-            null
-        );
+        // Retained as a no-op for hook compatibility. Typography is supplied
+        // by RaffleLB Design System via var(--rl-font).
     }
 
     public static function raffle_archive_styles() {
@@ -1828,7 +2319,7 @@ final class RaffleLB_Shop {
                 justify-content:center!important;
                 padding:0 1px!important;
                 color:#6d766a!important;
-                font-family:Inter,"Segoe UI",Arial,sans-serif!important;
+                font-family:var(--rl-font,"Manrope",sans-serif)!important;
                 font-size:9px!important;
                 font-weight:800!important;
                 letter-spacing:.1em!important;
@@ -1954,7 +2445,7 @@ final class RaffleLB_Shop {
             border-radius:10px!important;
             background:#080b08!important;
             color:#fff!important;
-            font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif!important;
+            font-family:var(--rl-font,"Manrope",sans-serif)!important;
             font-size:14px!important;
             font-weight:650!important;
             line-height:44px!important;
@@ -2110,7 +2601,7 @@ final class RaffleLB_Shop {
         body.rafflelb-raffle-archive .shop-filters *,
         body.rafflelb-raffle-archive .wd-shop-filters,
         body.rafflelb-raffle-archive .wd-shop-filters *{
-            font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif!important;
+            font-family:var(--rl-font,"Manrope",sans-serif)!important;
             -webkit-font-smoothing:antialiased;
             text-rendering:optimizeLegibility;
         }
@@ -2125,7 +2616,7 @@ final class RaffleLB_Shop {
         body.rafflelb-raffle-archive .rl-shop-toolbar *,
         body.rafflelb-raffle-archive .rl-raffle-card .product-information,
         body.rafflelb-raffle-archive .rl-raffle-card .product-information *{
-            font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif!important;
+            font-family:var(--rl-font,"Manrope",sans-serif)!important;
             -webkit-font-smoothing:antialiased!important;
             text-rendering:optimizeLegibility!important;
         }
@@ -2140,7 +2631,7 @@ final class RaffleLB_Shop {
         }
         body.rafflelb-raffle-archive .rl-shop-title-row h1{
             margin-bottom:10px!important;
-            font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif!important;
+            font-family:var(--rl-font,"Manrope",sans-serif)!important;
             font-size:clamp(44px,4.1vw,58px)!important;
             line-height:.98!important;
             font-weight:800!important;
@@ -2211,7 +2702,7 @@ final class RaffleLB_Shop {
         body.rafflelb-raffle-archive .wd-shop-filters .widget-title{
             margin:0 0 17px!important;
             color:#f4f7f2!important;
-            font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif!important;
+            font-family:var(--rl-font,"Manrope",sans-serif)!important;
             font-size:15px!important;
             line-height:1.25!important;
             font-weight:700!important;
@@ -2450,7 +2941,7 @@ final class RaffleLB_Shop {
         body.rafflelb-raffle-archive .rl-shop-title-row h1{
             margin:0!important;
             color:#f6f8f4!important;
-            font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif!important;
+            font-family:var(--rl-font,"Manrope",sans-serif)!important;
             font-size:clamp(40px,3.2vw,50px)!important;
             line-height:1.03!important;
             font-weight:650!important;
@@ -2532,7 +3023,7 @@ final class RaffleLB_Shop {
         body.rafflelb-raffle-archive .rl-shop-title-row h1{
             margin:0!important;
             color:#f7faf5!important;
-            font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif!important;
+            font-family:var(--rl-font,"Manrope",sans-serif)!important;
             font-size:clamp(52px,4.3vw,68px)!important;
             line-height:.95!important;
             font-weight:720!important;
@@ -2589,7 +3080,7 @@ final class RaffleLB_Shop {
             border-radius:10px!important;
             background:#0b0f0b!important;
             color:#dce3d9!important;
-            font-family:Inter,"Segoe UI",Arial,sans-serif!important;
+            font-family:var(--rl-font,"Manrope",sans-serif)!important;
             font-size:13px!important;
             line-height:1!important;
             font-weight:700!important;
@@ -2709,7 +3200,7 @@ final class RaffleLB_Shop {
            contextual nested WooCommerce categories. Presentation only. */
         body.rafflelb-raffle-archive .rl-shop-hero,
         body.rafflelb-raffle-archive .rl-shop-hero *{
-            font-family:Inter,"Segoe UI",Arial,Helvetica,sans-serif!important;
+            font-family:var(--rl-font,"Manrope",sans-serif)!important;
             -webkit-font-smoothing:antialiased!important;
             text-rendering:optimizeLegibility!important;
         }
@@ -2728,7 +3219,7 @@ final class RaffleLB_Shop {
         body.rafflelb-raffle-archive .rl-shop-title-row h1{
             margin:0!important;
             color:#f7f9f5!important;
-            font-family:Inter,"Segoe UI",Arial,Helvetica,sans-serif!important;
+            font-family:var(--rl-font,"Manrope",sans-serif)!important;
             font-size:clamp(42px,4vw,54px)!important;
             line-height:1.04!important;
             font-weight:700!important;
@@ -2741,7 +3232,7 @@ final class RaffleLB_Shop {
             max-width:760px!important;
             margin:0!important;
             color:#b9c2b6!important;
-            font-family:Inter,"Segoe UI",Arial,Helvetica,sans-serif!important;
+            font-family:var(--rl-font,"Manrope",sans-serif)!important;
             font-size:16px!important;
             line-height:1.55!important;
             font-weight:400!important;
@@ -2764,7 +3255,7 @@ final class RaffleLB_Shop {
             border-radius:0!important;
             background:transparent!important;
             color:#e1e6df!important;
-            font-family:Inter,"Segoe UI",Arial,Helvetica,sans-serif!important;
+            font-family:var(--rl-font,"Manrope",sans-serif)!important;
             font-size:13px!important;
             line-height:1.3!important;
             font-weight:600!important;
@@ -2851,7 +3342,7 @@ final class RaffleLB_Shop {
         body.rafflelb-raffle-archive .rl-subcategory-heading{
             margin:0!important;
             color:#f4f7f2!important;
-            font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif!important;
+            font-family:var(--rl-font,"Manrope",sans-serif)!important;
             font-size:16px!important;
             line-height:1.3!important;
             font-weight:700!important;
@@ -2859,7 +3350,7 @@ final class RaffleLB_Shop {
         }
         body.rafflelb-raffle-archive .rl-subcategory-context{
             color:#899486!important;
-            font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif!important;
+            font-family:var(--rl-font,"Manrope",sans-serif)!important;
             font-size:13px!important;
             line-height:1.35!important;
             font-weight:600!important;
@@ -2880,7 +3371,7 @@ final class RaffleLB_Shop {
             border-radius:11px!important;
             background:#090d09!important;
             color:#dce2d9!important;
-            font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif!important;
+            font-family:var(--rl-font,"Manrope",sans-serif)!important;
             font-size:14px!important;
             line-height:1.25!important;
             font-weight:650!important;
@@ -2929,7 +3420,7 @@ final class RaffleLB_Shop {
             border-radius:999px!important;
             background:rgba(186,255,0,.055)!important;
             color:#baff00!important;
-            font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif!important;
+            font-family:var(--rl-font,"Manrope",sans-serif)!important;
             font-size:13px!important;
             line-height:1!important;
             font-weight:750!important;
@@ -2950,7 +3441,7 @@ final class RaffleLB_Shop {
             display:none!important;
             margin:12px 0 0!important;
             color:#8f998c!important;
-            font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif!important;
+            font-family:var(--rl-font,"Manrope",sans-serif)!important;
             font-size:14px!important;
             line-height:1.45!important;
         }
@@ -3004,7 +3495,7 @@ final class RaffleLB_Shop {
         body.rafflelb-raffle-archive .rl-shop-mode-copy strong{
             margin:0!important;
             color:#f4f7f2!important;
-            font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif!important;
+            font-family:var(--rl-font,"Manrope",sans-serif)!important;
             font-size:17px!important;
             line-height:1.25!important;
             font-weight:700!important;
@@ -3012,7 +3503,7 @@ final class RaffleLB_Shop {
         }
         body.rafflelb-raffle-archive .rl-shop-mode-copy span{
             color:rgba(235,241,232,.70)!important;
-            font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif!important;
+            font-family:var(--rl-font,"Manrope",sans-serif)!important;
             font-size:14px!important;
             line-height:1.35!important;
             font-weight:450!important;
@@ -3035,7 +3526,7 @@ final class RaffleLB_Shop {
             border-radius:10px!important;
             background:rgba(186,255,0,.10)!important;
             color:#dfff91!important;
-            font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif!important;
+            font-family:var(--rl-font,"Manrope",sans-serif)!important;
             font-size:14px!important;
             line-height:1.2!important;
             font-weight:700!important;
@@ -3125,7 +3616,7 @@ final class RaffleLB_Shop {
         }
         body.rafflelb-raffle-archive .rl-shop-mode-copy strong{
             color:#ffffff!important;
-            font-family:Inter,"Segoe UI Variable","Segoe UI",Roboto,Arial,sans-serif!important;
+            font-family:var(--rl-font,"Manrope",sans-serif)!important;
             font-size:19px!important;
             line-height:1.2!important;
             font-weight:700!important;
@@ -3135,7 +3626,7 @@ final class RaffleLB_Shop {
         }
         body.rafflelb-raffle-archive .rl-shop-mode-copy span{
             color:rgba(244,247,242,.82)!important;
-            font-family:Inter,"Segoe UI Variable","Segoe UI",Roboto,Arial,sans-serif!important;
+            font-family:var(--rl-font,"Manrope",sans-serif)!important;
             font-size:15.5px!important;
             line-height:1.35!important;
             font-weight:500!important;
@@ -3333,7 +3824,7 @@ final class RaffleLB_Shop {
                 background:rgba(186,255,0,.10)!important;
                 border:1px solid rgba(186,255,0,.45)!important;
                 color:#baff00!important;
-                font-family:Inter,"Segoe UI Variable","Segoe UI",Roboto,Arial,sans-serif!important;
+                font-family:var(--rl-font,"Manrope",sans-serif)!important;
                 font-size:11px!important;
                 font-weight:800!important;
                 letter-spacing:.14em!important;
@@ -3380,7 +3871,7 @@ final class RaffleLB_Shop {
             background:#0d110d!important;
             border:1px solid #262e25!important;
             color:#e7ece3!important;
-            font-family:Inter,"Segoe UI Variable","Segoe UI",Roboto,Arial,sans-serif!important;
+            font-family:var(--rl-font,"Manrope",sans-serif)!important;
             text-decoration:none!important;
             padding:0 16px!important;
             border-radius:12px!important;
@@ -3481,7 +3972,7 @@ final class RaffleLB_Shop {
         }
         #rl-shop-nav-overlay .rl-shop-nav-overlay-text{
             color:rgba(240,245,237,.72)!important;
-            font-family:Inter,"Segoe UI",Arial,sans-serif!important;
+            font-family:var(--rl-font,"Manrope",sans-serif)!important;
             font-size:12px!important;
             font-weight:700!important;
             letter-spacing:.14em!important;
@@ -3621,7 +4112,7 @@ final class RaffleLB_Shop {
                 margin:1px 0!important;
                 text-align:center!important;
                 color:#6d766a!important;
-                font-family:Inter,"Segoe UI",Arial,sans-serif!important;
+                font-family:var(--rl-font,"Manrope",sans-serif)!important;
                 font-size:8px!important;
                 font-weight:800!important;
                 letter-spacing:.12em!important;
@@ -6858,6 +7349,106 @@ final class RaffleLB_Shop {
             margin-top:auto!important;
         }
     }
+    /* 0.1.95 — typography/readability only. Geometry and behavior are frozen. */
+    body.rafflelb-raffle-archive :is(.rl-shop-hero,#rl-shop-controls,.rl-raffle-card),
+    body.rafflelb-raffle-archive :is(.rl-shop-hero,#rl-shop-controls,.rl-raffle-card) *{
+        font-family:var(--rl-font,"Manrope",sans-serif)!important;
+        text-rendering:optimizeLegibility;
+        -webkit-font-smoothing:antialiased;
+    }
+    body.rafflelb-raffle-archive .rl-shop-heading::before{
+        font-size:var(--rl-text-xs,10px)!important;
+        font-weight:var(--rl-weight-bold,700)!important;
+        line-height:var(--rl-line-heading,1.2)!important;
+    }
+    body.rafflelb-raffle-archive .rl-shop-title-row h1{
+        font-size:48px!important;
+        font-weight:var(--rl-weight-heavy,800)!important;
+        line-height:var(--rl-line-heading,1.08)!important;
+        letter-spacing:var(--rl-tracking-tight,-.025em)!important;
+    }
+    body.rafflelb-raffle-archive .rl-shop-title-row p{
+        font-size:var(--rl-text-base,15px)!important;
+        font-weight:var(--rl-weight-medium,500)!important;
+        line-height:var(--rl-line-body,1.55)!important;
+    }
+    #rl-shop-controls .rl-shop-points-label{font-size:13px!important;font-weight:var(--rl-weight-semibold,600)!important}
+    #rl-shop-controls .rl-shop-points-value{font-size:22px!important;font-weight:var(--rl-weight-heavy,800)!important}
+    #rl-shop-controls .rl-shop-mode-eyebrow{font-size:11px!important;font-weight:var(--rl-weight-bold,700)!important}
+    #rl-shop-controls .rl-shop-view-mode,
+    #rl-shop-controls .rl-shop-toolbar-actions>.rl-shop-filter-toggle:not(.rl-shop-sort-trigger),
+    #rl-shop-controls .rl-shop-sort-trigger{
+        font-size:12px!important;
+        font-weight:var(--rl-weight-bold,700)!important;
+        line-height:var(--rl-line-heading,1.2)!important;
+        letter-spacing:0!important;
+    }
+    body.rafflelb-raffle-archive .rl-raffle-card :is(.wd-product-cats,.product-categories),
+    body.rafflelb-raffle-archive .rl-raffle-card :is(.wd-product-cats,.product-categories) a{
+        font-size:10px!important;
+        font-weight:var(--rl-weight-semibold,600)!important;
+        line-height:1.35!important;
+    }
+    body.rafflelb-raffle-archive .rl-raffle-card :is(.wd-entities-title,.product-title,h3),
+    body.rafflelb-raffle-archive .rl-raffle-card :is(.wd-entities-title,.product-title,h3) a{
+        font-size:17px!important;
+        font-weight:var(--rl-weight-bold,700)!important;
+        line-height:1.35!important;
+        letter-spacing:var(--rl-tracking-tight,-.015em)!important;
+    }
+    body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices:not(.is-dual-price) small{
+        font-size:10px!important;
+        font-weight:var(--rl-weight-semibold,600)!important;
+        line-height:1.3!important;
+    }
+    body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices:not(.is-dual-price) strong,
+    body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices:not(.is-dual-price) strong *{
+        font-size:20px!important;
+        font-weight:var(--rl-weight-heavy,800)!important;
+        line-height:1.15!important;
+    }
+    body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices.is-retail-only strong,
+    body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices.is-retail-only strong *{font-size:22px!important}
+    body.rafflelb-raffle-archive .rl-shop-prices:not(.is-dual-price) .rl-shop-price-raffle .rl-shop-entry-value em{
+        font-size:11px!important;
+        font-weight:var(--rl-weight-medium,500)!important;
+    }
+    body.rafflelb-raffle-archive .rl-shop-raffle-live,
+    body.rafflelb-raffle-archive .rl-shop-raffle-line strong,
+    body.rafflelb-raffle-archive .rl-shop-raffle-line strong *,
+    body.rafflelb-raffle-archive .rl-shop-raffle-meta,
+    body.rafflelb-raffle-archive .rl-shop-raffle-meta *{
+        font-size:11px!important;
+        font-weight:var(--rl-weight-semibold,600)!important;
+        line-height:1.35!important;
+    }
+    body.rafflelb-raffle-archive .rl-shop-buy,
+    body.rafflelb-raffle-archive .rl-shop-buy-label,
+    body.rafflelb-raffle-archive .rl-shop-enter-label,
+    body.rafflelb-raffle-archive .rl-shop-enter-price,
+    body.rafflelb-raffle-archive .rl-shop-enter-price *{
+        font-size:12px!important;
+        font-weight:var(--rl-weight-bold,700)!important;
+        letter-spacing:0!important;
+    }
+    body.rafflelb-raffle-archive .rl-shop-card-actions-or{font-size:11px!important;font-weight:var(--rl-weight-medium,500)!important}
+    @media(max-width:767px){
+        body.rafflelb-raffle-archive .rl-shop-title-row h1{font-size:44px!important}
+        body.rafflelb-raffle-archive .rl-shop-title-row p{font-size:15px!important}
+        #rl-shop-controls .rl-shop-view-mode,
+        #rl-shop-controls .rl-shop-toolbar-actions>.rl-shop-filter-toggle:not(.rl-shop-sort-trigger),
+        #rl-shop-controls .rl-shop-sort-trigger{font-size:12px!important}
+        body.rafflelb-raffle-archive .rl-raffle-card :is(.wd-entities-title,.product-title,h3),
+        body.rafflelb-raffle-archive .rl-raffle-card :is(.wd-entities-title,.product-title,h3) a{font-size:16px!important;line-height:1.35!important}
+        body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices:not(.is-dual-price) strong,
+        body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices:not(.is-dual-price) strong *{font-size:18px!important}
+        body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices:not(.is-dual-price) small{font-size:10px!important}
+        body.rafflelb-raffle-archive .rl-shop-raffle-live,
+        body.rafflelb-raffle-archive .rl-shop-raffle-line strong,
+        body.rafflelb-raffle-archive .rl-shop-raffle-line strong *,
+        body.rafflelb-raffle-archive .rl-shop-raffle-meta,
+        body.rafflelb-raffle-archive .rl-shop-raffle-meta *{font-size:11px!important}
+    }
     </style>
     <?php
 }
@@ -7174,7 +7765,7 @@ final class RaffleLB_Shop {
         body.rafflelb-raffle-archive .rl-raffle-card *,
         body.rafflelb-raffle-archive #rl-shop-controls,
         body.rafflelb-raffle-archive #rl-shop-controls *{
-            font-family:Inter,"Segoe UI",Arial,sans-serif!important;
+            font-family:var(--rl-font,"Manrope",sans-serif)!important;
             text-shadow:none!important;
             -webkit-text-stroke:0!important;
             filter:none!important;
@@ -7200,12 +7791,9 @@ final class RaffleLB_Shop {
             letter-spacing:-.012em!important;
         }
 
-        /* Preserve the approved Store & Raffle dual-price geometry. */
-        body.rafflelb-raffle-archive .rl-shop-prices:not(.is-retail-only):not(.is-raffle-only){
-            grid-template-columns:repeat(2,minmax(0,1fr))!important;
-            gap:8px!important;
-        }
-        body.rafflelb-raffle-archive .rl-shop-prices > div{
+        /* Dedicated Store + Raffle desktop geometry is owned by
+           assets/shop-reference.css. These legacy rules now serve solo rows. */
+        body.rafflelb-raffle-archive .rl-shop-prices:not(.is-dual-price) > div{
             min-width:0!important;
             box-sizing:border-box!important;
             padding:9px 7px!important;
@@ -7214,7 +7802,7 @@ final class RaffleLB_Shop {
             background:#0a110c!important;
             overflow:hidden!important;
         }
-        body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices small{
+        body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices:not(.is-dual-price) small{
             display:block!important;
             margin:0 0 5px!important;
             color:#aab4a6!important;
@@ -7223,19 +7811,19 @@ final class RaffleLB_Shop {
             line-height:1.2!important;
             letter-spacing:.04em!important;
         }
-        body.rafflelb-raffle-archive.rl-store-reference .rl-shop-price-main strong,
-        body.rafflelb-raffle-archive.rl-store-reference .rl-shop-price-main strong *,
-        body.rafflelb-raffle-archive.rl-store-reference .rl-shop-price-raffle .rl-shop-entry-value strong,
-        body.rafflelb-raffle-archive.rl-store-reference .rl-shop-price-raffle .rl-shop-entry-value strong *{
+        body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices:not(.is-dual-price) .rl-shop-price-main strong,
+        body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices:not(.is-dual-price) .rl-shop-price-main strong *,
+        body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices:not(.is-dual-price) .rl-shop-price-raffle .rl-shop-entry-value strong,
+        body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices:not(.is-dual-price) .rl-shop-price-raffle .rl-shop-entry-value strong *{
             font-size:clamp(15px,1.05vw,17px)!important;
             line-height:1.12!important;
             font-weight:750!important;
             letter-spacing:-.025em!important;
             white-space:nowrap!important;
         }
-        body.rafflelb-raffle-archive.rl-store-reference .rl-shop-price-main strong,
-        body.rafflelb-raffle-archive.rl-store-reference .rl-shop-price-main strong .woocommerce-Price-amount,
-        body.rafflelb-raffle-archive.rl-store-reference .rl-shop-price-main strong bdi{
+        body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices:not(.is-dual-price) .rl-shop-price-main strong,
+        body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices:not(.is-dual-price) .rl-shop-price-main strong .woocommerce-Price-amount,
+        body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices:not(.is-dual-price) .rl-shop-price-main strong bdi{
             display:inline-flex!important;
             align-items:baseline!important;
             min-width:0!important;
@@ -7243,13 +7831,13 @@ final class RaffleLB_Shop {
             max-width:100%!important;
             white-space:nowrap!important;
         }
-        body.rafflelb-raffle-archive.rl-store-reference .rl-shop-price-main strong .woocommerce-Price-currencySymbol{
+        body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices:not(.is-dual-price) .rl-shop-price-main strong .woocommerce-Price-currencySymbol{
             display:inline!important;
             flex:0 0 auto!important;
             margin-left:.16em!important;
             white-space:nowrap!important;
         }
-        body.rafflelb-raffle-archive .rl-shop-price-raffle .rl-shop-entry-value{
+        body.rafflelb-raffle-archive .rl-shop-prices:not(.is-dual-price) .rl-shop-price-raffle .rl-shop-entry-value{
             display:flex!important;
             align-items:baseline!important;
             flex-wrap:nowrap!important;
@@ -7260,13 +7848,13 @@ final class RaffleLB_Shop {
             direction:ltr!important;
             overflow:hidden!important;
         }
-        body.rafflelb-raffle-archive .rl-shop-price-raffle .rl-shop-entry-value strong{
+        body.rafflelb-raffle-archive .rl-shop-prices:not(.is-dual-price) .rl-shop-price-raffle .rl-shop-entry-value strong{
             flex:0 1 auto!important;
             min-width:0!important;
             margin:0!important;
             white-space:nowrap!important;
         }
-        body.rafflelb-raffle-archive .rl-shop-price-raffle .rl-shop-entry-value em{
+        body.rafflelb-raffle-archive .rl-shop-prices:not(.is-dual-price) .rl-shop-price-raffle .rl-shop-entry-value em{
             flex:0 0 auto!important;
             display:inline!important;
             margin:0!important;
@@ -7685,9 +8273,1013 @@ final class RaffleLB_Shop {
             color:#f4f6f2!important;
         }
     }
+    /* Keep the 0.1.95 type layer authoritative over historical presentation rules. */
+    body.rafflelb-raffle-archive :is(.rl-shop-hero,#rl-shop-controls,.rl-raffle-card),
+    body.rafflelb-raffle-archive :is(.rl-shop-hero,#rl-shop-controls,.rl-raffle-card) *{font-family:var(--rl-font,"Manrope",sans-serif)!important}
+    body.rafflelb-raffle-archive .rl-shop-title-row h1{font-size:48px!important;font-weight:var(--rl-weight-heavy,800)!important;line-height:var(--rl-line-heading,1.08)!important;letter-spacing:var(--rl-tracking-tight,-.025em)!important}
+    body.rafflelb-raffle-archive .rl-shop-title-row p{font-size:var(--rl-text-base,15px)!important;font-weight:var(--rl-weight-medium,500)!important;line-height:var(--rl-line-body,1.55)!important}
+    #rl-shop-controls .rl-shop-points-label{font-size:13px!important;font-weight:var(--rl-weight-semibold,600)!important}
+    #rl-shop-controls .rl-shop-points-value{font-size:22px!important;font-weight:var(--rl-weight-heavy,800)!important}
+    #rl-shop-controls .rl-shop-mode-eyebrow{font-size:11px!important;font-weight:var(--rl-weight-bold,700)!important}
+    #rl-shop-controls .rl-shop-view-mode,#rl-shop-controls .rl-shop-toolbar-actions>.rl-shop-filter-toggle:not(.rl-shop-sort-trigger),#rl-shop-controls .rl-shop-sort-trigger{font-size:12px!important;font-weight:var(--rl-weight-bold,700)!important;letter-spacing:0!important}
+    body.rafflelb-raffle-archive .rl-raffle-card :is(.wd-entities-title,.product-title,h3),body.rafflelb-raffle-archive .rl-raffle-card :is(.wd-entities-title,.product-title,h3) a{font-size:17px!important;font-weight:var(--rl-weight-bold,700)!important;line-height:1.35!important}
+    body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices:not(.is-dual-price) small{font-size:10px!important;font-weight:var(--rl-weight-semibold,600)!important}
+    body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices:not(.is-dual-price) strong,body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices:not(.is-dual-price) strong *{font-size:20px!important;font-weight:var(--rl-weight-heavy,800)!important}
+    body.rafflelb-raffle-archive .rl-shop-prices:not(.is-dual-price) .rl-shop-price-raffle .rl-shop-entry-value em{font-size:11px!important}
+    body.rafflelb-raffle-archive .rl-shop-raffle-live,body.rafflelb-raffle-archive .rl-shop-raffle-line strong,body.rafflelb-raffle-archive .rl-shop-raffle-line strong *,body.rafflelb-raffle-archive .rl-shop-raffle-meta,body.rafflelb-raffle-archive .rl-shop-raffle-meta *{font-size:11px!important;font-weight:var(--rl-weight-semibold,600)!important}
+    body.rafflelb-raffle-archive .rl-shop-buy,body.rafflelb-raffle-archive .rl-shop-buy-label,body.rafflelb-raffle-archive .rl-shop-enter-label,body.rafflelb-raffle-archive .rl-shop-enter-price,body.rafflelb-raffle-archive .rl-shop-enter-price *{font-size:12px!important;font-weight:var(--rl-weight-bold,700)!important;letter-spacing:0!important}
+    @media(max-width:767px){body.rafflelb-raffle-archive .rl-shop-title-row h1{font-size:44px!important}body.rafflelb-raffle-archive .rl-raffle-card :is(.wd-entities-title,.product-title,h3),body.rafflelb-raffle-archive .rl-raffle-card :is(.wd-entities-title,.product-title,h3) a{font-size:16px!important}body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices:not(.is-dual-price) strong,body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices:not(.is-dual-price) strong *{font-size:18px!important}}
     </style>
     <?php
 }
+
+    private static function shop_banner_defaults() {
+        return [
+            'global' => [
+                'enabled'     => 'no',
+                'text'        => '',
+                'motion'      => 'moving',
+                'font_size'   => 13,
+                'font_weight' => 700,
+                'height'      => 46,
+                'speed'       => 14,
+            ],
+            'both' => [
+                'enabled'     => 'no',
+                'text'        => '',
+                'motion'      => 'moving',
+                'font_size'   => 13,
+                'font_weight' => 700,
+                'height'      => 46,
+                'speed'       => 14,
+            ],
+            'retail' => [
+                'enabled'     => 'no',
+                'text'        => '',
+                'motion'      => 'moving',
+                'font_size'   => 13,
+                'font_weight' => 700,
+                'height'      => 46,
+                'speed'       => 14,
+            ],
+            'raffle' => [
+                'enabled'     => 'no',
+                'text'        => '',
+                'motion'      => 'moving',
+                'font_size'   => 13,
+                'font_weight' => 700,
+                'height'      => 46,
+                'speed'       => 14,
+            ],
+        ];
+    }
+
+    private static function shop_banner_settings() {
+        $saved = get_option('rafflelb_shop_banners', []);
+        $saved = is_array($saved) ? $saved : [];
+        $defaults = self::shop_banner_defaults();
+        foreach ($defaults as $mode => $config) {
+            $mode_saved = isset($saved[$mode]) && is_array($saved[$mode]) ? $saved[$mode] : [];
+            $defaults[$mode] = wp_parse_args($mode_saved, $config);
+        }
+        return $defaults;
+    }
+
+    public static function sanitize_shop_banner_settings($value) {
+        $value = is_array($value) ? $value : [];
+        $clean = self::shop_banner_defaults();
+        foreach (array_keys($clean) as $mode) {
+            $row = isset($value[$mode]) && is_array($value[$mode]) ? $value[$mode] : [];
+            $clean[$mode]['enabled'] = !empty($row['enabled']) ? 'yes' : 'no';
+            $clean[$mode]['text'] = isset($row['text']) ? sanitize_text_field(wp_unslash($row['text'])) : '';
+            $motion = isset($row['motion']) ? sanitize_key($row['motion']) : 'moving';
+            $clean[$mode]['motion'] = in_array($motion, ['moving', 'static'], true) ? $motion : 'moving';
+
+            $font_size = isset($row['font_size']) ? absint($row['font_size']) : 13;
+            $clean[$mode]['font_size'] = max(10, min(24, $font_size ?: 13));
+
+            $font_weight = isset($row['font_weight']) ? absint($row['font_weight']) : 700;
+            $allowed_weights = [500, 600, 700, 800, 900];
+            $clean[$mode]['font_weight'] = in_array($font_weight, $allowed_weights, true) ? $font_weight : 700;
+
+            $height = isset($row['height']) ? absint($row['height']) : 46;
+            $clean[$mode]['height'] = max(38, min(64, $height ?: 46));
+
+            $speed = isset($row['speed']) ? absint($row['speed']) : 14;
+            $clean[$mode]['speed'] = max(5, min(60, $speed ?: 14));
+        }
+        return $clean;
+    }
+
+    public static function register_shop_banner_settings() {
+        register_setting(
+            'rafflelb_shop_banners_group',
+            'rafflelb_shop_banners',
+            [
+                'type'              => 'array',
+                'sanitize_callback' => [__CLASS__, 'sanitize_shop_banner_settings'],
+                'default'           => self::shop_banner_defaults(),
+            ]
+        );
+    }
+
+    public static function banner_settings_updated($old_value, $new_value) {
+        if ($old_value === $new_value) return;
+        if (function_exists('rocket_clean_domain')) {
+            rocket_clean_domain();
+        }
+        do_action('rafflelb_shop_banners_updated', $new_value, $old_value);
+    }
+
+    public static function register_shop_banner_menu() {
+        /*
+         * Keep this screen hidden from the normal/Advanced WordPress menu.
+         * RaffleLB Admin owns the visible Store Banners item in RaffleLB Mode.
+         */
+        add_submenu_page(
+            null,
+            __('Store Banners', 'rafflelb-shop'),
+            __('Store Banners', 'rafflelb-shop'),
+            'manage_woocommerce',
+            'rafflelb-shop-banners',
+            [__CLASS__, 'render_shop_banner_settings_page']
+        );
+    }
+
+    public static function render_shop_banner_settings_page() {
+        if (!current_user_can('manage_woocommerce')) return;
+        $settings = self::shop_banner_settings();
+        $labels = [
+            'global' => ['GLOBAL', 'Shown across the entire public RaffleLB website, including the Store.'],
+            'both'   => ['STORE & RAFFLE', 'Shown only while the Store is in Store & Raffle mode.'],
+            'retail' => ['STORE ONLY', 'Shown only while the Store is in Store Only mode.'],
+            'raffle' => ['RAFFLE ONLY', 'Shown only while the Store is in Raffle Only mode.'],
+        ];
+        ?>
+        <div class="wrap rafflelb-shop-banner-settings">
+            <div class="rl-banner-admin-heading">
+                <div>
+                    <div class="rl-banner-admin-eyebrow">RAFFLELB / STORE</div>
+                    <h1><?php echo esc_html__('Promotion Banners', 'rafflelb-shop'); ?></h1>
+                    <p><?php echo esc_html__('Use GLOBAL for site-wide updates, or create a separate message for each Store shopping mode.', 'rafflelb-shop'); ?></p>
+                </div>
+            </div>
+            <form method="post" action="options.php">
+                <?php settings_fields('rafflelb_shop_banners_group'); ?>
+                <div class="rl-admin-banner-grid">
+                    <?php foreach ($labels as $mode => $label) : $config = $settings[$mode]; ?>
+                        <section class="rl-admin-banner-card <?php echo $mode === 'global' ? 'is-global' : ''; ?>">
+                            <div class="rl-admin-banner-card-head">
+                                <div>
+                                    <h2><?php echo esc_html($label[0]); ?></h2>
+                                    <p><?php echo esc_html($label[1]); ?></p>
+                                </div>
+                                <label class="rl-admin-banner-toggle">
+                                    <input type="checkbox" name="rafflelb_shop_banners[<?php echo esc_attr($mode); ?>][enabled]" value="1" <?php checked($config['enabled'], 'yes'); ?>>
+                                    <span class="rl-admin-toggle-ui" aria-hidden="true"><span></span></span>
+                                    <span class="rl-admin-toggle-copy"><?php echo esc_html__('Enabled', 'rafflelb-shop'); ?></span>
+                                </label>
+                            </div>
+                            <label class="rl-admin-field">
+                                <span><?php echo esc_html__('Promotion / update text', 'rafflelb-shop'); ?></span>
+                                <input type="text" class="regular-text" maxlength="240" name="rafflelb_shop_banners[<?php echo esc_attr($mode); ?>][text]" value="<?php echo esc_attr($config['text']); ?>" placeholder="<?php echo esc_attr__('Example: Weekend promotion — selected raffles now live.', 'rafflelb-shop'); ?>">
+                            </label>
+                            <label class="rl-admin-field">
+                                <span><?php echo esc_html__('Display style', 'rafflelb-shop'); ?></span>
+                                <select name="rafflelb_shop_banners[<?php echo esc_attr($mode); ?>][motion]">
+                                    <option value="moving" <?php selected($config['motion'], 'moving'); ?>><?php echo esc_html__('Animated / moving', 'rafflelb-shop'); ?></option>
+                                    <option value="static" <?php selected($config['motion'], 'static'); ?>><?php echo esc_html__('Not moving / static', 'rafflelb-shop'); ?></option>
+                                </select>
+                            </label>
+                            <div class="rl-admin-banner-options">
+                                <label class="rl-admin-field">
+                                    <span><?php echo esc_html__('Font size', 'rafflelb-shop'); ?></span>
+                                    <div class="rl-admin-number-wrap"><input type="number" min="10" max="24" step="1" name="rafflelb_shop_banners[<?php echo esc_attr($mode); ?>][font_size]" value="<?php echo esc_attr((int) $config['font_size']); ?>"><em>px</em></div>
+                                </label>
+                                <label class="rl-admin-field">
+                                    <span><?php echo esc_html__('Font weight', 'rafflelb-shop'); ?></span>
+                                    <select name="rafflelb_shop_banners[<?php echo esc_attr($mode); ?>][font_weight]">
+                                        <option value="500" <?php selected((int) $config['font_weight'], 500); ?>><?php echo esc_html__('Medium', 'rafflelb-shop'); ?></option>
+                                        <option value="600" <?php selected((int) $config['font_weight'], 600); ?>><?php echo esc_html__('Semi Bold', 'rafflelb-shop'); ?></option>
+                                        <option value="700" <?php selected((int) $config['font_weight'], 700); ?>><?php echo esc_html__('Bold', 'rafflelb-shop'); ?></option>
+                                        <option value="800" <?php selected((int) $config['font_weight'], 800); ?>><?php echo esc_html__('Extra Bold', 'rafflelb-shop'); ?></option>
+                                        <option value="900" <?php selected((int) $config['font_weight'], 900); ?>><?php echo esc_html__('Black', 'rafflelb-shop'); ?></option>
+                                    </select>
+                                </label>
+                                <label class="rl-admin-field">
+                                    <span><?php echo esc_html__('Banner height', 'rafflelb-shop'); ?></span>
+                                    <div class="rl-admin-number-wrap"><input type="number" min="38" max="64" step="1" name="rafflelb_shop_banners[<?php echo esc_attr($mode); ?>][height]" value="<?php echo esc_attr((int) $config['height']); ?>"><em>px</em></div>
+                                </label>
+                                <label class="rl-admin-field">
+                                    <span><?php echo esc_html__('Moving speed', 'rafflelb-shop'); ?></span>
+                                    <div class="rl-admin-number-wrap"><input type="number" min="5" max="60" step="1" name="rafflelb_shop_banners[<?php echo esc_attr($mode); ?>][speed]" value="<?php echo esc_attr((int) $config['speed']); ?>"><em>sec</em></div>
+                                    <small><?php echo esc_html__('Lower = faster. Used only when Animated / moving is selected.', 'rafflelb-shop'); ?></small>
+                                </label>
+                            </div>
+                        </section>
+                    <?php endforeach; ?>
+                </div>
+                <?php submit_button(__('Save Banner Settings', 'rafflelb-shop')); ?>
+            </form>
+        </div>
+        <style id="rafflelb-banner-admin-v0213">
+            .rafflelb-shop-banner-settings{max-width:1240px;color:#f5f7f2;padding-top:8px}
+            .rafflelb-shop-banner-settings,.rafflelb-shop-banner-settings *{box-sizing:border-box}
+            .rafflelb-shop-banner-settings h1,.rafflelb-shop-banner-settings h2,.rafflelb-shop-banner-settings strong,.rafflelb-shop-banner-settings label,.rafflelb-shop-banner-settings p{color:inherit}
+            .rl-banner-admin-heading{display:flex;align-items:flex-end;justify-content:space-between;margin:0 0 22px}
+            .rl-banner-admin-heading h1{margin:4px 0 7px!important;font-size:30px!important;line-height:1.1!important;color:#fff!important}
+            .rl-banner-admin-heading p{margin:0!important;color:#9ca59b!important;font-size:13px!important}
+            .rl-banner-admin-eyebrow{color:#baff00;font-size:10px;font-weight:800;letter-spacing:.13em}
+            .rl-admin-banner-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin-top:18px}
+            .rl-admin-banner-card{padding:20px;border:1px solid #263126;border-radius:13px;background:#0d110d!important;box-shadow:none;color:#f7f8f5}
+            .rl-admin-banner-card.is-global{border-color:rgba(186,255,0,.48);box-shadow:inset 0 0 0 1px rgba(186,255,0,.05)}
+            .rl-admin-banner-card-head{display:flex;gap:18px;align-items:flex-start;justify-content:space-between}
+            .rl-admin-banner-card h2{margin:0 0 6px!important;color:#fff!important;font-size:14px!important;font-weight:800!important;letter-spacing:.04em}
+            .rl-admin-banner-card-head p{margin:0!important;max-width:450px;min-height:36px;color:#929b92!important;font-size:12px!important;line-height:1.5!important}
+            .rl-admin-field{display:block;margin-top:17px!important;color:#f2f4ef!important}
+            .rl-admin-field>span{display:block;margin:0 0 7px;color:#cbd1c8!important;font-size:11px;font-weight:700}
+            .rafflelb-shop-banner-settings input[type=text],.rafflelb-shop-banner-settings input[type=number],.rafflelb-shop-banner-settings select{width:100%!important;max-width:none!important;min-height:40px!important;margin:0!important;padding:0 12px!important;border:1px solid #303b30!important;border-radius:7px!important;background:#070a07!important;color:#fff!important;box-shadow:none!important;outline:none!important}
+            .rafflelb-shop-banner-settings input[type=text]:focus,.rafflelb-shop-banner-settings input[type=number]:focus,.rafflelb-shop-banner-settings select:focus{border-color:#baff00!important;box-shadow:0 0 0 1px #baff00!important}
+            .rafflelb-shop-banner-settings select option{background:#070a07;color:#fff}
+            .rl-admin-banner-options{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 14px;margin-top:2px}
+            .rl-admin-banner-options .rl-admin-field{margin-top:14px!important}
+            .rl-admin-number-wrap{position:relative}
+            .rl-admin-number-wrap input{padding-right:48px!important}
+            .rl-admin-number-wrap em{position:absolute;right:11px;top:50%;transform:translateY(-50%);color:#7f897e;font-size:10px;font-style:normal;font-weight:800;pointer-events:none;text-transform:uppercase}
+            .rl-admin-field small{display:block;margin-top:6px;color:#737d72;font-size:10px;line-height:1.35}
+            .rl-admin-banner-toggle{display:flex!important;align-items:center!important;gap:9px!important;flex:0 0 auto!important;margin:0!important;cursor:pointer;user-select:none}
+            .rl-admin-banner-toggle input{position:absolute!important;opacity:0!important;pointer-events:none!important;width:1px!important;height:1px!important}
+            .rl-admin-toggle-ui{position:relative;display:inline-flex!important;align-items:center;width:38px;height:22px;padding:2px;border:1px solid #3b473a;border-radius:999px;background:#171d16;transition:.18s ease}
+            .rl-admin-toggle-ui>span{display:block;width:16px;height:16px;border-radius:50%;background:#7d877a;transition:.18s ease;transform:translateX(0)}
+            .rl-admin-banner-toggle input:checked + .rl-admin-toggle-ui{border-color:#baff00;background:#baff00}
+            .rl-admin-banner-toggle input:checked + .rl-admin-toggle-ui>span{background:#050705;transform:translateX(16px)}
+            .rl-admin-banner-toggle input:focus-visible + .rl-admin-toggle-ui{outline:2px solid #fff;outline-offset:2px}
+            .rl-admin-toggle-copy{color:#cfd5cc!important;font-size:11px!important;font-weight:700!important}
+            .rafflelb-shop-banner-settings .submit{margin:18px 0 0!important;padding:0!important}
+            .rafflelb-shop-banner-settings .button-primary{min-height:42px!important;padding:0 18px!important;border:0!important;border-radius:8px!important;background:#baff00!important;color:#050705!important;font-weight:800!important;text-shadow:none!important;box-shadow:none!important}
+            .rafflelb-shop-banner-settings .button-primary:hover{background:#c8ff34!important;color:#050705!important}
+            @media(max-width:1000px){.rl-admin-banner-grid{grid-template-columns:1fr}}
+            @media(max-width:600px){.rl-admin-banner-card-head{display:block}.rl-admin-banner-toggle{margin-top:14px!important}.rl-admin-banner-options{grid-template-columns:1fr}}
+        </style>
+        <?php
+    }
+
+    private static function public_banner_markup($text, $moving, $badge, $scope_class, $config = []) {
+        $text = trim((string) $text);
+        if ($text === '') return '';
+        $config = is_array($config) ? $config : [];
+        $font_size = max(10, min(24, absint($config['font_size'] ?? 13)));
+        $font_weight = absint($config['font_weight'] ?? 700);
+        if (!in_array($font_weight, [500, 600, 700, 800, 900], true)) $font_weight = 700;
+        $height = max(38, min(64, absint($config['height'] ?? 46)));
+        $speed = max(5, min(60, absint($config['speed'] ?? 14)));
+        $inline_style = sprintf(
+            '--rl-banner-font-size:%dpx;--rl-banner-font-weight:%d;--rl-banner-height:%dpx;--rl-banner-speed:%ds;',
+            $font_size,
+            $font_weight,
+            $height,
+            $speed
+        );
+        ob_start();
+        ?>
+        <section class="rl-shop-announcement <?php echo $moving ? 'is-moving' : 'is-static'; ?> <?php echo esc_attr($scope_class); ?>" style="<?php echo esc_attr($inline_style); ?>" role="status" aria-label="RaffleLB update">
+            <span class="rl-shop-announcement-badge"><?php echo esc_html($badge); ?></span>
+            <div class="rl-shop-announcement-viewport">
+                <?php if ($moving) : ?>
+                    <div class="rl-shop-announcement-track">
+                        <span class="rl-shop-announcement-item"><?php echo esc_html($text); ?></span>
+                    </div>
+                <?php else : ?>
+                    <div class="rl-shop-announcement-static"><?php echo esc_html($text); ?></div>
+                <?php endif; ?>
+            </div>
+        </section>
+        <?php
+        return (string) ob_get_clean();
+    }
+
+    /**
+     * Public banner stack. GLOBAL is shown site-wide; the active Store mode
+     * banner is added only on Shop/product-category archives. Rendering at the
+     * footer and moving the stack directly below the header makes this reliable
+     * even when WoodMart replaces WooCommerce archive hooks with AJAX markup.
+     */
+    public static function public_banner_stack() {
+        if (is_admin() || self::$public_banners_rendered) return;
+
+        $settings = self::shop_banner_settings();
+        $items = [];
+
+        if (!empty($settings['global']) && $settings['global']['enabled'] === 'yes' && trim((string) $settings['global']['text']) !== '') {
+            $items[] = self::public_banner_markup(
+                $settings['global']['text'],
+                $settings['global']['motion'] === 'moving',
+                'RAFFLELB',
+                'is-global',
+                $settings['global']
+            );
+        }
+
+        if (self::shop_query_is_catalog()) {
+            $mode = self::shop_view_mode();
+            if (!empty($settings[$mode]) && $settings[$mode]['enabled'] === 'yes' && trim((string) $settings[$mode]['text']) !== '') {
+                $badge = $mode === 'raffle' ? 'RAFFLE' : ($mode === 'retail' ? 'STORE' : 'UPDATE');
+                $items[] = self::public_banner_markup(
+                    $settings[$mode]['text'],
+                    $settings[$mode]['motion'] === 'moving',
+                    $badge,
+                    'is-mode-' . $mode,
+                    $settings[$mode]
+                );
+            }
+        }
+
+        if (!$items) return;
+        self::$public_banners_rendered = true;
+
+        echo '<div id="rafflelb-site-banner-stack" class="rl-site-banner-stack">' . implode('', $items) . '</div>';
+        ?>
+        <script id="rafflelb-site-banner-placement-v0213">
+        (function(){
+            var stack=document.getElementById('rafflelb-site-banner-stack');
+            if(!stack) return;
+            function place(){
+                var header=document.querySelector('.whb-header,header.site-header,#masthead,header');
+                if(header && header.parentNode){
+                    header.insertAdjacentElement('afterend',stack);
+                    return true;
+                }
+                var main=document.querySelector('.main-page-wrapper,#main,.site-content');
+                if(main && main.parentNode){
+                    main.parentNode.insertBefore(stack,main);
+                    return true;
+                }
+                return false;
+            }
+            if(!place()){
+                if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',place,{once:true});
+                else setTimeout(place,0);
+            }
+        })();
+        </script>
+        <?php
+    }
+
+    /** Backward-compatible mode-only renderer for third-party/custom hooks. */
+    public static function shop_mode_banner() {
+        if (!self::shop_query_is_catalog()) return;
+        $mode = self::shop_view_mode();
+        $settings = self::shop_banner_settings();
+        if (empty($settings[$mode]) || $settings[$mode]['enabled'] !== 'yes') return;
+        echo self::public_banner_markup(
+            $settings[$mode]['text'],
+            $settings[$mode]['motion'] === 'moving',
+            $mode === 'raffle' ? 'RAFFLE' : ($mode === 'retail' ? 'STORE' : 'UPDATE'),
+            'is-mode-' . $mode,
+            $settings[$mode]
+        );
+    }
+
+    /** Store search taxonomies: categories plus any registered product brand taxonomy. */
+    private static function store_search_taxonomies() {
+        $taxonomies = ['product_cat'];
+        $objects = get_object_taxonomies('product', 'objects');
+        if (is_array($objects)) {
+            foreach ($objects as $taxonomy => $object) {
+                $name = strtolower((string) $taxonomy);
+                $label = isset($object->label) ? strtolower((string) $object->label) : '';
+                if (strpos($name, 'brand') !== false || strpos($label, 'brand') !== false) {
+                    $taxonomies[] = sanitize_key($taxonomy);
+                }
+            }
+        }
+        return array_values(array_unique(array_filter($taxonomies)));
+    }
+
+    /**
+     * Build a catalogue-derived spelling lexicon.
+     *
+     * This intentionally learns from the live Store instead of relying only on a
+     * hard-coded dictionary, so product names, categories and brands can correct
+     * customer typos automatically (for example: "airfrier" -> "Air Fryer").
+     */
+    private static function store_search_lexicon() {
+        $cache_key = 'rafflelb_store_search_lexicon_v0215';
+        $cached = get_transient($cache_key);
+        if (is_array($cached) && !empty($cached)) return $cached;
+
+        $entries = [];
+        $add = static function (&$entries, $key_source, $label, $priority = 10) {
+            $key_source = function_exists('remove_accents') ? remove_accents((string) $key_source) : (string) $key_source;
+            $key = strtolower($key_source);
+            $key = preg_replace('/[^a-z0-9]+/', '', $key);
+            $label = trim(wp_strip_all_tags((string) $label));
+            if ($key === '' || $label === '' || strlen($key) < 3 || strlen($key) > 48) return;
+            if (!isset($entries[$key]) || $priority < (int) $entries[$key]['priority']) {
+                $entries[$key] = ['label' => $label, 'priority' => (int) $priority];
+            }
+        };
+
+        /* A few high-confidence retail spellings; the rest comes from the catalogue. */
+        $aliases = [
+            'airfrier' => 'Air Fryer',
+            'airfryer' => 'Air Fryer',
+            'airfyer'  => 'Air Fryer',
+            'earpod'   => 'AirPods',
+            'earpods'  => 'AirPods',
+            'airpod'   => 'AirPods',
+            'airpods'  => 'AirPods',
+        ];
+        foreach ($aliases as $key => $label) $add($entries, $key, $label, 0);
+
+        /* Categories + registered product brand taxonomies. */
+        foreach (self::store_search_taxonomies() as $taxonomy) {
+            $terms = get_terms([
+                'taxonomy'   => $taxonomy,
+                'hide_empty' => false,
+                'number'     => 1000,
+            ]);
+            if (is_wp_error($terms) || !is_array($terms)) continue;
+            foreach ($terms as $term) {
+                if (!is_object($term) || empty($term->name)) continue;
+                $name = html_entity_decode((string) $term->name, ENT_QUOTES, get_bloginfo('charset'));
+                $add($entries, $name, $name, 1);
+            }
+        }
+
+        /* Product-title words and adjacent 2/3-word phrases. */
+        $titles = get_posts([
+            'post_type'              => 'product',
+            'post_status'            => 'publish',
+            'posts_per_page'         => 3000,
+            'orderby'                => 'ID',
+            'order'                  => 'DESC',
+            'fields'                 => 'ids',
+            'no_found_rows'          => true,
+            'update_post_meta_cache' => false,
+            'update_post_term_cache' => false,
+        ]);
+        $stop = array_fill_keys(['the','and','with','for','from','into','this','that','your','our','new','set','pack','pcs','piece'], true);
+        foreach ((array) $titles as $product_id) {
+            $title = html_entity_decode((string) get_the_title($product_id), ENT_QUOTES, get_bloginfo('charset'));
+            $plain = function_exists('remove_accents') ? remove_accents($title) : $title;
+            $parts = preg_split('/[^A-Za-z0-9]+/', $plain, -1, PREG_SPLIT_NO_EMPTY);
+            if (!$parts) continue;
+            $parts = array_values($parts);
+            $count = count($parts);
+            for ($i = 0; $i < $count; $i++) {
+                $word = (string) $parts[$i];
+                $low = strtolower($word);
+                if (strlen($word) >= 4 && !isset($stop[$low])) {
+                    $add($entries, $word, $word, 4);
+                }
+                for ($span = 2; $span <= 3; $span++) {
+                    if ($i + $span > $count) break;
+                    $phrase_parts = array_slice($parts, $i, $span);
+                    $phrase = implode(' ', $phrase_parts);
+                    $joined = implode('', $phrase_parts);
+                    if (strlen($joined) >= 5 && strlen($joined) <= 32) {
+                        $add($entries, $joined, $phrase, 3);
+                    }
+                }
+            }
+        }
+
+        /* Keep the lexicon bounded for fast Levenshtein comparisons. */
+        if (count($entries) > 7000) $entries = array_slice($entries, 0, 7000, true);
+        set_transient($cache_key, $entries, 12 * HOUR_IN_SECONDS);
+        return $entries;
+    }
+
+    public static function clear_store_search_lexicon_cache() {
+        delete_transient('rafflelb_store_search_lexicon_v0215');
+    }
+
+    private static function store_search_normalized_key($value) {
+        $value = function_exists('remove_accents') ? remove_accents((string) $value) : (string) $value;
+        $value = strtolower($value);
+        return preg_replace('/[^a-z0-9]+/', '', $value);
+    }
+
+    private static function store_search_best_spelling($value, $lexicon, $allow_phrase = true) {
+        $raw = trim((string) $value);
+        $key = self::store_search_normalized_key($raw);
+        $len = strlen($key);
+        if ($len < 3 || empty($lexicon)) return $raw;
+
+        if (isset($lexicon[$key]['label'])) return (string) $lexicon[$key]['label'];
+        if ($len < 4) return $raw;
+
+        $max_distance = $len <= 5 ? 1 : ($len <= 9 ? 2 : 3);
+        $best = null;
+        $best_score = PHP_INT_MAX;
+        $best_priority = PHP_INT_MAX;
+
+        foreach ($lexicon as $candidate_key => $entry) {
+            $candidate_key = (string) $candidate_key;
+            $candidate_len = strlen($candidate_key);
+            if ($candidate_len < 3 || abs($candidate_len - $len) > $max_distance) continue;
+            if ($candidate_key[0] !== $key[0]) continue;
+            if (!$allow_phrase && strpos((string) $entry['label'], ' ') !== false) continue;
+
+            $distance = levenshtein($key, $candidate_key);
+            if ($distance > $max_distance) continue;
+            $priority = isset($entry['priority']) ? (int) $entry['priority'] : 10;
+            $score = ($distance * 100) + abs($candidate_len - $len);
+            if ($score < $best_score || ($score === $best_score && $priority < $best_priority)) {
+                $best = (string) $entry['label'];
+                $best_score = $score;
+                $best_priority = $priority;
+            }
+        }
+        return $best !== null ? $best : $raw;
+    }
+
+    /** Correct high-confidence misspellings using catalogue words/phrases. */
+    private static function store_search_autocorrect_term($term) {
+        $original = trim(wp_strip_all_tags((string) $term));
+        if ($original === '') return $original;
+        $lexicon = self::store_search_lexicon();
+        if (empty($lexicon)) return $original;
+
+        /* Whole-query correction first: catches joined phrases like airfrier -> Air Fryer. */
+        $whole = self::store_search_best_spelling($original, $lexicon, true);
+        if (strcasecmp(trim($whole), trim($original)) !== 0) {
+            return $whole;
+        }
+
+        /* Otherwise correct individual words conservatively. */
+        $tokens = preg_split('/\s+/', $original, -1, PREG_SPLIT_NO_EMPTY);
+        if (!$tokens) return $original;
+        $changed = false;
+        foreach ($tokens as &$token) {
+            $fixed = self::store_search_best_spelling($token, $lexicon, false);
+            if (self::store_search_normalized_key($fixed) !== self::store_search_normalized_key($token)) {
+                $token = $fixed;
+                $changed = true;
+            } elseif (isset($lexicon[self::store_search_normalized_key($token)]['label'])) {
+                /* Canonical capitalization for known catalogue words. */
+                $canonical = (string) $lexicon[self::store_search_normalized_key($token)]['label'];
+                if (strpos($canonical, ' ') === false) $token = $canonical;
+            }
+        }
+        unset($token);
+        return $changed ? implode(' ', $tokens) : $original;
+    }
+
+    /** Find published parent product IDs by product name, SKU, category or brand. */
+    private static function store_search_candidate_ids($term, $limit = 200) {
+        global $wpdb;
+        $term = trim(wp_strip_all_tags((string) $term));
+        if ($term === '') return [];
+        $limit = max(1, min(1000, absint($limit)));
+
+        $taxonomies = self::store_search_taxonomies();
+        $tax_placeholders = implode(',', array_fill(0, count($taxonomies), '%s'));
+        $contains = '%' . $wpdb->esc_like($term) . '%';
+        $starts = $wpdb->esc_like($term) . '%';
+
+        $sql = "SELECT p.ID,
+                    MIN(CASE
+                        WHEN p.post_title LIKE %s THEN 0
+                        WHEN p.post_title LIKE %s THEN 1
+                        WHEN sku.meta_value LIKE %s THEN 2
+                        WHEN vsku.meta_value LIKE %s THEN 2
+                        WHEN t.name LIKE %s THEN 3
+                        ELSE 4
+                    END) AS rl_relevance
+                FROM {$wpdb->posts} p
+                LEFT JOIN {$wpdb->postmeta} sku
+                    ON sku.post_id = p.ID AND sku.meta_key = '_sku'
+                LEFT JOIN {$wpdb->posts} v
+                    ON v.post_parent = p.ID AND v.post_type = 'product_variation' AND v.post_status IN ('publish','private')
+                LEFT JOIN {$wpdb->postmeta} vsku
+                    ON vsku.post_id = v.ID AND vsku.meta_key = '_sku'
+                LEFT JOIN {$wpdb->term_relationships} tr
+                    ON tr.object_id = p.ID
+                LEFT JOIN {$wpdb->term_taxonomy} tt
+                    ON tt.term_taxonomy_id = tr.term_taxonomy_id
+                LEFT JOIN {$wpdb->terms} t
+                    ON t.term_id = tt.term_id
+                WHERE p.post_type = 'product'
+                  AND p.post_status = 'publish'
+                  AND (
+                        p.post_title LIKE %s
+                        OR sku.meta_value LIKE %s
+                        OR vsku.meta_value LIKE %s
+                        OR (tt.taxonomy IN ({$tax_placeholders}) AND t.name LIKE %s)
+                  )
+                GROUP BY p.ID
+                ORDER BY rl_relevance ASC, p.post_title ASC
+                LIMIT %d";
+
+        $args = [
+            $starts,
+            $contains,
+            $contains,
+            $contains,
+            $contains,
+            $contains,
+            $contains,
+            $contains,
+        ];
+        foreach ($taxonomies as $taxonomy) $args[] = $taxonomy;
+        $args[] = $contains;
+        $args[] = $limit;
+
+        $prepared = $wpdb->prepare($sql, $args);
+        $ids = $wpdb->get_col($prepared);
+        return array_values(array_unique(array_map('absint', is_array($ids) ? $ids : [])));
+    }
+
+    private static function store_search_product_allowed($product, $mode, $all_store = false) {
+        if (!$product instanceof WC_Product || !$product->is_visible()) return false;
+        $product_id = $product->get_id();
+        if (!$product_id) return false;
+
+        $product_mode = self::shop_product_mode($product);
+        if ($product_mode === 'cancelled') return false;
+
+        /* Mirror the Store catalogue's completed-raffle exclusion. */
+        $is_raffle = get_post_meta($product_id, \RaffleLB\Core\Contracts::META_ENABLED, true) === 'yes';
+        $draw_status = (string) get_post_meta($product_id, \RaffleLB\Core\Contracts::META_DRAW_STATUS, true);
+        if ($is_raffle && $draw_status === 'winner_selected') return false;
+
+        if ($all_store) return true;
+        return self::shop_mode_includes_product($mode, $product_mode);
+    }
+
+    private static function store_search_filtered_ids($term, $mode, $all_store = false, $limit = 500) {
+        if (!function_exists('wc_get_product')) return [];
+        $mode = in_array($mode, ['both', 'retail', 'raffle'], true) ? $mode : 'both';
+        $candidate_ids = self::store_search_candidate_ids($term, min(1000, max(80, absint($limit) * 3)));
+        $ids = [];
+        foreach ($candidate_ids as $product_id) {
+            $product = wc_get_product($product_id);
+            if (!self::store_search_product_allowed($product, $mode, $all_store)) continue;
+            $ids[] = $product_id;
+            if (count($ids) >= $limit) break;
+        }
+        return $ids;
+    }
+
+    /**
+     * Resolve a Store search and retry once with a high-confidence correction
+     * only when the original spelling returns no eligible products.
+     */
+    private static function store_search_resolve($term, $mode, $all_store = false, $limit = 500) {
+        $term = trim((string) $term);
+        $ids = self::store_search_filtered_ids($term, $mode, $all_store, $limit);
+        $corrected = false;
+        $resolved = $term;
+
+        if (empty($ids)) {
+            $candidate = self::store_search_autocorrect_term($term);
+            if ($candidate !== '' && self::store_search_normalized_key($candidate) !== self::store_search_normalized_key($term)) {
+                $candidate_ids = self::store_search_filtered_ids($candidate, $mode, $all_store, $limit);
+                if (!empty($candidate_ids)) {
+                    $resolved = $candidate;
+                    $ids = $candidate_ids;
+                    $corrected = true;
+                }
+            }
+        }
+
+        return [
+            'original'  => $term,
+            'term'      => $resolved,
+            'corrected' => $corrected,
+            'ids'       => $ids,
+        ];
+    }
+
+    /** Full-results catalogue filtering for ?rl_search=. */
+    public static function store_search_catalog_filter($query) {
+        if (!$query instanceof WP_Query || !$query->is_main_query()) return;
+        if (is_admin() && !(function_exists('wp_doing_ajax') && wp_doing_ajax())) return;
+        if (!self::shop_query_is_catalog($query)) return;
+
+        $term = isset($_GET['rl_search']) ? sanitize_text_field(wp_unslash($_GET['rl_search'])) : '';
+        $term = trim($term);
+        if (strlen($term) < 2) return;
+
+        $all_store = isset($_GET['rl_search_scope']) && sanitize_key(wp_unslash($_GET['rl_search_scope'])) === 'all';
+        $mode = $all_store ? 'both' : self::shop_view_mode();
+        $resolved = self::store_search_resolve($term, $mode, $all_store, 1000);
+        $ids = $resolved['ids'];
+        if (!empty($resolved['corrected'])) {
+            $GLOBALS['rafflelb_store_search_corrected'] = $resolved['term'];
+            $GLOBALS['rafflelb_store_search_original'] = $resolved['original'];
+        }
+
+        $existing = $query->get('post__in');
+        if (is_array($existing) && !empty($existing)) {
+            $ids = array_values(array_intersect(array_map('absint', $existing), $ids));
+        }
+        $query->set('post__in', $ids ? $ids : [0]);
+
+        if (!isset($_GET['orderby']) || sanitize_key(wp_unslash($_GET['orderby'])) === '') {
+            $query->set('orderby', 'post__in');
+        }
+    }
+
+    private static function store_search_display_price($amount) {
+        $amount = (float) $amount;
+        if ($amount <= 0 || !function_exists('wc_price')) return '';
+        return html_entity_decode(wp_strip_all_tags(wc_price($amount)), ENT_QUOTES, get_bloginfo('charset'));
+    }
+
+    /** Public read-only instant Store search. */
+    public static function ajax_store_search() {
+        if (!function_exists('wc_get_product')) {
+            wp_send_json_success(['items' => [], 'count' => 0, 'view_all' => '']);
+        }
+
+        $term = isset($_POST['q']) ? sanitize_text_field(wp_unslash($_POST['q'])) : '';
+        $term = trim($term);
+        if (strlen($term) < 2) {
+            wp_send_json_success(['items' => [], 'count' => 0, 'view_all' => '']);
+        }
+        if (strlen($term) > 80) $term = substr($term, 0, 80);
+
+        $mode = isset($_POST['mode']) ? sanitize_key(wp_unslash($_POST['mode'])) : 'both';
+        if (!in_array($mode, ['both', 'retail', 'raffle'], true)) $mode = 'both';
+        $all_store = isset($_POST['scope']) && sanitize_key(wp_unslash($_POST['scope'])) === 'all';
+
+        $resolved = self::store_search_resolve($term, $mode, $all_store, 9);
+        $search_term = $resolved['term'];
+        $ids = $resolved['ids'];
+        $items = [];
+        foreach ($ids as $product_id) {
+            $product = wc_get_product($product_id);
+            if (!$product) continue;
+            $product_mode = self::shop_product_mode($product);
+
+            $type_label = 'STORE';
+            if ($product_mode === 'raffle') $type_label = 'RAFFLE';
+            elseif ($product_mode === 'both') $type_label = 'STORE + RAFFLE';
+
+            $categories = wp_get_post_terms($product_id, 'product_cat', ['fields' => 'names']);
+            if (is_wp_error($categories) || !is_array($categories)) $categories = [];
+            $categories = array_values(array_filter($categories, static function ($name) {
+                return strtolower(trim((string) $name)) !== 'uncategorized';
+            }));
+
+            $price_parts = [];
+            if ($product_mode === 'retail' || $product_mode === 'both') {
+                $retail = $product_mode === 'both'
+                    ? (float) get_post_meta($product_id, \RaffleLB\Core\Contracts::META_BUY_NOW_PRICE, true)
+                    : (float) $product->get_price();
+                $formatted = self::store_search_display_price($retail);
+                if ($formatted !== '') $price_parts[] = 'BUY NOW ' . $formatted;
+            }
+            if ($product_mode === 'raffle' || $product_mode === 'both') {
+                $formatted = self::store_search_display_price((float) $product->get_price());
+                if ($formatted !== '') $price_parts[] = 'ENTRY ' . $formatted;
+            }
+
+            $image = '';
+            $image_id = $product->get_image_id();
+            if ($image_id) $image = (string) wp_get_attachment_image_url($image_id, 'woocommerce_thumbnail');
+            if ($image === '' && function_exists('wc_placeholder_img_src')) $image = (string) wc_placeholder_img_src('woocommerce_thumbnail');
+
+            $items[] = [
+                'id'       => $product_id,
+                'title'    => html_entity_decode($product->get_name(), ENT_QUOTES, get_bloginfo('charset')),
+                'url'      => get_permalink($product_id),
+                'image'    => $image,
+                'type'     => $type_label,
+                'category' => isset($categories[0]) ? html_entity_decode((string) $categories[0], ENT_QUOTES, get_bloginfo('charset')) : '',
+                'price'    => implode('  •  ', $price_parts),
+                'sku'      => (string) $product->get_sku(),
+            ];
+        }
+
+        $shop_url = function_exists('wc_get_page_permalink') ? wc_get_page_permalink('shop') : home_url('/shop/');
+        $view_args = ['rl_search' => $search_term];
+        if ($all_store) {
+            $view_args['rl_search_scope'] = 'all';
+        } elseif ($mode !== 'both') {
+            $view_args['rl_view'] = $mode;
+        }
+        $view_all = add_query_arg($view_args, $shop_url) . '#rl-store-search';
+
+        wp_send_json_success([
+            'items'      => $items,
+            'count'      => count($items),
+            'view_all'   => $view_all,
+            'query'      => $search_term,
+            'original'   => $resolved['original'],
+            'corrected'  => !empty($resolved['corrected']),
+        ]);
+    }
+
+    /** Premium Store search UI, mounted directly below the Shopping Mode toolbar. */
+    public static function store_search_ui() {
+        if (is_admin() || !self::shop_query_is_catalog()) return;
+        $mode = self::shop_view_mode();
+        $mode_labels = [
+            'both' => 'Store & Raffle',
+            'retail' => 'Store Only',
+            'raffle' => 'Raffle Only',
+        ];
+        $current = isset($_GET['rl_search']) ? sanitize_text_field(wp_unslash($_GET['rl_search'])) : '';
+        $corrected_from = '';
+        if (!empty($GLOBALS['rafflelb_store_search_corrected'])) {
+            $corrected_from = !empty($GLOBALS['rafflelb_store_search_original']) ? (string) $GLOBALS['rafflelb_store_search_original'] : $current;
+            $current = (string) $GLOBALS['rafflelb_store_search_corrected'];
+        }
+        $all_store = isset($_GET['rl_search_scope']) && sanitize_key(wp_unslash($_GET['rl_search_scope'])) === 'all';
+        $ajax_url = admin_url('admin-ajax.php');
+        $shop_url = function_exists('wc_get_page_permalink') ? wc_get_page_permalink('shop') : home_url('/shop/');
+        ?>
+        <section id="rl-store-search" class="rl-store-search" data-mode="<?php echo esc_attr($mode); ?>" data-ajax="<?php echo esc_url($ajax_url); ?>" data-shop="<?php echo esc_url($shop_url); ?>" data-corrected-from="<?php echo esc_attr($corrected_from); ?>" aria-label="Search the RaffleLB Store">
+            <div class="rl-store-search-head">
+                <div class="rl-store-search-title"><span class="rl-store-search-dot"></span><strong>SEARCH THE STORE</strong><small>Products, raffles, brands &amp; categories</small></div>
+                <span class="rl-store-search-scope-text">Searching <b><?php echo esc_html($all_store ? 'All Store' : $mode_labels[$mode]); ?></b></span>
+            </div>
+            <div class="rl-store-search-shell">
+                <span class="rl-store-search-icon" aria-hidden="true"></span>
+                <input class="rl-store-search-input" type="search" autocomplete="off" spellcheck="false" value="<?php echo esc_attr($current); ?>" placeholder="Search products, raffles, brands..." aria-label="Search products, raffles, brands and categories" aria-expanded="false" aria-controls="rl-store-search-results">
+                <button class="rl-store-search-clear" type="button" aria-label="Clear search"<?php echo $current === '' ? ' hidden' : ''; ?>>×</button>
+                <label class="rl-store-search-all">
+                    <input type="checkbox"<?php checked($all_store); ?>>
+                    <span class="rl-store-search-switch" aria-hidden="true"></span>
+                    <span>SEARCH ALL STORE</span>
+                </label>
+            </div>
+            <div id="rl-store-search-results" class="rl-store-search-results" hidden>
+                <div class="rl-store-search-status">Start typing to search.</div>
+            </div>
+        </section>
+        <style id="rafflelb-store-search-css-v0215">
+        .rl-store-search{position:relative;z-index:36;width:100%;margin:-2px 0 18px;padding:14px;border:1px solid #222a21;border-radius:14px;background:linear-gradient(145deg,#090d09,#050705);box-shadow:0 14px 34px rgba(0,0,0,.16);font-family:var(--rl-font,"Manrope",sans-serif);box-sizing:border-box}
+        .rl-store-search *{box-sizing:border-box}
+        .rl-store-search-head{display:flex;align-items:center;justify-content:space-between;gap:14px;margin:0 2px 10px}
+        .rl-store-search-title{display:flex;align-items:center;gap:8px;min-width:0;color:#fff}
+        .rl-store-search-dot{width:6px;height:6px;flex:0 0 6px;border-radius:50%;background:#baff00;box-shadow:0 0 10px rgba(186,255,0,.55)}
+        .rl-store-search-title strong{font-size:10px;line-height:1;font-weight:900;letter-spacing:.13em;color:#baff00}
+        .rl-store-search-title small{font-size:10px;line-height:1.2;font-weight:650;color:#747c72}
+        .rl-store-search-scope-text{font-size:9px;font-weight:700;letter-spacing:.04em;color:#71786f;white-space:nowrap}.rl-store-search-scope-text b{color:#c8cec5;font-weight:850}
+        .rl-store-search-shell{position:relative;display:flex;align-items:center;min-height:54px;border:1px solid #2c342b;border-radius:11px;background:#020302;transition:border-color .18s ease,box-shadow .18s ease}
+        .rl-store-search-shell:focus-within{border-color:rgba(186,255,0,.7);box-shadow:0 0 0 3px rgba(186,255,0,.07)}
+        .rl-store-search-icon{position:relative;width:18px;height:18px;flex:0 0 18px;margin-left:17px;margin-right:11px;border:2px solid #7f887b;border-radius:50%}
+        .rl-store-search-icon:after{content:"";position:absolute;width:7px;height:2px;right:-5px;bottom:-2px;border-radius:2px;background:#7f887b;transform:rotate(45deg);transform-origin:center}
+        .rl-store-search-input{min-width:0;flex:1 1 auto;height:52px!important;margin:0!important;padding:0 42px 0 0!important;border:0!important;outline:0!important;background:transparent!important;box-shadow:none!important;color:#f7f8f5!important;font-family:inherit!important;font-size:14px!important;font-weight:650!important;letter-spacing:0!important}
+        .rl-store-search-input::placeholder{color:#646b62!important;opacity:1}
+        .rl-store-search-clear{position:absolute;right:210px;width:30px;height:30px;display:flex;align-items:center;justify-content:center;border:0;border-radius:7px;background:transparent;color:#7e867b;font-size:21px;line-height:1;cursor:pointer}.rl-store-search-clear:hover{background:#111610;color:#fff}
+        .rl-store-search-all{height:52px;display:flex;align-items:center;gap:9px;flex:0 0 auto;padding:0 15px;border-left:1px solid #20271f;color:#92998f;font-size:9px;font-weight:850;letter-spacing:.08em;cursor:pointer;user-select:none}
+        .rl-store-search-all input{position:absolute;opacity:0;pointer-events:none}
+        .rl-store-search-switch{position:relative;width:32px;height:18px;flex:0 0 32px;border:1px solid #3a4238;border-radius:999px;background:#171b16;transition:.18s ease}
+        .rl-store-search-switch:after{content:"";position:absolute;top:3px;left:3px;width:10px;height:10px;border-radius:50%;background:#858d82;transition:.18s ease}
+        .rl-store-search-all input:checked+.rl-store-search-switch{border-color:#baff00;background:rgba(186,255,0,.14)}
+        .rl-store-search-all input:checked+.rl-store-search-switch:after{left:17px;background:#baff00;box-shadow:0 0 8px rgba(186,255,0,.45)}
+        .rl-store-search-results{position:absolute;left:14px;right:14px;top:100%;margin-top:-2px;overflow:hidden;border:1px solid #283027;border-radius:12px;background:#070a07;box-shadow:0 22px 60px rgba(0,0,0,.52)}
+        .rl-store-search-status{padding:18px;color:#828a7f;font-size:12px;font-weight:650;text-align:center}
+        .rl-store-search-list{max-height:430px;overflow:auto;padding:7px}
+        .rl-store-search-item{display:grid;grid-template-columns:58px minmax(0,1fr) auto;gap:12px;align-items:center;min-height:72px;padding:7px 10px;border-radius:9px;text-decoration:none!important;transition:.15s ease}
+        .rl-store-search-item:hover,.rl-store-search-item:focus{outline:0;background:#111610}
+        .rl-store-search-thumb{width:58px;height:58px;border-radius:8px;overflow:hidden;background:#000;border:1px solid #171d16}.rl-store-search-thumb img{width:100%;height:100%;display:block;object-fit:contain;background:#000}
+        .rl-store-search-copy{min-width:0}.rl-store-search-badges{display:flex;align-items:center;gap:6px;margin-bottom:4px}.rl-store-search-type{font-size:8px;font-weight:900;letter-spacing:.08em;color:#baff00}.rl-store-search-cat{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:8px;font-weight:750;color:#687065}
+        .rl-store-search-name{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#f4f6f2;font-size:13px;font-weight:800;line-height:1.25}.rl-store-search-sku{display:block;margin-top:3px;color:#5f675d;font-size:9px;font-weight:650}
+        .rl-store-search-price{max-width:240px;color:#cbd0c8;font-size:10px;font-weight:800;text-align:right;white-space:nowrap}
+        .rl-store-search-correction{display:flex;align-items:center;gap:8px;padding:9px 12px;border-bottom:1px solid rgba(186,255,0,.16);background:rgba(186,255,0,.055);color:#aab2a6;font-size:10px;font-weight:750}.rl-store-search-correction b{color:#baff00;font-weight:900}.rl-store-search-correction s{color:#667063;text-decoration-color:#667063}.rl-store-search-footer{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 12px;border-top:1px solid #1e251d;background:#090d09}.rl-store-search-footer span{color:#6f776d;font-size:10px;font-weight:700}.rl-store-search-view-all{display:inline-flex;align-items:center;justify-content:center;min-height:34px;padding:0 13px;border:1px solid rgba(186,255,0,.34);border-radius:7px;background:rgba(186,255,0,.06);color:#baff00!important;font-size:9px;font-weight:900;letter-spacing:.06em;text-decoration:none!important}.rl-store-search-view-all:hover{background:#baff00;color:#080a07!important}
+        @media(max-width:767px){.rl-store-search{margin-bottom:12px;padding:10px;border-radius:12px}.rl-store-search-head{margin-bottom:8px}.rl-store-search-title small,.rl-store-search-scope-text{display:none}.rl-store-search-shell{display:grid;grid-template-columns:40px minmax(0,1fr) 34px;min-height:52px}.rl-store-search-icon{margin-left:14px;margin-right:8px}.rl-store-search-input{height:50px!important;padding-right:4px!important;font-size:12px!important}.rl-store-search-clear{position:static;right:auto}.rl-store-search-all{grid-column:1/-1;height:40px;justify-content:flex-start;padding:0 13px;border-top:1px solid #1e251d;border-left:0}.rl-store-search-results{left:10px;right:10px}.rl-store-search-item{grid-template-columns:50px minmax(0,1fr);gap:10px}.rl-store-search-thumb{width:50px;height:50px}.rl-store-search-price{grid-column:2;max-width:none;text-align:left;white-space:normal;margin-top:-5px}.rl-store-search-list{max-height:360px}}
+        </style>
+        <script id="RaffleLBStoreSearch" data-no-optimize="1">
+        (function(){
+            var root=document.getElementById('rl-store-search'); if(!root) return;
+            var input=root.querySelector('.rl-store-search-input'), results=root.querySelector('.rl-store-search-results'), clear=root.querySelector('.rl-store-search-clear'), allToggle=root.querySelector('.rl-store-search-all input'), scopeText=root.querySelector('.rl-store-search-scope-text b');
+            var mode=root.getAttribute('data-mode')||'both', ajax=root.getAttribute('data-ajax'), shop=root.getAttribute('data-shop'), timer=null, controller=null, requestSeq=0;
+            var correctedFrom=root.getAttribute('data-corrected-from')||'';
+            var labels={both:'Store & Raffle',retail:'Store Only',raffle:'Raffle Only'};
+
+            function place(){
+                var toolbar=document.getElementById('rl-shop-controls');
+                if(toolbar && toolbar.parentNode){ if(toolbar.nextElementSibling!==root) toolbar.insertAdjacentElement('afterend',root); return true; }
+                var products=document.querySelector('.products');
+                if(products && products.parentNode){ products.parentNode.insertBefore(root,products); return true; }
+                return false;
+            }
+            place();
+            if(document.body){ new MutationObserver(function(){ if(!document.body.contains(root)) return; place(); }).observe(document.body,{childList:true,subtree:true}); }
+
+            function esc(text){ var d=document.createElement('div'); d.textContent=text==null?'':String(text); return d.innerHTML; }
+            function scope(){ return allToggle.checked?'all':'current'; }
+            function viewUrl(queryOverride){
+                var u=new URL(shop,window.location.href), q=(queryOverride==null?input.value:String(queryOverride)).trim();
+                if(q) u.searchParams.set('rl_search',q);
+                if(allToggle.checked){ u.searchParams.set('rl_search_scope','all'); u.searchParams.delete('rl_view'); }
+                else { u.searchParams.delete('rl_search_scope'); if(mode!=='both')u.searchParams.set('rl_view',mode); else u.searchParams.delete('rl_view'); }
+                u.hash='rl-store-search'; return u.href;
+            }
+            function hide(){ results.hidden=true; input.setAttribute('aria-expanded','false'); }
+            function show(html){ results.innerHTML=html; results.hidden=false; input.setAttribute('aria-expanded','true'); }
+            function render(data){
+                var items=(data&&data.items)||[];
+                var fixed=(data&&data.corrected&&data.query)?String(data.query):'';
+                var original=(data&&data.original)?String(data.original):'';
+                if(fixed){ input.value=fixed; clear.hidden=false; }
+                var correction=fixed?'<div class="rl-store-search-correction">AUTOCORRECTED <s>'+esc(original)+'</s> → <b>'+esc(fixed)+'</b></div>':'';
+                if(!items.length){ show(correction+'<div class="rl-store-search-status">No matching products found.</div>'); return; }
+                var html=correction+'<div class="rl-store-search-list">';
+                items.forEach(function(item){
+                    html+='<a class="rl-store-search-item" href="'+esc(item.url)+'">';
+                    html+='<span class="rl-store-search-thumb"><img src="'+esc(item.image)+'" alt="" loading="lazy"></span>';
+                    html+='<span class="rl-store-search-copy"><span class="rl-store-search-badges"><b class="rl-store-search-type">'+esc(item.type)+'</b>'+(item.category?'<em class="rl-store-search-cat">'+esc(item.category)+'</em>':'')+'</span><strong class="rl-store-search-name">'+esc(item.title)+'</strong>'+(item.sku?'<small class="rl-store-search-sku">SKU '+esc(item.sku)+'</small>':'')+'</span>';
+                    html+='<span class="rl-store-search-price">'+esc(item.price)+'</span></a>';
+                });
+                html+='</div><div class="rl-store-search-footer"><span>Search by product, SKU, category or brand</span><a class="rl-store-search-view-all" data-no-ajax="1" href="'+esc((data&&data.view_all)||viewUrl((data&&data.query)||null))+'">VIEW ALL RESULTS →</a></div>';
+                show(html);
+            }
+            function searchNow(){
+                var q=input.value.trim(); clear.hidden=!q;
+                if(q.length<2){ if(q.length) show('<div class="rl-store-search-status">Type at least 2 characters.</div>'); else hide(); return; }
+                if(controller) controller.abort(); controller=window.AbortController?new AbortController():null;
+                var seq=++requestSeq;
+                show('<div class="rl-store-search-status">Searching the Store…</div>');
+                var body=new URLSearchParams(); body.set('action','rafflelb_store_search'); body.set('q',q); body.set('mode',mode); body.set('scope',scope());
+                fetch(ajax,{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/x-www-form-urlencoded; charset=UTF-8'},body:body.toString(),signal:controller?controller.signal:undefined})
+                    .then(function(r){return r.json();}).then(function(json){ if(seq!==requestSeq)return; if(json&&json.success) render(json.data); else show('<div class="rl-store-search-status">Search is temporarily unavailable.</div>'); })
+                    .catch(function(err){ if(err&&err.name==='AbortError')return; show('<div class="rl-store-search-status">Search is temporarily unavailable.</div>'); });
+            }
+            function queue(){ clearTimeout(timer); timer=setTimeout(searchNow,180); }
+            /* WoodMart can intercept archive links and rebuild the product grid via
+             * its own AJAX request, which may drop our custom rl_search query arg.
+             * Force VIEW ALL RESULTS to be a real document navigation so the
+             * authoritative filtered catalogue query runs with the exact search. */
+            document.addEventListener('click',function(e){
+                var link=e.target&&e.target.closest?e.target.closest('.rl-store-search-view-all'):null;
+                if(!link || !root.contains(link) || !link.href) return;
+                if(e.button && e.button!==0) return;
+                if(e.metaKey||e.ctrlKey||e.shiftKey||e.altKey) return;
+                e.preventDefault();
+                e.stopPropagation();
+                e.stopImmediatePropagation();
+                window.location.assign(link.href);
+            },true);
+
+            input.addEventListener('input',queue);
+            input.addEventListener('focus',function(){ if(input.value.trim().length>=2) queue(); });
+            input.addEventListener('keydown',function(e){ if(e.key==='Enter'){ e.preventDefault(); if(input.value.trim().length>=2) window.location.assign(viewUrl()); } else if(e.key==='Escape') hide(); });
+            clear.addEventListener('click',function(){ input.value=''; clear.hidden=true; hide(); input.focus(); });
+            allToggle.addEventListener('change',function(){ if(scopeText) scopeText.textContent=allToggle.checked?'All Store':(labels[mode]||'Store'); if(input.value.trim().length>=2) queue(); });
+            document.addEventListener('click',function(e){ if(!root.contains(e.target)) hide(); });
+            if(input.value.trim().length>=2) clear.hidden=false;
+        })();
+        </script>
+        <?php
+    }
+
+    public static function public_banner_css() {
+        if (is_admin()) return;
+        ?>
+        <style id="rafflelb-public-banners-v0213">
+        /* v0.2.13 configurable announcement strip: font size, weight, height and animation speed. */
+        .rl-site-banner-stack{position:relative;z-index:45;width:100%;padding:0;background:#000;box-sizing:border-box}
+        .rl-site-banner-stack .rl-shop-announcement{width:100%;margin:0}
+        .rl-shop-announcement{display:flex!important;align-items:stretch!important;gap:0!important;max-width:none!important;min-height:46px!important;border:0!important;border-top:1px solid rgba(186,255,0,.16)!important;border-bottom:1px solid rgba(186,255,0,.30)!important;border-radius:0!important;background:#030503!important;color:#fff!important;overflow:hidden!important;box-sizing:border-box!important;font-family:var(--rl-font,"Manrope",sans-serif)!important;box-shadow:0 8px 28px rgba(0,0,0,.24)!important}
+        .rl-shop-announcement.is-global{background:linear-gradient(90deg,#020402 0%,#071006 48%,#020402 100%)!important;border-bottom-color:rgba(186,255,0,.48)!important}
+        .rl-shop-announcement-badge{position:relative;display:flex!important;align-items:center!important;justify-content:center!important;align-self:stretch!important;flex:0 0 auto!important;min-width:132px!important;padding:0 18px!important;border-right:1px solid rgba(186,255,0,.24)!important;background:rgba(186,255,0,.075)!important;color:#baff00!important;font-size:10px!important;font-weight:900!important;letter-spacing:.13em!important;line-height:1!important;z-index:3!important;text-transform:uppercase!important}
+        .rl-shop-announcement-badge:before{content:"";display:block;width:6px;height:6px;margin-right:9px;border-radius:50%;background:#baff00;box-shadow:0 0 12px rgba(186,255,0,.75)}
+        .rl-shop-announcement-viewport{position:relative!important;min-width:0!important;flex:1 1 auto!important;overflow:hidden!important;white-space:nowrap!important;background:transparent!important}
+        .rl-shop-announcement-viewport:before,.rl-shop-announcement-viewport:after{content:"";position:absolute;top:0;bottom:0;width:48px;z-index:2;pointer-events:none}
+        .rl-shop-announcement-viewport:before{left:0;background:linear-gradient(90deg,#030503 0%,rgba(3,5,3,0) 100%)}
+        .rl-shop-announcement-viewport:after{right:0;background:linear-gradient(270deg,#030503 0%,rgba(3,5,3,0) 100%)}
+        .rl-shop-announcement.is-global .rl-shop-announcement-viewport:before{background:linear-gradient(90deg,#071006 0%,rgba(7,16,6,0) 100%)}
+        .rl-shop-announcement.is-global .rl-shop-announcement-viewport:after{background:linear-gradient(270deg,#020402 0%,rgba(2,4,2,0) 100%)}
+        .rl-shop-announcement-track{display:inline-flex!important;align-items:center!important;width:max-content!important;min-width:0!important;height:calc(var(--rl-banner-height,46px) - 2px)!important;padding-left:100%!important;will-change:transform!important;transform:translate3d(0,0,0);animation:rlShopAnnouncementTicker var(--rl-banner-speed,14s) linear infinite!important;animation-play-state:running!important}
+        .rl-shop-announcement-item{display:inline-flex!important;align-items:center!important;flex:0 0 auto!important;padding:0 72px 0 34px!important;color:#f8faf6!important;font-size:var(--rl-banner-font-size,13px)!important;font-weight:var(--rl-banner-font-weight,700)!important;letter-spacing:.015em!important;line-height:calc(var(--rl-banner-height,46px) - 2px)!important;white-space:nowrap!important;text-shadow:0 1px 0 rgba(0,0,0,.35)!important}
+        .rl-shop-announcement-static{display:flex!important;align-items:center!important;min-height:calc(var(--rl-banner-height,46px) - 2px)!important;padding:0 30px!important;color:#f8faf6!important;font-size:var(--rl-banner-font-size,13px)!important;font-weight:var(--rl-banner-font-weight,700)!important;letter-spacing:.015em!important;line-height:1.35!important;white-space:normal!important}
+        .rl-shop-announcement.is-moving:hover .rl-shop-announcement-track{animation-play-state:paused!important}
+        @keyframes rlShopAnnouncementTicker{0%{transform:translate3d(0,0,0)}100%{transform:translate3d(-100%,0,0)}}
+        @media(max-width:767px){
+            .rl-shop-announcement{min-height:max(40px,calc(var(--rl-banner-height,46px) - 4px))!important}
+            .rl-shop-announcement-badge{min-width:96px!important;padding:0 11px!important;font-size:8px!important;letter-spacing:.10em!important}
+            .rl-shop-announcement-badge:before{width:5px;height:5px;margin-right:6px}
+            .rl-shop-announcement-track{height:calc(max(40px,calc(var(--rl-banner-height,46px) - 4px)) - 2px)!important}
+            .rl-shop-announcement-item{padding:0 48px 0 24px!important;font-size:max(10px,calc(var(--rl-banner-font-size,13px) - 2px))!important;line-height:calc(max(40px,calc(var(--rl-banner-height,46px) - 4px)) - 2px)!important}
+            .rl-shop-announcement-static{min-height:calc(max(40px,calc(var(--rl-banner-height,46px) - 4px)) - 2px)!important;padding:7px 16px!important;font-size:max(10px,calc(var(--rl-banner-font-size,13px) - 2px))!important}
+            .rl-shop-announcement-viewport:before,.rl-shop-announcement-viewport:after{width:24px}
+        }
+        </style>
+        <?php
+    }
+
+    /** Match Store Only's solid black media well in every shopping mode. */
+    public static function shop_archive_black_media_css() {
+        if (!self::shop_query_is_catalog()) return;
+        ?>
+        <style id="rafflelb-shop-black-media-v0211">
+        body.rafflelb-raffle-archive .rl-raffle-card .product-element-top,
+        body.rafflelb-raffle-archive .rl-raffle-card .product-element-top > a,
+        body.rafflelb-raffle-archive .rl-raffle-card .product-element-top :is(.product-image-link,.product-image-wrap,.product-element-top-inner),
+        body.rafflelb-raffle-archive .rl-raffle-card .product-element-top img{
+            background:#000!important;
+        }
+        </style>
+        <?php
+    }
 
     public static function legacy_callback_18802($classes) {
     if ((function_exists('is_shop') && is_shop()) || (function_exists('is_product_category') && is_product_category())) $classes[] = 'rl-store-reference';
@@ -7700,6 +9292,40 @@ final class RaffleLB_Shop {
     }
 }
 }
+
+/* v0.2.18 — generated product SEO descriptions for The SEO Framework.
+ * Manual per-product TSF descriptions remain authoritative. */
+add_filter('the_seo_framework_description_excerpt', ['RaffleLB_Shop', 'tsf_product_description_excerpt'], 20, 2);
+
+/* v0.2.20 — treat raffle-enabled physical prizes as shippable for Merchant schema even when WooCommerce marks them virtual. */
+/* v0.2.19 — enrich direct-purchase Merchant Offers with Lebanon shipping + 7-day return policy. */
+add_filter('woocommerce_structured_data_product_offer', ['RaffleLB_Shop', 'structured_data_product_offer_policies'], 100, 2);
+
+/* v0.2.17 — Google/WooCommerce product schema uses retail Buy Now pricing, never Selection entry pricing. */
+add_filter('woocommerce_structured_data_product_offer', ['RaffleLB_Shop', 'structured_data_product_offer'], 99, 2);
+add_filter('woocommerce_structured_data_product', ['RaffleLB_Shop', 'structured_data_product'], 99, 2);
+add_filter('woocommerce_structured_data_type_for_page', ['RaffleLB_Shop', 'structured_data_types_for_page'], 99);
+
+/* v0.2.16 — Store search View All filtering hardening plus existing autocorrect and banner controls. */
+add_action('admin_init', ['RaffleLB_Shop', 'register_shop_banner_settings']);
+add_filter('option_page_capability_rafflelb_shop_banners_group', static function () { return 'manage_woocommerce'; });
+add_action('admin_menu', ['RaffleLB_Shop', 'register_shop_banner_menu'], 9999);
+add_action('update_option_rafflelb_shop_banners', ['RaffleLB_Shop', 'banner_settings_updated'], 10, 2);
+add_action('wp_head', ['RaffleLB_Shop', 'public_banner_css'], 998);
+add_action('wp_head', ['RaffleLB_Shop', 'shop_archive_black_media_css'], 1000);
+add_action('wp_footer', ['RaffleLB_Shop', 'public_banner_stack'], 2);
+
+/* v0.2.14 — Store-wide instant search by product, SKU, category and brand. */
+add_action('pre_get_posts', ['RaffleLB_Shop', 'store_search_catalog_filter'], 8);
+/* Re-apply at WooCommerce's product-query stage as a late safety net. */
+add_action('woocommerce_product_query', ['RaffleLB_Shop', 'store_search_catalog_filter'], 99);
+add_action('wp_ajax_rafflelb_store_search', ['RaffleLB_Shop', 'ajax_store_search']);
+add_action('wp_ajax_nopriv_rafflelb_store_search', ['RaffleLB_Shop', 'ajax_store_search']);
+add_action('wp_footer', ['RaffleLB_Shop', 'store_search_ui'], 3);
+add_action('save_post_product', ['RaffleLB_Shop', 'clear_store_search_lexicon_cache']);
+add_action('created_term', ['RaffleLB_Shop', 'clear_store_search_lexicon_cache']);
+add_action('edited_term', ['RaffleLB_Shop', 'clear_store_search_lexicon_cache']);
+add_action('delete_term', ['RaffleLB_Shop', 'clear_store_search_lexicon_cache']);
 
 /* Install first-paint product mounting before the browser parses product markup. */
 add_action('wp_head', ['RaffleLB_Shop', 'product_layout_bootstrap'], 1);
@@ -7714,6 +9340,11 @@ add_action('wp_head', ['RaffleLB_Shop', 'raffle_price_visibility_css'], 999);
 add_filter('woocommerce_product_single_add_to_cart_text', ['RaffleLB_Shop', 'store_only_add_to_cart_text'], 20);
 add_filter('posts_clauses', ['RaffleLB_Shop', 'shop_effective_retail_sort'], 20, 2);
 add_filter('posts_clauses', ['RaffleLB_Shop', 'shop_store_catalog_clauses'], 10, 2);
+add_filter('posts_clauses', ['RaffleLB_Shop', 'shop_cancelled_catalog_clauses'], 11, 2);
+add_filter('woocommerce_catalog_orderby', ['RaffleLB_Shop', 'shop_orderby_options'], 50);
+add_filter('woocommerce_default_catalog_orderby_options', ['RaffleLB_Shop', 'shop_orderby_options'], 50);
+add_filter('woocommerce_get_catalog_ordering_args', ['RaffleLB_Shop', 'shop_catalog_ordering_args'], 50, 3);
+add_filter('posts_clauses', ['RaffleLB_Shop', 'shop_raffle_closest_sort'], 30, 2);
 
 /* Drop the enqueued duplicate when wp_head already printed the stylesheet. */
 add_action('wp_print_styles', function () {
@@ -7748,9 +9379,11 @@ add_filter('rocket_rucss_inline_content_exclusions', function ($exclusions) {
 /* Keep the tiny inline bootstrap executable when WP Rocket delays/defer scripts. */
 add_filter('rocket_delay_js_exclusions', function ($exclusions) {
     $exclusions[] = 'RaffleLBProductBootstrap';
+    $exclusions[] = 'RaffleLBStoreSearch';
     return $exclusions;
 });
 add_filter('rocket_defer_js_exclusions', function ($exclusions) {
     $exclusions[] = 'RaffleLBProductBootstrap';
+    $exclusions[] = 'RaffleLBStoreSearch';
     return $exclusions;
 });

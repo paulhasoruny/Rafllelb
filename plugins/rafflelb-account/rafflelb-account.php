@@ -2,20 +2,98 @@
 /**
  * Plugin Name: RaffleLB Account
  * Description: Existing RaffleLB account presentation with reversible Draw Engine delegation.
- * Version: 0.1.5
+ * Version: 0.1.13
  * Author: RaffleLB
  * Requires PHP: 7.4
  */
 if (!defined('ABSPATH')) { exit; }
 
 final class RaffleLB_Account {
-    const VERSION = '0.1.5';
+    const VERSION = '0.1.13';
     public static function ready() {
         return class_exists('RaffleLB\\Core\\Contracts')
             && version_compare(\RaffleLB\Core\Contracts::VERSION, '0.1.0', '>=')
             && defined('RaffleLB_Draw_Engine::ACCOUNT_BRIDGE_VERSION')
             && RaffleLB_Draw_Engine::ACCOUNT_BRIDGE_VERSION === '1';
     }
+    private static function public_early_closure($product_id) {
+        if (!class_exists('RaffleLB_Draw_Engine') || !method_exists('RaffleLB_Draw_Engine', 'selection_bridge_public_closure')) return null;
+        $closure = RaffleLB_Draw_Engine::selection_bridge_public_closure(absint($product_id));
+        if (!is_array($closure) || empty($closure['closed_early'])) return null;
+        $mode = sanitize_key((string) ($closure['mode'] ?? ''));
+        $refund_status = sanitize_key((string) ($closure['refund_status'] ?? ''));
+        if ($mode === '' && in_array($refund_status, ['processing', 'complete'], true)) {
+            $closure['mode'] = 'cancel_refund';
+        } elseif (!in_array($mode, ['selection', 'cancel_refund'], true)) {
+            $closure['mode'] = 'selection';
+        }
+        return $closure;
+    }
+
+    private static function order_item_purchase_mode($item) {
+        if (!$item instanceof WC_Order_Item_Product) return '';
+        $mode = sanitize_key((string) $item->get_meta('_rafflelb_purchase_mode', true));
+        if ($mode === '') $mode = sanitize_key((string) $item->get_meta('rafflelb_purchase_mode', true));
+        return $mode;
+    }
+
+    /** Customer-safe cancellation/refund state for one raffle order line. */
+    private static function cancelled_raffle_item_info($order, $item) {
+        if (!$order instanceof WC_Order || !$item instanceof WC_Order_Item_Product) return null;
+        if (self::order_item_purchase_mode($item) !== 'raffle_entry') return null;
+
+        $product_id = absint($item->get_product_id());
+        if (!$product_id) return null;
+        $closure = self::public_early_closure($product_id);
+        if (!is_array($closure) || sanitize_key((string) ($closure['mode'] ?? '')) !== 'cancel_refund') return null;
+
+        $refund_status = sanitize_key((string) ($closure['refund_status'] ?? 'processing'));
+        $refund = $order->get_meta('_rafflelb_early_close_points_refund_' . $product_id, true);
+        $points = is_array($refund) ? absint($refund['points'] ?? 0) : 0;
+        $credited_at = is_array($refund) ? sanitize_text_field((string) ($refund['credited_at'] ?? '')) : '';
+
+        return [
+            'product_id'    => $product_id,
+            'status'        => $refund_status === 'complete' ? 'complete' : 'processing',
+            'points'        => $points,
+            'credited_at'   => $credited_at,
+            'public_note'   => sanitize_textarea_field((string) ($closure['note'] ?? '')),
+        ];
+    }
+
+    /** Aggregate cancellation state without changing the real Woo order. */
+    private static function order_raffle_cancellation_summary($order) {
+        if (!is_object($order) && function_exists('wc_get_order')) $order = wc_get_order($order);
+        if (!$order instanceof WC_Order) return ['raffle_items'=>0,'cancelled_items'=>0,'points'=>0,'all_complete'=>false,'credited_at'=>'','public_note'=>''];
+
+        $summary = ['raffle_items'=>0,'cancelled_items'=>0,'points'=>0,'all_complete'=>true,'credited_at'=>'','public_note'=>''];
+        $seen_products = [];
+        foreach ($order->get_items('line_item') as $item) {
+            if (!$item instanceof WC_Order_Item_Product || self::order_item_purchase_mode($item) !== 'raffle_entry') continue;
+            $summary['raffle_items']++;
+            $info = self::cancelled_raffle_item_info($order, $item);
+            if (!$info) continue;
+            $summary['cancelled_items']++;
+            if ($info['status'] !== 'complete') $summary['all_complete'] = false;
+            if ($summary['public_note'] === '' && $info['public_note'] !== '') $summary['public_note'] = $info['public_note'];
+            if ($summary['credited_at'] === '' && $info['credited_at'] !== '') $summary['credited_at'] = $info['credited_at'];
+            if (!isset($seen_products[$info['product_id']])) {
+                $summary['points'] += absint($info['points']);
+                $seen_products[$info['product_id']] = true;
+            }
+        }
+        if ($summary['cancelled_items'] < 1) $summary['all_complete'] = false;
+        return $summary;
+    }
+
+    private static function refund_date_label($gmt_mysql) {
+        $gmt_mysql = sanitize_text_field((string) $gmt_mysql);
+        if ($gmt_mysql === '') return '';
+        $local = function_exists('get_date_from_gmt') ? get_date_from_gmt($gmt_mysql) : $gmt_mysql;
+        $timestamp = strtotime($local);
+        return $timestamp ? date_i18n(get_option('date_format'), $timestamp) : '';
+    }
+
     public static function account_hard_contrast_fix() {
         if (!function_exists('is_account_page') || !is_account_page()) return;
         ?>
@@ -280,7 +358,7 @@ final class RaffleLB_Account {
             echo '</div>';
         }
 
-        echo '<p class="rafflelb-winner-summary-note">Your winning result has been permanently recorded in the RaffleLB draw system.</p>';
+        echo '<p class="rafflelb-winner-summary-note">Your winning result has been permanently recorded in the RaffleLB selection record.</p>';
         echo '<a id="rafflelb-view-winning-entry-btn" class="button rafflelb-view-winning-entry" href="'.esc_url(wc_get_account_endpoint_url('rafflelb-entries')).'">VIEW MY WINNING ENTRY</a>';
         echo '</div>';
 
@@ -562,6 +640,13 @@ final class RaffleLB_Account {
         }
         if (!$order instanceof WC_Order) return '';
 
+        $cancellation = self::order_raffle_cancellation_summary($order);
+        if (self::order_is_raffle_only($order)
+            && $cancellation['raffle_items'] > 0
+            && $cancellation['cancelled_items'] === $cancellation['raffle_items']) {
+            return 'Raffle Cancelled';
+        }
+
         if ($order->has_status('processing') && self::order_is_raffle_only($order)) {
             return 'Paid';
         }
@@ -626,9 +711,11 @@ final class RaffleLB_Account {
         foreach ($groups as $pid => $tickets) {
             $first = reset($tickets);
             $status = (string)get_post_meta($pid, \RaffleLB\Core\Contracts::META_DRAW_STATUS, true);
+            $closure = self::public_early_closure($pid);
+            $is_cancelled = is_array($closure) && ($closure['mode'] ?? '') === 'cancel_refund';
             $bucket = ($status === 'winner_selected')
                 ? ((int)$first->winner_user_id === $uid ? 'won' : 'past')
-                : 'active';
+                : ($is_cancelled ? 'past' : 'active');
             $counts[$bucket]++;
         }
 
@@ -643,11 +730,21 @@ final class RaffleLB_Account {
             $product = function_exists('wc_get_product') ? wc_get_product($pid) : false;
             $title = $product ? $product->get_name() : get_the_title($pid);
             $url = get_permalink($pid);
+            $selection_url = '';
+            if ($product && class_exists('RaffleLB_Selection_Adapter') && method_exists('RaffleLB_Selection_Adapter', 'selection_url')) {
+                $selection_url = RaffleLB_Selection_Adapter::selection_url($product);
+            } elseif ($product) {
+                $selection_url = home_url('/selection/' . $product->get_slug() . '/');
+            }
             $image = $product ? $product->get_image('woocommerce_thumbnail', ['loading'=>'lazy']) : '';
             $draw_status = (string)get_post_meta($pid, \RaffleLB\Core\Contracts::META_DRAW_STATUS, true);
+            $closure = self::public_early_closure($pid);
+            $is_cancelled = is_array($closure) && ($closure['mode'] ?? '') === 'cancel_refund';
             $is_complete = $draw_status === 'winner_selected';
+            $is_awaiting = $draw_status === 'ready_to_draw' && !$is_cancelled;
             $is_won = $is_complete && (int)$first->winner_user_id === $uid;
-            $bucket = $is_complete ? ($is_won ? 'won' : 'past') : 'active';
+            $bucket = $is_complete ? ($is_won ? 'won' : 'past') : ($is_cancelled ? 'past' : 'active');
+            $card_status_label = $is_complete ? 'Completed' : ($is_cancelled ? 'Cancelled' : ($is_awaiting ? 'Awaiting Selection' : 'Active'));
 
             $fulfillment_status = $is_won && !empty($first->fulfillment_status)
                 ? sanitize_key((string) $first->fulfillment_status)
@@ -688,18 +785,28 @@ final class RaffleLB_Account {
             $ticket_numbers = array_map(static function($ticket){
                 return '#'.str_pad((string)$ticket->entry_number, 3, '0', STR_PAD_LEFT);
             }, $tickets);
-            $date_value = $is_complete && !empty($first->winner_selected_at)
-                ? wp_date('j M Y', strtotime((string)$first->winner_selected_at))
-                : 'When full';
+            $closed_at = (string) get_post_meta($pid, '_rafflelb_draw_closed_at', true);
+            $side_label = $is_cancelled ? 'Closure Date' : 'Selection Date';
+            if ($is_complete && !empty($first->winner_selected_at)) {
+                $date_value = wp_date('j M Y', strtotime((string)$first->winner_selected_at));
+            } elseif (($is_cancelled || $is_awaiting) && $closed_at !== '') {
+                $date_value = wp_date('j M Y', strtotime($closed_at));
+            } elseif ($is_awaiting) {
+                $date_value = 'Awaiting Selection';
+            } elseif ($is_cancelled) {
+                $date_value = 'Closed Early';
+            } else {
+                $date_value = 'When full';
+            }
 
-            echo '<article class="rlmy-card '.($is_complete ? 'is-complete ' : '').($is_won ? 'is-won' : '').'" data-rlmy-bucket="'.esc_attr($bucket).'"'.($bucket !== 'active' ? ' hidden' : '').'>';
-            echo '<div class="rlmy-media" style="display:flex!important;flex-direction:column!important;align-items:center!important;overflow:visible!important"><a href="'.esc_url($url).'">'.wp_kses_post($image).'</a><span class="rlmy-status rlmy-status-media">'.($is_complete ? 'Completed' : 'Active').'</span></div>';
-            echo '<div class="rlmy-content"><div class="rlmy-titleblock"><h3><a href="'.esc_url($url).'">'.esc_html($title).'</a></h3><span class="rlmy-status rlmy-status-inline">'.($is_complete ? 'Completed' : 'Active').'</span></div>';
-            echo '<div class="rlmy-stats"><div><span style="font-family:Inter,Arial,sans-serif!important;font-size:14px!important;font-weight:600!important;line-height:1.25!important">Entries</span><strong style="font-family:Inter,Arial,sans-serif!important;font-size:16px!important;font-weight:750!important;line-height:1.3!important">'.esc_html(count($tickets)).'</strong></div><div><span style="font-family:Inter,Arial,sans-serif!important;font-size:14px!important;font-weight:600!important;line-height:1.25!important">Entry Price</span><strong style="font-family:Inter,Arial,sans-serif!important;font-size:16px!important;font-weight:750!important;line-height:1.3!important">'.wp_kses_post(wc_price($entry_price)).'</strong></div><div><span style="font-family:Inter,Arial,sans-serif!important;font-size:14px!important;font-weight:600!important;line-height:1.25!important">Total Spent</span><strong style="font-family:Inter,Arial,sans-serif!important;font-size:16px!important;font-weight:750!important;line-height:1.3!important">'.wp_kses_post(wc_price($entry_price * count($tickets))).'</strong></div></div>';
+            echo '<article class="rlmy-card '.($is_complete ? 'is-complete ' : '').($is_cancelled ? 'is-cancelled ' : '').($is_won ? 'is-won' : '').'" data-rlmy-bucket="'.esc_attr($bucket).'"'.($bucket !== 'active' ? ' hidden' : '').'>';
+            echo '<div class="rlmy-media" style="display:flex!important;flex-direction:column!important;align-items:center!important;overflow:visible!important"><a href="'.esc_url($url).'">'.wp_kses_post($image).'</a><span class="rlmy-status rlmy-status-media">'.esc_html($card_status_label).'</span></div>';
+            echo '<div class="rlmy-content"><div class="rlmy-titleblock"><h3><a href="'.esc_url($url).'">'.esc_html($title).'</a></h3><span class="rlmy-status rlmy-status-inline">'.esc_html($card_status_label).'</span></div>';
+            echo '<div class="rlmy-stats"><div><span style="font-family:var(--rl-font, &quot;Manrope&quot;, sans-serif)!important;font-size:14px!important;font-weight:600!important;line-height:1.25!important">Entries</span><strong style="font-family:var(--rl-font, &quot;Manrope&quot;, sans-serif)!important;font-size:16px!important;font-weight:750!important;line-height:1.3!important">'.esc_html(count($tickets)).'</strong></div><div><span style="font-family:var(--rl-font, &quot;Manrope&quot;, sans-serif)!important;font-size:14px!important;font-weight:600!important;line-height:1.25!important">Entry Price</span><strong style="font-family:var(--rl-font, &quot;Manrope&quot;, sans-serif)!important;font-size:16px!important;font-weight:750!important;line-height:1.3!important">'.wp_kses_post(wc_price($entry_price)).'</strong></div><div><span style="font-family:var(--rl-font, &quot;Manrope&quot;, sans-serif)!important;font-size:14px!important;font-weight:600!important;line-height:1.25!important">Total Spent</span><strong style="font-family:var(--rl-font, &quot;Manrope&quot;, sans-serif)!important;font-size:16px!important;font-weight:750!important;line-height:1.3!important">'.wp_kses_post(wc_price($entry_price * count($tickets))).'</strong></div></div>';
             echo '<div class="rlmy-ticket-label">Your Ticket Numbers</div><div class="rlmy-tickets">';
             foreach ($ticket_numbers as $number) echo '<span>'.esc_html($number).'</span>';
             echo '</div>';
-            if (!$is_complete && $total > 0) {
+            if (!$is_complete && !$is_cancelled && !$is_awaiting && $total > 0) {
                 echo '<div class="rlmy-progress"><div class="rlmy-track"><i style="width:'.esc_attr($percent).'%"></i></div><div><span>'.esc_html($claimed).' / '.esc_html($total).' entries sold</span><span>'.esc_html($left).' left</span></div></div>';
             } elseif ($is_won) {
                 echo '<div class="rlmy-winner"><span aria-hidden="true">&#127942;</span><div><strong>You Won!</strong><small>Winning Ticket: #'.esc_html(str_pad((string)$first->winning_entry_number,3,'0',STR_PAD_LEFT)).'</small></div></div>';
@@ -716,7 +823,11 @@ final class RaffleLB_Account {
                 if ($fulfillment_date !== '') echo ' <small>'.esc_html($fulfillment_date).'</small>';
                 echo '</p></div>';
             }
-            echo '</div><aside class="rlmy-side"><span>Draw Date</span><strong>'.esc_html($date_value).'</strong><a href="'.esc_url($url).'">'.($is_complete ? 'View Result' : 'View Raffle').'<b aria-hidden="true">&#8594;</b></a></aside>';
+            echo '</div><aside class="rlmy-side"><span>'.esc_html($side_label).'</span><strong>'.esc_html($date_value).'</strong><div class="rlb-raffle-actions"><a class="rlb-raffle-action rlb-raffle-action--secondary" href="'.esc_url($url).'"><span class="rlb-raffle-action__label">View Raffle</span><span class="rlb-raffle-action__arrow" aria-hidden="true">&#8594;</span></a>';
+            if ($selection_url !== '') {
+                echo '<a class="rlb-raffle-action rlb-raffle-action--primary" href="'.esc_url($selection_url).'"><span class="rlb-raffle-action__label">View Selection Status</span><span class="rlb-raffle-action__arrow" aria-hidden="true">&#8594;</span></a>';
+            }
+            echo '</div></aside>';
             echo '</article>';
         }
         echo '</div><div class="rlmy-no-tab" hidden>No entries in this section.</div></section>';
@@ -867,14 +978,19 @@ final class RaffleLB_Account {
             }
 
             $draw_status = (string) get_post_meta($r->product_id, \RaffleLB\Core\Contracts::META_DRAW_STATUS, true);
+            $closure = self::public_early_closure((int) $r->product_id);
+            $entry_cancelled = is_array($closure) && ($closure['mode'] ?? '') === 'cancel_refund';
             if (!empty($r->is_winner)) {
                 $result_label = 'WINNING ENTRY';
                 $result_class = 'is-winner';
             } elseif ($draw_status === 'winner_selected') {
-                $result_label = 'DRAW COMPLETE';
+                $result_label = 'SELECTION COMPLETE';
                 $result_class = 'is-complete';
+            } elseif ($entry_cancelled) {
+                $result_label = 'RAFFLE CANCELLED';
+                $result_class = 'is-cancelled';
             } elseif ($draw_status === 'ready_to_draw') {
-                $result_label = 'AWAITING DRAW';
+                $result_label = 'AWAITING SELECTION';
                 $result_class = 'is-pending';
             } else {
                 $result_label = 'LIVE';
@@ -905,13 +1021,13 @@ final class RaffleLB_Account {
 
                     echo '<div><span>PAYMENT / ORDER STATUS</span><strong>'.esc_html($order_status ?: 'Confirmed').'</strong></div>';
                     echo '<div><span>ENTRY DATE</span><strong>'.esc_html($date_display).'</strong></div>';
-                    $entry_status_text = ($draw_status === 'winner_selected' || $draw_status === 'ready_to_draw')
+                    $entry_status_text = ($draw_status === 'winner_selected' || $draw_status === 'ready_to_draw' || $entry_cancelled)
                         ? ucwords(strtolower($result_label))
                         : 'Eligible';
                     echo '<div><span>ENTRY STATUS</span><strong>'.esc_html($entry_status_text).'</strong></div>';
                 echo '</div>';
 
-                if ($total > 0 && $draw_status !== 'winner_selected') {
+                if ($total > 0 && $draw_status === 'live' && !$entry_cancelled) {
                     echo '<div class="rafflelb-entry-progress">';
                         echo '<div class="rafflelb-entry-progress-head">';
                             echo '<span>RAFFLE PROGRESS</span>';
@@ -2498,7 +2614,7 @@ body.home .rlp270-button{margin-top:14px!important}
         border-color:#baff00!important;
         color:#050805!important;
         -webkit-text-fill-color:#050805!important;
-        font-family:Inter,"Segoe UI",Arial,sans-serif!important;
+        font-family:var(--rl-font, "Manrope", sans-serif)!important;
         font-size:13px!important;
         font-weight:800!important;
         line-height:1!important;
@@ -2530,7 +2646,7 @@ body.home .rlp270-button{margin-top:14px!important}
         padding:0 18px!important;
         color:#f2f5ef!important;
         -webkit-text-fill-color:#f2f5ef!important;
-        font-family:Inter,"Segoe UI",Arial,sans-serif!important;
+        font-family:var(--rl-font, "Manrope", sans-serif)!important;
         font-size:13px!important;
         font-weight:800!important;
         letter-spacing:.03em!important;
@@ -2639,7 +2755,7 @@ body.home .rlp270-button{margin-top:14px!important}
     <style id="rafflelb-my-raffles-final-v03386">
     html body .rlmy,
     html body .rlmy *:not(svg):not(path){
-        font-family:Inter,"Segoe UI",Arial,sans-serif!important;
+        font-family:var(--rl-font, "Manrope", sans-serif)!important;
     }
     html body .rlmy .rlmy-media{
         position:relative!important;
@@ -2678,7 +2794,7 @@ body.home .rlp270-button{margin-top:14px!important}
         background:#baff00!important;
         color:#050705!important;
         -webkit-text-fill-color:#050705!important;
-        font-family:Inter,"Segoe UI",Arial,sans-serif!important;
+        font-family:var(--rl-font, "Manrope", sans-serif)!important;
         font-size:13px!important;
         line-height:1!important;
         font-weight:800!important;
@@ -2698,7 +2814,7 @@ body.home .rlp270-button{margin-top:14px!important}
         margin:0 0 6px!important;
         color:#c2c9bf!important;
         -webkit-text-fill-color:#c2c9bf!important;
-        font-family:Inter,"Segoe UI",Arial,sans-serif!important;
+        font-family:var(--rl-font, "Manrope", sans-serif)!important;
         font-size:14px!important;
         line-height:1.25!important;
         font-weight:600!important;
@@ -2710,7 +2826,7 @@ body.home .rlp270-button{margin-top:14px!important}
         display:inline!important;
         color:#fff!important;
         -webkit-text-fill-color:#fff!important;
-        font-family:Inter,"Segoe UI",Arial,sans-serif!important;
+        font-family:var(--rl-font, "Manrope", sans-serif)!important;
         font-size:16px!important;
         line-height:1.3!important;
         font-weight:750!important;
@@ -2774,7 +2890,7 @@ body.home .rlp270-button{margin-top:14px!important}
             background:#baff00!important;
             color:#050705!important;
             -webkit-text-fill-color:#050705!important;
-            font-family:Inter,"Segoe UI",Arial,sans-serif!important;
+            font-family:var(--rl-font, "Manrope", sans-serif)!important;
             font-size:12px!important;
             line-height:1!important;
             font-weight:800!important;
@@ -3024,8 +3140,10 @@ body.home .rlp270-button{margin-top:14px!important}
             $item_count = count($items);
             $extra_count = max(0, $item_count - 1);
             $item_name = $first_item ? $first_item->get_name() : __('RaffleLB order', 'rafflelb');
+            $cancellation = self::order_raffle_cancellation_summary($order);
+            $raffle_only_cancelled = self::order_is_raffle_only($order) && $cancellation['raffle_items'] > 0 && $cancellation['cancelled_items'] === $cancellation['raffle_items'];
 
-            echo '<article class="rlpa-order-card">';
+            echo '<article class="rlpa-order-card' . ($cancellation['cancelled_items'] > 0 ? ' has-raffle-cancellation' : '') . '">';
             echo '<a class="rlpa-order-thumb" href="' . esc_url($order->get_view_order_url()) . '">' . wp_kses_post(rafflelb_premium_account_product_image($product, 'rlpa-order-image')) . '</a>';
             echo '<div class="rlpa-order-body">';
             echo '<div class="rlpa-order-top"><span class="rlpa-order-number">ORDER #' . esc_html($order->get_order_number()) . '</span><span class="rlpa-order-status status-' . esc_attr($order->get_status()) . '">' . esc_html(self::customer_order_status_label($order)) . '</span></div>';
@@ -3034,6 +3152,18 @@ body.home .rlp270-button{margin-top:14px!important}
                 echo '<p class="rlpa-order-extra">+' . esc_html($extra_count) . ' more item' . ($extra_count === 1 ? '' : 's') . '</p>';
             }
             echo '<div class="rlpa-order-meta"><span>' . esc_html(wc_format_datetime($order->get_date_created())) . '</span><span aria-hidden="true">&middot;</span><span>' . esc_html($item_count) . ' ' . esc_html(_n('item', 'items', $item_count, 'rafflelb')) . '</span></div>';
+            if ($cancellation['cancelled_items'] > 0) {
+                if (!$cancellation['all_complete']) {
+                    $cancel_text = $raffle_only_cancelled ? 'Raffle cancelled · Raffle Points refund processing' : $cancellation['cancelled_items'] . ' raffle item' . ($cancellation['cancelled_items'] === 1 ? '' : 's') . ' cancelled · refund processing';
+                } elseif ($cancellation['points'] > 0) {
+                    $cancel_text = $raffle_only_cancelled
+                        ? 'Refunded in Raffle Points · ' . $cancellation['points'] . ' Points returned'
+                        : $cancellation['cancelled_items'] . ' raffle item' . ($cancellation['cancelled_items'] === 1 ? '' : 's') . ' cancelled · ' . $cancellation['points'] . ' Raffle Points returned';
+                } else {
+                    $cancel_text = $raffle_only_cancelled ? 'Raffle cancelled' : $cancellation['cancelled_items'] . ' raffle item' . ($cancellation['cancelled_items'] === 1 ? '' : 's') . ' cancelled';
+                }
+                echo '<div class="rlpa-order-cancel-summary"><span aria-hidden="true">↩</span>' . esc_html($cancel_text) . '</div>';
+            }
             echo '<div class="rlpa-order-footer"><span class="rlpa-order-total">' . wp_kses_post($order->get_formatted_order_total()) . '</span><span class="rlpa-order-actions">';
             foreach (wc_get_account_orders_actions($order) as $key => $action) {
                 echo '<a href="' . esc_url($action['url']) . '" class="rlpa-order-action' . ($key === 'pay' ? ' is-pay' : '') . '">' . esc_html($action['name']) . '<b aria-hidden="true">&#8594;</b></a>';
@@ -3087,6 +3217,25 @@ body.home .rlp270-button{margin-top:14px!important}
         echo '<span class="rlpa-order-status status-' . esc_attr($order->get_status()) . '">' . esc_html(self::customer_order_status_label($order)) . '</span>';
         echo '</header>';
 
+        $cancellation = self::order_raffle_cancellation_summary($order);
+        $raffle_only_cancelled = self::order_is_raffle_only($order) && $cancellation['raffle_items'] > 0 && $cancellation['cancelled_items'] === $cancellation['raffle_items'];
+        if ($cancellation['cancelled_items'] > 0) {
+            echo '<section class="rlpa-raffle-cancel-notice">';
+            echo '<div class="rlpa-raffle-cancel-icon" aria-hidden="true">↩</div><div>';
+            echo '<strong>' . esc_html($raffle_only_cancelled ? 'Raffle Cancelled' : 'Raffle item cancelled') . '</strong>';
+            if ($raffle_only_cancelled) {
+                echo '<p>This raffle was cancelled early.' . ($cancellation['all_complete'] && $cancellation['points'] > 0 ? ' Your eligible entry value was returned to your Raffle Points balance.' : (!$cancellation['all_complete'] ? ' Your Raffle Points refund is being processed.' : '')) . '</p>';
+            } else {
+                echo '<p>A raffle entry in this order was cancelled. Other purchased items in this order are unchanged.' . ($cancellation['all_complete'] && $cancellation['points'] > 0 ? ' The eligible raffle value was returned to your Raffle Points balance.' : (!$cancellation['all_complete'] ? ' The Raffle Points refund is being processed.' : '')) . '</p>';
+            }
+            if ($cancellation['public_note'] !== '') echo '<p class="rlpa-raffle-cancel-reason">' . esc_html($cancellation['public_note']) . '</p>';
+            echo '<div class="rlpa-raffle-cancel-facts">';
+            if ($cancellation['all_complete'] && $cancellation['points'] > 0) echo '<span><small>POINTS RETURNED</small><b>' . esc_html($cancellation['points']) . ' Raffle Points</b></span>';
+            $refund_date = self::refund_date_label($cancellation['credited_at']);
+            if ($refund_date !== '') echo '<span><small>REFUND DATE</small><b>' . esc_html($refund_date) . '</b></span>';
+            echo '</div></div></section>';
+        }
+
         echo '<div class="rlpa-order-items">';
         foreach ($order->get_items('line_item') as $item) {
             if (!$item instanceof WC_Order_Item_Product) continue;
@@ -3104,6 +3253,17 @@ body.home .rlp270-button{margin-top:14px!important}
             if ($purchase_type) $meta_bits[] = $purchase_type;
             $meta_bits[] = 'Qty ' . $item->get_quantity();
             echo '<p class="rlpa-order-item-meta">' . esc_html(implode(' · ', $meta_bits)) . '</p>';
+            $cancel_info = self::cancelled_raffle_item_info($order, $item);
+            if ($cancel_info) {
+                if ($cancel_info['status'] !== 'complete') {
+                    $line_status = 'RAFFLE CANCELLED · REFUND PROCESSING';
+                } elseif ($cancel_info['points'] > 0) {
+                    $line_status = 'RAFFLE CANCELLED · ' . $cancel_info['points'] . ' RAFFLE POINTS RETURNED';
+                } else {
+                    $line_status = 'RAFFLE CANCELLED';
+                }
+                echo '<div class="rlpa-order-item-cancelled">' . esc_html($line_status) . '</div>';
+            }
             echo '</div>';
             echo '<div class="rlpa-order-item-total">' . wp_kses_post(apply_filters('woocommerce_order_item_subtotal_html', $order->get_formatted_line_subtotal($item), $item, $order)) . '</div>';
             echo '</div>';
@@ -3198,10 +3358,27 @@ body.home .rlp270-button{margin-top:14px!important}
     <?php
 }
 
+    public static function enqueue_my_raffles_styles() {
+    if (!is_user_logged_in()
+        || !function_exists('is_account_page')
+        || !is_account_page()
+        || !function_exists('is_wc_endpoint_url')
+        || !is_wc_endpoint_url('rafflelb-entries')) return;
+
+    wp_enqueue_style(
+        'rafflelb-account-premium',
+        plugins_url('assets/account-premium.css', __FILE__),
+        [],
+        self::VERSION,
+        'all'
+    );
+}
+
     public static function legacy_callback_18014() {
     if (!is_user_logged_in() || !function_exists('is_account_page') || !is_account_page()) return;
+    if (function_exists('wp_style_is') && wp_style_is('rafflelb-account-premium', 'done')) return;
     $url = plugins_url('assets/account-premium.css', __FILE__);
-    echo '<link id="rafflelb-account-premium-v0324-css" rel="stylesheet" href="' . esc_url(add_query_arg('ver', RaffleLB_Draw_Engine::VERSION, $url)) . '" media="all">';
+    echo '<link id="rafflelb-account-premium-v0111-fallback-css" rel="stylesheet" href="' . esc_url(add_query_arg('ver', self::VERSION, $url)) . '" media="all">';
 }
 
     public static function legacy_callback_18021() {
@@ -3231,7 +3408,7 @@ body.home .rlp270-button{margin-top:14px!important}
     public static function legacy_callback_18045() {
     if (is_user_logged_in() || !function_exists('is_account_page') || !is_account_page()) return;
     $url = plugins_url('assets/account-login.css', __FILE__);
-    echo '<link id="rafflelb-account-login-v1-css" rel="stylesheet" href="' . esc_url(add_query_arg('ver', '0.34.00', $url)) . '" media="all">';
+    echo '<link id="rafflelb-account-login-v016-css" rel="stylesheet" href="' . esc_url(add_query_arg('ver', self::VERSION, $url)) . '" media="all">';
 }
 
     public static function legacy_callback_18052() {
@@ -3293,6 +3470,7 @@ body.home .rlp270-button{margin-top:14px!important}
 
 // Enforce the policy independently of Draw Engine's presentation bridge.
 // WooCommerce consults these filters for both My Account and customer cancel requests.
+add_action('wp_enqueue_scripts', ['RaffleLB_Account', 'enqueue_my_raffles_styles'], 100);
 add_filter('woocommerce_my_account_my_orders_actions', ['RaffleLB_Account', 'remove_customer_cancel_action'], 50, 2);
 add_filter('woocommerce_valid_order_statuses_for_cancel', ['RaffleLB_Account', 'customer_cancellable_statuses'], 50, 2);
 

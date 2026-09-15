@@ -13,7 +13,7 @@ body.rafflelb-account-page {
     --rlpa-radius:20px;
     background:var(--rlpa-bg)!important;
     color:var(--rlpa-white)!important;
-    font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,Helvetica,sans-serif!important;
+    font-family:var(--rl-font, "Manrope", sans-serif)!important;
     font-size:16px!important;
     line-height:1.55!important;
 }
@@ -390,7 +390,7 @@ body.rlpa-account-raffles .woocommerce-MyAccount-content>h3:first-child,
 body.rlpa-account-raffles .rafflelb-entry-summary,
 body.rlpa-account-raffles .rafflelb-entry-cards { display:none!important; }
 .rlmy,.rlmy *{box-sizing:border-box}
-.rlmy{width:100%;font-family:Inter,"Segoe UI",Arial,sans-serif;color:#fff}
+.rlmy{width:100%;font-family:var(--rl-font, "Manrope", sans-serif);color:#fff}
 .rlmy-heading{margin:0 0 18px}
 .rlmy-heading h2{margin:0 0 4px!important;color:#fff!important;font-size:27px!important;line-height:1.15!important;font-weight:800!important;letter-spacing:-.025em!important}
 .rlmy-heading p{margin:0!important;color:#aeb6aa!important;font-size:13px!important;line-height:1.5!important}
@@ -428,7 +428,7 @@ body.rlpa-account-raffles .rafflelb-entry-cards { display:none!important; }
 /* v0.33.75 — My Raffles typography and status placement correction */
 body.rlpa-account-raffles .rlmy,
 body.rlpa-account-raffles .rlmy *:not(svg):not(path){
-    font-family:Inter,"Segoe UI",Arial,sans-serif!important;
+    font-family:var(--rl-font, "Manrope", sans-serif)!important;
 }
 body.rlpa-account-raffles .rlmy-media{
     display:flex!important;
@@ -449,7 +449,7 @@ body.rlpa-account-raffles .rlmy-status{
     background:#baff00!important;
     color:#071006!important;
     -webkit-text-fill-color:#071006!important;
-    font-family:Inter,"Segoe UI",Arial,sans-serif!important;
+    font-family:var(--rl-font, "Manrope", sans-serif)!important;
     font-size:12px!important;
     line-height:1!important;
     font-weight:800!important;
@@ -672,6 +672,150 @@ body.rafflelb-account-page .woocommerce-MyAccount-navigation-link--customer-logo
 @media(max-width:1100px) {
     body.rafflelb-account-page .woocommerce-MyAccount-navigation ul { grid-template-columns:repeat(4,minmax(0,1fr))!important; }
     body.rafflelb-account-page .woocommerce-MyAccount-navigation li:last-child { grid-column:auto!important; }
+}
+
+/* v0.1.6 — Account-owned typography/readability only. No box-model or layout rules. */
+html body.rafflelb-account-page,
+html body.rafflelb-account-page .woocommerce-MyAccount-navigation,
+html body.rafflelb-account-page .woocommerce-MyAccount-content,
+html body.rafflelb-account-page .woocommerce-MyAccount-content :is(h1,h2,h3,h4,h5,h6,p,span,strong,small,label,input,textarea,select,button,a,address,th,td) {
+    font-family:var(--rl-font, "Manrope", sans-serif)!important;
+}
+
+html body.rafflelb-account-page .woocommerce-MyAccount-navigation li>a,
+html body.rafflelb-account-page .woocommerce-MyAccount-navigation li.is-active>a {
+    font-size:14px!important;
+    font-weight:650!important;
+    line-height:1.3!important;
+    letter-spacing:0!important;
+}
+
+html body.rafflelb-account-page .woocommerce-MyAccount-content>h2:first-child,
+html body.rafflelb-account-page .woocommerce-MyAccount-content>.rlmy>h2:first-child,
+html body.rafflelb-account-page .woocommerce-MyAccount-content .rlmy-head h2,
+html body.rafflelb-account-page .woocommerce-MyAccount-content .rlmy-title {
+    font-size:38px!important;
+    font-weight:800!important;
+    line-height:1.08!important;
+    letter-spacing:-.035em!important;
+}
+
+html body.rafflelb-account-page .rlacct-copy h2 {
+    font-size:22px!important;
+    font-weight:800!important;
+    line-height:1.15!important;
+    letter-spacing:-.025em!important;
+}
+html body.rafflelb-account-page .rlacct-copy p {
+    font-size:14px!important;
+    line-height:1.5!important;
+}
+html body.rafflelb-account-page .rlacct-metrics small {
+    font-size:11px!important;
+    font-weight:700!important;
+    line-height:1.3!important;
+    letter-spacing:.045em!important;
+}
+html body.rafflelb-account-page .rlacct-metrics strong {
+    font-size:25px!important;
+    font-weight:800!important;
+    line-height:1.1!important;
+    letter-spacing:-.02em!important;
+}
+
+html body.rafflelb-account-page :is(.rlpa-section-heading,.rlpa-recent-heading) h3,
+html body.rafflelb-account-page .woocommerce-MyAccount-content>h3,
+html body.rafflelb-account-page .woocommerce-Address-title h3,
+html body.rafflelb-account-page .woocommerce-order-details__title,
+html body.rafflelb-account-page .woocommerce-column__title {
+    font-size:22px!important;
+    font-weight:800!important;
+    line-height:1.18!important;
+    letter-spacing:-.025em!important;
+}
+html body.rafflelb-account-page .woocommerce-MyAccount-content :is(p,address) {
+    font-size:15px!important;
+    line-height:1.6!important;
+}
+
+html body.rafflelb-account-page :is(.rlpa-subscribed-copy h4,.rlpa-order-title,.rafflelb-entry-prize h4,.rlmy-card h3) {
+    font-size:17px!important;
+    font-weight:700!important;
+    line-height:1.3!important;
+    letter-spacing:-.012em!important;
+}
+html body.rafflelb-account-page :is(.rlpa-entry-number-line strong,.rafflelb-entry-number,.rlmy-ticket,.rlmy-stats strong) {
+    font-size:18px!important;
+    font-weight:800!important;
+    line-height:1.25!important;
+}
+html body.rafflelb-account-page :is(.rlpa-progress-head,.rlpa-dashboard-stats small,.rlpa-order-meta,.rlpa-order-status,.rafflelb-entry-progress-head,.rafflelb-entry-details strong,.rafflelb-entry-details strong a) {
+    font-size:13px!important;
+    line-height:1.45!important;
+}
+html body.rafflelb-account-page :is(.rlpa-section-heading>div>span,.rlpa-subscribed-copy>span,.rlpa-dashboard-stats span,.rlpa-entry-number-line small,.rlpa-entry-count span,.rafflelb-entry-kicker,.rafflelb-entry-badges span,.rafflelb-entry-details span,.rlpa-order-number) {
+    font-size:11px!important;
+    font-weight:700!important;
+    line-height:1.35!important;
+    letter-spacing:.055em!important;
+}
+
+html body.rafflelb-account-page .woocommerce-MyAccount-content :is(label,.form-row label) {
+    font-size:13px!important;
+    font-weight:700!important;
+    line-height:1.4!important;
+    letter-spacing:0!important;
+}
+html body.rafflelb-account-page .woocommerce-MyAccount-content :is(input.input-text,input[type="text"],input[type="email"],input[type="password"],textarea,select) {
+    font-size:16px!important;
+    line-height:1.45!important;
+}
+html body.rafflelb-account-page .woocommerce-MyAccount-content :is(.description,em,small) {
+    font-size:12px!important;
+    line-height:1.5!important;
+}
+html body.rafflelb-account-page .woocommerce-MyAccount-content :is(button.button,a.button,input.button) {
+    font-size:14px!important;
+    font-weight:700!important;
+    line-height:1.35!important;
+    letter-spacing:.015em!important;
+}
+html body.rafflelb-account-page .woocommerce-MyAccount-content :is(button.button,a.button,input.button):not(.is-secondary) {
+    color:#0b0d08!important;
+    -webkit-text-fill-color:#0b0d08!important;
+}
+
+@media(max-width:767px) {
+    html body.rafflelb-account-page .woocommerce-MyAccount-navigation li>a,
+    html body.rafflelb-account-page .woocommerce-MyAccount-navigation li.is-active>a {
+        font-size:14px!important;
+        font-weight:650!important;
+        line-height:1.3!important;
+    }
+    html body.rafflelb-account-page .woocommerce-MyAccount-content>h2:first-child,
+    html body.rafflelb-account-page .woocommerce-MyAccount-content>.rlmy>h2:first-child,
+    html body.rafflelb-account-page .woocommerce-MyAccount-content .rlmy-head h2,
+    html body.rafflelb-account-page .woocommerce-MyAccount-content .rlmy-title {
+        font-size:clamp(28px,8.2vw,32px)!important;
+        line-height:1.1!important;
+        letter-spacing:-.032em!important;
+        overflow-wrap:anywhere!important;
+    }
+    html body.rafflelb-account-page .rlacct-copy h2 { font-size:20px!important; }
+    html body.rafflelb-account-page .rlacct-copy p { font-size:14px!important; }
+    html body.rafflelb-account-page .rlacct-metrics strong { font-size:24px!important; }
+    html body.rafflelb-account-page :is(.rlpa-section-heading,.rlpa-recent-heading) h3,
+    html body.rafflelb-account-page .woocommerce-MyAccount-content>h3,
+    html body.rafflelb-account-page .woocommerce-Address-title h3,
+    html body.rafflelb-account-page .woocommerce-order-details__title,
+    html body.rafflelb-account-page .woocommerce-column__title { font-size:20px!important; }
+    html body.rafflelb-account-page :is(.rlpa-subscribed-copy h4,.rlpa-order-title,.rafflelb-entry-prize h4,.rlmy-card h3) { font-size:16px!important; }
+    html body.rafflelb-account-page :is(.rlpa-entry-number-line strong,.rafflelb-entry-number,.rlmy-ticket,.rlmy-stats strong) { font-size:18px!important; }
+}
+
+@media(max-width:380px) {
+    html body.rafflelb-account-page .woocommerce-MyAccount-navigation li>a,
+    html body.rafflelb-account-page .woocommerce-MyAccount-navigation li.is-active>a { font-size:13px!important; }
 }
 
 /* v0.32.4 — real inline menu children; no anonymous grid or pseudo-icon layout. */
@@ -1072,3 +1216,263 @@ html body.rafflelb-account-page .rlpa-subscribed-card>.rlpa-entry-count {
         width:100%!important;
     }
 }
+
+/* v0.1.6 final cascade guard: typography only; intentionally last. */
+html body.rafflelb-account-page,
+html body.rafflelb-account-page .woocommerce-MyAccount-navigation,
+html body.rafflelb-account-page .woocommerce-MyAccount-content,
+html body.rafflelb-account-page .woocommerce-MyAccount-content :is(h1,h2,h3,h4,h5,h6,p,span,strong,small,label,input,textarea,select,button,a,address,th,td) {
+    font-family:var(--rl-font, "Manrope", sans-serif)!important;
+}
+html body.rafflelb-account-page .woocommerce-MyAccount-navigation li>a,
+html body.rafflelb-account-page .woocommerce-MyAccount-navigation li.is-active>a { font-size:14px!important;font-weight:650!important;line-height:1.3!important;letter-spacing:0!important; }
+html body.rafflelb-account-page .woocommerce-MyAccount-content>h2:first-child,
+html body.rafflelb-account-page .woocommerce-MyAccount-content>.rlmy>h2:first-child,
+html body.rafflelb-account-page .woocommerce-MyAccount-content .rlmy-head h2,
+html body.rafflelb-account-page .woocommerce-MyAccount-content .rlmy-title { font-size:38px!important;font-weight:800!important;line-height:1.08!important;letter-spacing:-.035em!important; }
+html body.rafflelb-account-page .rlacct-copy h2 { font-size:22px!important;font-weight:800!important;line-height:1.15!important;letter-spacing:-.025em!important; }
+html body.rafflelb-account-page .rlacct-copy p { font-size:14px!important;line-height:1.5!important; }
+html body.rafflelb-account-page .rlacct-metrics small { font-size:11px!important;font-weight:700!important;line-height:1.3!important;letter-spacing:.045em!important; }
+html body.rafflelb-account-page .rlacct-metrics strong { font-size:25px!important;font-weight:800!important;line-height:1.1!important;letter-spacing:-.02em!important; }
+html body.rafflelb-account-page :is(.rlpa-section-heading,.rlpa-recent-heading) h3,
+html body.rafflelb-account-page .woocommerce-MyAccount-content>h3,
+html body.rafflelb-account-page .woocommerce-Address-title h3,
+html body.rafflelb-account-page .woocommerce-order-details__title,
+html body.rafflelb-account-page .woocommerce-column__title { font-size:22px!important;font-weight:800!important;line-height:1.18!important;letter-spacing:-.025em!important; }
+html body.rafflelb-account-page :is(.rlpa-subscribed-copy h4,.rlpa-order-title,.rafflelb-entry-prize h4,.rlmy-card h3) { font-size:17px!important;font-weight:700!important;line-height:1.3!important;letter-spacing:-.012em!important; }
+html body.rafflelb-account-page :is(.rlpa-entry-number-line strong,.rafflelb-entry-number,.rlmy-ticket,.rlmy-stats strong) { font-size:18px!important;font-weight:800!important;line-height:1.25!important; }
+html body.rafflelb-account-page :is(.rlpa-progress-head,.rlpa-dashboard-stats small,.rlpa-order-meta,.rlpa-order-status,.rafflelb-entry-progress-head,.rafflelb-entry-details strong,.rafflelb-entry-details strong a) { font-size:13px!important;line-height:1.45!important; }
+html body.rafflelb-account-page :is(.rlpa-section-heading>div>span,.rlpa-subscribed-copy>span,.rlpa-dashboard-stats span,.rlpa-entry-number-line small,.rlpa-entry-count span,.rafflelb-entry-kicker,.rafflelb-entry-badges span,.rafflelb-entry-details span,.rlpa-order-number) { font-size:11px!important;font-weight:700!important;line-height:1.35!important;letter-spacing:.055em!important; }
+html body.rafflelb-account-page .woocommerce-MyAccount-content :is(label,.form-row label) { font-size:13px!important;font-weight:700!important;line-height:1.4!important;letter-spacing:0!important; }
+html body.rafflelb-account-page .woocommerce-MyAccount-content :is(input.input-text,input[type="text"],input[type="email"],input[type="password"],textarea,select) { font-size:16px!important;line-height:1.45!important; }
+html body.rafflelb-account-page .woocommerce-MyAccount-content :is(.description,em,small) { font-size:12px!important;line-height:1.5!important; }
+html body.rafflelb-account-page .woocommerce-MyAccount-content :is(button.button,a.button,input.button) { font-size:14px!important;font-weight:700!important;line-height:1.35!important;letter-spacing:.015em!important; }
+html body.rafflelb-account-page .woocommerce-MyAccount-content :is(button.button,a.button,input.button):not(.is-secondary) { color:#0b0d08!important;-webkit-text-fill-color:#0b0d08!important; }
+@media(max-width:767px) {
+    html body.rafflelb-account-page .woocommerce-MyAccount-navigation li>a,
+    html body.rafflelb-account-page .woocommerce-MyAccount-navigation li.is-active>a { font-size:14px!important;font-weight:650!important;line-height:1.3!important; }
+    html body.rafflelb-account-page .woocommerce-MyAccount-content>h2:first-child,
+    html body.rafflelb-account-page .woocommerce-MyAccount-content>.rlmy>h2:first-child,
+    html body.rafflelb-account-page .woocommerce-MyAccount-content .rlmy-head h2,
+    html body.rafflelb-account-page .woocommerce-MyAccount-content .rlmy-title { font-size:clamp(28px,8.2vw,32px)!important;line-height:1.1!important;letter-spacing:-.032em!important;overflow-wrap:anywhere!important; }
+    html body.rafflelb-account-page .rlacct-copy h2 { font-size:20px!important; }
+    html body.rafflelb-account-page .rlacct-metrics strong { font-size:24px!important; }
+    html body.rafflelb-account-page :is(.rlpa-section-heading,.rlpa-recent-heading) h3,
+    html body.rafflelb-account-page .woocommerce-MyAccount-content>h3,
+    html body.rafflelb-account-page .woocommerce-Address-title h3,
+    html body.rafflelb-account-page .woocommerce-order-details__title,
+    html body.rafflelb-account-page .woocommerce-column__title { font-size:20px!important; }
+    html body.rafflelb-account-page :is(.rlpa-subscribed-copy h4,.rlpa-order-title,.rafflelb-entry-prize h4,.rlmy-card h3) { font-size:16px!important; }
+}
+
+/* 0.1.10 — dedicated My Raffles action component. */
+@media(min-width:768px){
+    .rlmy-card{
+        grid-template-columns:116px minmax(0,1fr) 210px;
+    }
+}
+.rlb-raffle-actions{
+    display:flex!important;
+    flex-direction:column!important;
+    gap:10px!important;
+    width:210px!important;
+    max-width:100%!important;
+    margin-top:auto!important;
+    padding-top:14px!important;
+    box-sizing:border-box!important;
+}
+.rlb-raffle-actions .rlb-raffle-action,
+.rlb-raffle-actions .rlb-raffle-action:link,
+.rlb-raffle-actions .rlb-raffle-action:visited{
+    display:flex!important;
+    width:100%!important;
+    height:40px!important;
+    min-height:40px!important;
+    max-height:40px!important;
+    align-items:center!important;
+    justify-content:space-between!important;
+    gap:10px!important;
+    margin:0!important;
+    padding:0 14px!important;
+    box-sizing:border-box!important;
+    border-radius:9px!important;
+    font-family:var(--rl-font, "Manrope", sans-serif)!important;
+    font-size:11px!important;
+    font-weight:800!important;
+    line-height:1!important;
+    letter-spacing:.025em!important;
+    text-align:left!important;
+    text-decoration:none!important;
+    text-transform:uppercase!important;
+    white-space:nowrap!important;
+    box-shadow:none!important;
+    transform:none!important;
+    transition:background-color .16s ease,color .16s ease,border-color .16s ease,box-shadow .16s ease,filter .16s ease!important;
+}
+.rlb-raffle-actions .rlb-raffle-action::before,
+.rlb-raffle-actions .rlb-raffle-action::after{
+    display:none!important;
+    content:none!important;
+}
+.rlb-raffle-actions .rlb-raffle-action__label{
+    min-width:0!important;
+}
+.rlb-raffle-actions .rlb-raffle-action__arrow{
+    display:block!important;
+    flex:0 0 auto!important;
+    margin-left:auto!important;
+    color:inherit!important;
+    -webkit-text-fill-color:inherit!important;
+    font-size:16px!important;
+    font-weight:500!important;
+    line-height:1!important;
+}
+.rlb-raffle-actions .rlb-raffle-action--secondary,
+.rlb-raffle-actions .rlb-raffle-action--secondary:link,
+.rlb-raffle-actions .rlb-raffle-action--secondary:visited{
+    border:1px solid #baff00!important;
+    background:transparent!important;
+    color:#baff00!important;
+    -webkit-text-fill-color:#baff00!important;
+}
+.rlb-raffle-actions .rlb-raffle-action--secondary:hover,
+.rlb-raffle-actions .rlb-raffle-action--secondary:focus{
+    border:1px solid #baff00!important;
+    background:#baff00!important;
+    color:#000!important;
+    -webkit-text-fill-color:#000!important;
+    box-shadow:0 0 14px rgba(186,255,0,.18)!important;
+}
+.rlb-raffle-actions .rlb-raffle-action--primary,
+.rlb-raffle-actions .rlb-raffle-action--primary:link,
+.rlb-raffle-actions .rlb-raffle-action--primary:visited{
+    border:1px solid #baff00!important;
+    background:#baff00!important;
+    color:#000!important;
+    -webkit-text-fill-color:#000!important;
+    box-shadow:0 5px 16px rgba(186,255,0,.14)!important;
+}
+.rlb-raffle-actions .rlb-raffle-action--primary:hover,
+.rlb-raffle-actions .rlb-raffle-action--primary:focus{
+    border:1px solid #baff00!important;
+    background:#baff00!important;
+    color:#000!important;
+    -webkit-text-fill-color:#000!important;
+    filter:brightness(1.07)!important;
+    box-shadow:0 0 18px rgba(186,255,0,.28),0 6px 18px rgba(0,0,0,.22)!important;
+}
+.rlb-raffle-actions .rlb-raffle-action:focus-visible{
+    outline:2px solid #fff!important;
+    outline-offset:2px!important;
+}
+
+@media(max-width:767px){
+    .rlmy-card{
+        grid-template-columns:88px minmax(0,1fr)!important;
+    }
+    .rlmy-side{
+        grid-column:1/-1!important;
+        display:block!important;
+        width:100%!important;
+        padding-top:2px!important;
+        text-align:left!important;
+    }
+    .rlmy-side>span,
+    .rlmy-side>strong{
+        display:none!important;
+    }
+    .rlb-raffle-actions{
+        width:100%!important;
+        max-width:100%!important;
+        margin-top:0!important;
+        padding-top:0!important;
+    }
+    .rlb-raffle-actions .rlb-raffle-action{
+        width:100%!important;
+    }
+}
+@media(max-width:380px) {
+    html body.rafflelb-account-page .woocommerce-MyAccount-navigation li>a,
+    html body.rafflelb-account-page .woocommerce-MyAccount-navigation li.is-active>a { font-size:13px!important; }
+}
+
+/* 0.1.11 — protect dedicated My Raffles action colors from global account span/link !important rules. */
+html body.rafflelb-account-page .woocommerce-MyAccount-content .rlb-raffle-actions a.rlb-raffle-action--secondary,
+html body.rafflelb-account-page .woocommerce-MyAccount-content .rlb-raffle-actions a.rlb-raffle-action--secondary:link,
+html body.rafflelb-account-page .woocommerce-MyAccount-content .rlb-raffle-actions a.rlb-raffle-action--secondary:visited{
+    border:1px solid #BAFF00!important;
+    background:#0b0e0a!important;
+    background-color:#0b0e0a!important;
+    color:#BAFF00!important;
+    -webkit-text-fill-color:#BAFF00!important;
+}
+html body.rafflelb-account-page .woocommerce-MyAccount-content .rlb-raffle-actions a.rlb-raffle-action--secondary .rlb-raffle-action__label,
+html body.rafflelb-account-page .woocommerce-MyAccount-content .rlb-raffle-actions a.rlb-raffle-action--secondary .rlb-raffle-action__arrow{
+    color:#BAFF00!important;
+    -webkit-text-fill-color:#BAFF00!important;
+}
+html body.rafflelb-account-page .woocommerce-MyAccount-content .rlb-raffle-actions a.rlb-raffle-action--secondary:hover,
+html body.rafflelb-account-page .woocommerce-MyAccount-content .rlb-raffle-actions a.rlb-raffle-action--secondary:focus,
+html body.rafflelb-account-page .woocommerce-MyAccount-content .rlb-raffle-actions a.rlb-raffle-action--secondary:focus-visible{
+    border-color:#BAFF00!important;
+    background:#BAFF00!important;
+    background-color:#BAFF00!important;
+    color:#000!important;
+    -webkit-text-fill-color:#000!important;
+}
+html body.rafflelb-account-page .woocommerce-MyAccount-content .rlb-raffle-actions a.rlb-raffle-action--secondary:hover .rlb-raffle-action__label,
+html body.rafflelb-account-page .woocommerce-MyAccount-content .rlb-raffle-actions a.rlb-raffle-action--secondary:hover .rlb-raffle-action__arrow,
+html body.rafflelb-account-page .woocommerce-MyAccount-content .rlb-raffle-actions a.rlb-raffle-action--secondary:focus .rlb-raffle-action__label,
+html body.rafflelb-account-page .woocommerce-MyAccount-content .rlb-raffle-actions a.rlb-raffle-action--secondary:focus .rlb-raffle-action__arrow,
+html body.rafflelb-account-page .woocommerce-MyAccount-content .rlb-raffle-actions a.rlb-raffle-action--secondary:focus-visible .rlb-raffle-action__label,
+html body.rafflelb-account-page .woocommerce-MyAccount-content .rlb-raffle-actions a.rlb-raffle-action--secondary:focus-visible .rlb-raffle-action__arrow{
+    color:#000!important;
+    -webkit-text-fill-color:#000!important;
+}
+
+html body.rafflelb-account-page .woocommerce-MyAccount-content .rlb-raffle-actions a.rlb-raffle-action--primary,
+html body.rafflelb-account-page .woocommerce-MyAccount-content .rlb-raffle-actions a.rlb-raffle-action--primary:link,
+html body.rafflelb-account-page .woocommerce-MyAccount-content .rlb-raffle-actions a.rlb-raffle-action--primary:visited,
+html body.rafflelb-account-page .woocommerce-MyAccount-content .rlb-raffle-actions a.rlb-raffle-action--primary:hover,
+html body.rafflelb-account-page .woocommerce-MyAccount-content .rlb-raffle-actions a.rlb-raffle-action--primary:focus,
+html body.rafflelb-account-page .woocommerce-MyAccount-content .rlb-raffle-actions a.rlb-raffle-action--primary:focus-visible{
+    border:1px solid #BAFF00!important;
+    background:#BAFF00!important;
+    background-color:#BAFF00!important;
+    color:#000!important;
+    -webkit-text-fill-color:#000!important;
+}
+html body.rafflelb-account-page .woocommerce-MyAccount-content .rlb-raffle-actions a.rlb-raffle-action--primary .rlb-raffle-action__label,
+html body.rafflelb-account-page .woocommerce-MyAccount-content .rlb-raffle-actions a.rlb-raffle-action--primary .rlb-raffle-action__arrow,
+html body.rafflelb-account-page .woocommerce-MyAccount-content .rlb-raffle-actions a.rlb-raffle-action--primary:hover .rlb-raffle-action__label,
+html body.rafflelb-account-page .woocommerce-MyAccount-content .rlb-raffle-actions a.rlb-raffle-action--primary:hover .rlb-raffle-action__arrow,
+html body.rafflelb-account-page .woocommerce-MyAccount-content .rlb-raffle-actions a.rlb-raffle-action--primary:focus .rlb-raffle-action__label,
+html body.rafflelb-account-page .woocommerce-MyAccount-content .rlb-raffle-actions a.rlb-raffle-action--primary:focus .rlb-raffle-action__arrow,
+html body.rafflelb-account-page .woocommerce-MyAccount-content .rlb-raffle-actions a.rlb-raffle-action--primary:focus-visible .rlb-raffle-action__label,
+html body.rafflelb-account-page .woocommerce-MyAccount-content .rlb-raffle-actions a.rlb-raffle-action--primary:focus-visible .rlb-raffle-action__arrow{
+    color:#000!important;
+    -webkit-text-fill-color:#000!important;
+}
+
+
+/* 0.1.12 — cancelled raffle state */
+body.rlpa-account-raffles .rlmy-card.is-cancelled .rlmy-status{background:#5d5140!important;color:#ffd08a!important}
+.rafflelb-entry-result.is-cancelled{background:rgba(255,190,96,.12)!important;color:#ffd08a!important;border-color:rgba(255,190,96,.28)!important}
+
+
+/* 0.1.13 — cancelled raffle order state */
+.rlpa-order-card.has-raffle-cancellation{border-color:rgba(186,255,0,.28)}
+.rlpa-order-cancel-summary{display:inline-flex;align-items:center;gap:7px;width:max-content;max-width:100%;margin-top:2px;padding:7px 10px;border:1px solid rgba(186,255,0,.28);border-radius:9px;background:rgba(186,255,0,.055);color:#dce8c9!important;font-size:11px!important;font-weight:700!important;line-height:1.35!important}
+.rlpa-order-cancel-summary>span{color:var(--rlpa-lime)!important;font-size:14px!important}
+.rlpa-raffle-cancel-notice{display:flex;gap:14px;margin:0 0 20px;padding:17px 18px;border:1px solid rgba(186,255,0,.34);border-radius:var(--rlpa-radius);background:linear-gradient(135deg,rgba(186,255,0,.075),rgba(186,255,0,.025));color:var(--rlpa-white)!important}
+.rlpa-raffle-cancel-icon{display:grid;place-items:center;width:38px;height:38px;flex:0 0 38px;border:1px solid rgba(186,255,0,.45);border-radius:50%;color:var(--rlpa-lime)!important;font-size:18px!important;font-weight:800!important}
+.rlpa-raffle-cancel-notice>div:last-child{min-width:0;flex:1}
+.rlpa-raffle-cancel-notice strong{display:block;color:var(--rlpa-lime)!important;font-size:14px!important;font-weight:800!important;letter-spacing:.03em}
+.rlpa-raffle-cancel-notice p{margin:5px 0 0!important;color:#d8ddd3!important;font-size:13px!important;line-height:1.55!important}
+.rlpa-raffle-cancel-notice .rlpa-raffle-cancel-reason{color:#aeb6aa!important}
+.rlpa-raffle-cancel-facts{display:flex;flex-wrap:wrap;gap:10px;margin-top:12px}
+.rlpa-raffle-cancel-facts span{display:flex;min-width:155px;flex-direction:column;gap:2px;padding:9px 11px;border:1px solid var(--rlpa-line);border-radius:9px;background:#0d100c}
+.rlpa-raffle-cancel-facts small{color:#8f9887!important;font-size:9px!important;font-weight:750!important;letter-spacing:.08em!important}
+.rlpa-raffle-cancel-facts b{color:#fff!important;font-size:12px!important;font-weight:750!important}
+.rlpa-order-item-cancelled{display:inline-flex;margin-top:8px;padding:5px 8px;border:1px solid rgba(186,255,0,.3);border-radius:7px;background:rgba(186,255,0,.05);color:var(--rlpa-lime)!important;font-size:9px!important;font-weight:800!important;letter-spacing:.055em!important;line-height:1.35!important}
+@media(max-width:767px){.rlpa-raffle-cancel-notice{padding:14px}.rlpa-raffle-cancel-facts{flex-direction:column}.rlpa-raffle-cancel-facts span{min-width:0;width:100%}.rlpa-order-cancel-summary{width:100%}}

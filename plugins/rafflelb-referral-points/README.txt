@@ -1,3 +1,9 @@
+RaffleLB Referral & Points v1.2.18
+
+- Added a reusable monetary-refund credit API that uses the configured checkout valuation (`spend_points_per_dollar`).
+- Refund credits are transactionally idempotent through a private hashed marker, per-user advisory lock, and immutable Points ledger entry.
+- Refund credits do not invoke paid-order referral earning and therefore cannot create referral rewards.
+
 RaffleLB Referral & Points v1.2.4
 
 - Mobile signed-in header: increased the website logo size while preserving Account + Raffle Points + Cart on the same row.

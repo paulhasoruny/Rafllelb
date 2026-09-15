@@ -1,0 +1,899 @@
+/* Shared fallback panel. Dedicated /whish-payment/ refinements are scoped below. */
+.rlb-whish-card {
+  max-width: 620px;
+  margin: 28px auto;
+  padding: 28px;
+  border: 1px solid #222;
+  border-radius: 24px;
+  background: #050505;
+  box-shadow: 0 18px 50px rgba(0, 0, 0, .28);
+  color: #fff;
+  font-family: Inter, "Segoe UI", Arial, sans-serif;
+}
+
+.rlb-whish-card h2 {
+  margin: 8px 0 10px;
+  color: #fff;
+  font-size: 30px;
+  line-height: 1.1;
+}
+
+.rlb-whish-kicker {
+  color: #baff00;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: .15em;
+}
+
+.rlb-whish-lead {
+  color: #ddd;
+  font-size: 16px;
+}
+
+.rlb-whish-qr {
+  display: block;
+  width: 58%;
+  max-width: 220px;
+  height: auto;
+  margin: 22px auto;
+  padding: 8px;
+  border-radius: 18px;
+  background: #fff;
+}
+
+.rlb-whish-details {
+  display: grid;
+  gap: 10px;
+  margin: 20px 0;
+}
+
+.rlb-whish-details > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 13px 15px;
+  border: 1px solid #222;
+  border-radius: 14px;
+  background: #111;
+}
+
+.rlb-whish-details span {
+  color: #929292;
+}
+
+.rlb-whish-details strong {
+  color: #fff;
+  text-align: right;
+}
+
+.rlb-whish-status {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 15px;
+  border: 1px solid #292929;
+  border-radius: 14px;
+  background: #101010;
+  font-weight: 700;
+}
+
+.rlb-whish-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #baff00;
+  box-shadow: 0 0 0 0 rgba(186, 255, 0, .5);
+  animation: rlbPulse 1.4s infinite;
+}
+
+.rlb-whish-status.is-paid {
+  border-color: #baff00;
+}
+
+.rlb-whish-status.is-paid .rlb-whish-dot {
+  animation: none;
+}
+
+.rlb-whish-status.is-error .rlb-whish-dot {
+  background: #ff6464;
+  animation: none;
+}
+
+.rlb-whish-hint {
+  margin: 12px 0 0;
+  color: #8d8d8d;
+  font-size: 13px;
+}
+
+@keyframes rlbPulse {
+  0% { box-shadow: 0 0 0 0 rgba(186, 255, 0, .38); }
+  70% { box-shadow: 0 0 0 7px rgba(186, 255, 0, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(186, 255, 0, 0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rlb-whish-dot {
+    animation: none;
+  }
+}
+
+@media (max-width: 600px) {
+  .rlb-whish-card {
+    margin: 16px 0;
+    padding: 20px;
+    border-radius: 18px;
+  }
+
+  .rlb-whish-card h2 {
+    font-size: 25px;
+  }
+
+  .rlb-whish-details > div {
+    padding: 12px;
+  }
+
+  .rlb-whish-qr {
+    width: 70%;
+  }
+}
+
+/*
+ * v0.1.9: dedicated RaffleLB Whish waiting page.
+ * Everything in this block is route-scoped so checkout, thank-you screens,
+ * the global header, and the global footer retain their existing presentation.
+ */
+body.rlb-whish-payment-route,
+body.rlb-whish-payment-route .website-wrapper,
+body.rlb-whish-payment-route .main-page-wrapper,
+body.rlb-whish-payment-route .site-content,
+body.rlb-whish-payment-route .content-layout-wrapper,
+body.rlb-whish-payment-route .page-title,
+body.rlb-whish-payment-route .container.content-layout-wrapper {
+  background: #050805 !important;
+}
+
+body.rlb-whish-payment-route .main-page-wrapper,
+body.rlb-whish-payment-route .site-content {
+  padding-right: 0 !important;
+  padding-left: 0 !important;
+}
+
+body.rlb-whish-payment-route .container.content-layout-wrapper {
+  width: 100% !important;
+  max-width: none !important;
+  padding-right: 0 !important;
+  padding-left: 0 !important;
+}
+
+body.rlb-whish-payment-route .rlb-whish-payment-page {
+  position: relative;
+  display: flex;
+  width: 100% !important;
+  max-width: none !important;
+  min-height: 72vh;
+  box-sizing: border-box;
+  align-items: center;
+  justify-content: center;
+  margin-right: 0 !important;
+  margin-left: 0 !important;
+  padding: 48px 20px 56px;
+  background:
+    radial-gradient(circle at 50% 8%, rgba(186, 255, 0, .04), transparent 32%),
+    #050805 !important;
+}
+
+body.rlb-whish-payment-route .rlb-whish-payment-shell {
+  width: min(640px, 100%);
+  max-width: 640px;
+  margin: 0 auto;
+}
+
+body.rlb-whish-payment-route .rlb-whish-card {
+  position: relative;
+  width: 100%;
+  max-width: none;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 28px 32px 24px;
+  overflow: hidden;
+  border: 1px solid #253020;
+  border-radius: 22px;
+  background: linear-gradient(145deg, #0c110b 0%, #070907 58%, #050705 100%);
+  box-shadow: 0 22px 60px rgba(0, 0, 0, .36);
+  color: #f7f8f5;
+  font-family: Inter, "Segoe UI", Arial, sans-serif;
+}
+
+body.rlb-whish-payment-route .rlb-whish-card::before {
+  content: "SECURE PAYMENT";
+  display: inline-flex;
+  align-items: center;
+  min-height: 26px;
+  box-sizing: border-box;
+  margin: 0 0 18px;
+  padding: 6px 10px;
+  border: 1px solid #29351f;
+  border-radius: 999px;
+  background: #0b1009;
+  color: #9ca494;
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: .16em;
+}
+
+body.rlb-whish-payment-route .rlb-whish-card::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 32px;
+  width: 72px;
+  height: 2px;
+  border-radius: 0 0 2px 2px;
+  background: #baff00;
+}
+
+body.rlb-whish-payment-route .rlb-whish-kicker {
+  margin: 0;
+  color: #baff00;
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1.3;
+  letter-spacing: .17em;
+}
+
+body.rlb-whish-payment-route .rlb-whish-card h2 {
+  margin: 8px 0 10px;
+  color: #f7f8f5;
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: clamp(30px, 5vw, 36px);
+  font-weight: 900;
+  line-height: 1.05;
+  letter-spacing: -.035em;
+}
+
+body.rlb-whish-payment-route .rlb-whish-lead {
+  max-width: 540px;
+  margin: 0;
+  color: #b6bcb2;
+  font-size: 15px;
+  font-weight: 400;
+  line-height: 1.6;
+}
+
+body.rlb-whish-payment-route .rlb-whish-lead .rlb-whish-amount-highlight {
+  display: inline-block;
+  margin: 0 3px;
+  color: #baff00 !important;
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 2.15em;
+  font-weight: 900;
+  line-height: 1;
+  letter-spacing: -.045em;
+  vertical-align: -.12em;
+}
+
+body.rlb-whish-payment-route .rlb-whish-qr {
+  width: min(176px, 56%);
+  max-width: 176px;
+  margin: 24px auto 4px;
+  padding: 7px;
+  border: 1px solid #252b24;
+  border-radius: 16px;
+  background: #fff;
+}
+
+body.rlb-whish-payment-route .rlb-whish-details {
+  display: grid;
+  gap: 0;
+  margin: 22px 0 14px;
+  overflow: hidden;
+  border: 1px solid #20271d;
+  border-radius: 15px;
+  background: #090c09;
+}
+
+body.rlb-whish-payment-route .rlb-whish-details > div {
+  display: flex;
+  min-height: 48px;
+  box-sizing: border-box;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 12px 16px;
+  border: 0;
+  border-bottom: 1px solid #1b2119;
+  border-radius: 0;
+  background: transparent;
+}
+
+body.rlb-whish-payment-route .rlb-whish-details > div:last-child {
+  border-bottom: 0;
+}
+
+body.rlb-whish-payment-route .rlb-whish-details span {
+  flex: 0 0 auto;
+  color: #7f877a;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1.2;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+}
+
+body.rlb-whish-payment-route .rlb-whish-details strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: #f7f8f5;
+  font-size: 15px;
+  font-weight: 750;
+  line-height: 1.35;
+  text-align: right;
+}
+
+body.rlb-whish-payment-route .rlb-whish-details .rlb-whish-amount-value {
+  color: #baff00 !important;
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 20px;
+  font-weight: 900;
+  letter-spacing: -.025em;
+}
+
+body.rlb-whish-payment-route .rlb-whish-status {
+  position: relative;
+  display: flex;
+  min-height: 48px;
+  box-sizing: border-box;
+  align-items: center;
+  gap: 12px;
+  margin: 0;
+  padding: 12px 16px 12px 18px;
+  border: 1px solid #29361f;
+  border-radius: 14px;
+  background: rgba(186, 255, 0, .035);
+  color: #f7f8f5;
+  font-size: 14px;
+  font-weight: 750;
+  line-height: 1.35;
+}
+
+body.rlb-whish-payment-route .rlb-whish-status::before {
+  content: "";
+  position: absolute;
+  top: 13px;
+  bottom: 13px;
+  left: 0;
+  width: 2px;
+  border-radius: 0 2px 2px 0;
+  background: #baff00;
+}
+
+body.rlb-whish-payment-route .rlb-whish-dot {
+  width: 8px;
+  height: 8px;
+  flex: 0 0 8px;
+  background: #baff00;
+}
+
+body.rlb-whish-payment-route .rlb-whish-status.is-detected {
+  border-color: #4a5b2f;
+}
+
+body.rlb-whish-payment-route .rlb-whish-status.is-paid {
+  border-color: #6a8d20;
+  background: rgba(186, 255, 0, .07);
+}
+
+body.rlb-whish-payment-route .rlb-whish-status.is-error {
+  border-color: #633232;
+  background: rgba(255, 100, 100, .05);
+}
+
+body.rlb-whish-payment-route .rlb-whish-status.is-error::before,
+body.rlb-whish-payment-route .rlb-whish-status.is-error .rlb-whish-dot {
+  background: #ff6464;
+}
+
+body.rlb-whish-payment-route .rlb-whish-hint {
+  margin: 12px 0 0;
+  padding: 12px 16px;
+  border: 1px solid #1c221a;
+  border-radius: 12px;
+  background: #080b08;
+  color: #858d80;
+  font-size: 12.5px;
+  line-height: 1.6;
+  text-align: left;
+}
+
+body.rlb-whish-payment-route .rlb-whish-hint strong {
+  color: #cdd1c9;
+  font-weight: 700;
+}
+
+body.rlb-whish-payment-route .rlb-whish-support {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid #1b2119;
+  color: #7f877a;
+  font-size: 12.5px;
+  line-height: 1.45;
+  text-align: center;
+}
+
+body.rlb-whish-payment-route .rlb-whish-support-icon {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 18px;
+  fill: none;
+  stroke: #baff00;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+body.rlb-whish-payment-route .rlb-whish-support a {
+  color: #baff00 !important;
+  font-weight: 800;
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+  transition: color .18s ease;
+}
+
+body.rlb-whish-payment-route .rlb-whish-support a:hover {
+  color: #d2ff56 !important;
+}
+
+body.rlb-whish-payment-route .rlb-whish-support a:focus-visible {
+  border-radius: 3px;
+  outline: 2px solid #baff00;
+  outline-offset: 3px;
+}
+
+@media (max-width: 600px) {
+  body.rlb-whish-payment-route .rlb-whish-payment-page {
+    min-height: 68vh;
+    align-items: flex-start;
+    padding: 28px 14px 44px;
+  }
+
+  body.rlb-whish-payment-route .rlb-whish-card {
+    padding: 24px 18px 22px;
+    border-radius: 18px;
+  }
+
+  body.rlb-whish-payment-route .rlb-whish-card::before {
+    margin-bottom: 20px;
+  }
+
+  body.rlb-whish-payment-route .rlb-whish-card::after {
+    left: 18px;
+    width: 56px;
+  }
+
+  body.rlb-whish-payment-route .rlb-whish-card h2 {
+    margin-top: 7px;
+    font-size: 28px;
+  }
+
+  body.rlb-whish-payment-route .rlb-whish-lead {
+    font-size: 14px;
+    line-height: 1.65;
+  }
+
+  body.rlb-whish-payment-route .rlb-whish-lead .rlb-whish-amount-highlight {
+    font-size: 1.9em;
+  }
+
+  body.rlb-whish-payment-route .rlb-whish-details {
+    margin-top: 22px;
+  }
+
+  body.rlb-whish-payment-route .rlb-whish-details > div {
+    min-height: 50px;
+    gap: 16px;
+    padding: 13px 14px;
+  }
+
+  body.rlb-whish-payment-route .rlb-whish-details strong {
+    font-size: 14px;
+  }
+
+  body.rlb-whish-payment-route .rlb-whish-details .rlb-whish-amount-value {
+    font-size: 19px;
+  }
+
+  body.rlb-whish-payment-route .rlb-whish-status {
+    padding-right: 14px;
+    padding-left: 16px;
+    font-size: 13.5px;
+  }
+
+  body.rlb-whish-payment-route .rlb-whish-hint {
+    padding: 13px 14px;
+    font-size: 12px;
+  }
+
+  body.rlb-whish-payment-route .rlb-whish-support {
+    align-items: flex-start;
+    margin-top: 18px;
+    padding-top: 16px;
+    font-size: 12px;
+  }
+}
+
+/* v0.1.14: QR payment panel. Same-device Open in Whish action removed by request. */
+body.rlb-whish-payment-route .rlb-whish-pay-options {
+  display: grid;
+  grid-template-columns: 150px minmax(0, 1fr);
+  grid-template-areas:
+    "qr copy"
+    "divider divider";
+  gap: 16px 20px;
+  align-items: center;
+  margin: 20px 0 0;
+  padding: 16px 16px 12px;
+  border: 1px solid #20271d;
+  border-radius: 15px;
+  background: #090c09;
+}
+
+body.rlb-whish-payment-route .rlb-whish-qr-side {
+  grid-area: qr;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+body.rlb-whish-payment-route .rlb-whish-qr {
+  display: block;
+  width: 142px;
+  max-width: 142px;
+  height: 142px;
+  object-fit: contain;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 7px;
+  border: 0;
+  border-radius: 12px;
+  background: #fff;
+}
+
+body.rlb-whish-payment-route .rlb-whish-pay-copy {
+  grid-area: copy;
+  min-width: 0;
+}
+
+body.rlb-whish-payment-route .rlb-whish-pay-options-title {
+  margin: 0 0 7px;
+  color: #f7f8f5;
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 17px;
+  font-weight: 850;
+  line-height: 1.25;
+  letter-spacing: -.015em;
+}
+
+body.rlb-whish-payment-route .rlb-whish-qr-hint {
+  margin: 0 0 13px;
+  color: #90988c;
+  font-size: 12.5px;
+  line-height: 1.55;
+}
+
+body.rlb-whish-payment-route .rlb-whish-qr-hint strong {
+  color: #baff00;
+  font-size: 1.08em;
+  font-weight: 900;
+}
+
+body.rlb-whish-payment-route .rlb-whish-manual-divider {
+  grid-area: divider;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 18px;
+  color: #697065;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+}
+
+body.rlb-whish-payment-route .rlb-whish-manual-divider::before,
+body.rlb-whish-payment-route .rlb-whish-manual-divider::after {
+  content: "";
+  height: 1px;
+  flex: 1 1 auto;
+  background: #1b2119;
+}
+
+body.rlb-whish-payment-route .rlb-whish-manual-divider span {
+  padding: 0 10px;
+  white-space: nowrap;
+}
+
+body.rlb-whish-payment-route .rlb-whish-pay-options + .rlb-whish-details {
+  margin-top: 12px;
+}
+
+@media (max-width: 600px) {
+  body.rlb-whish-payment-route .rlb-whish-pay-options {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "copy"
+      "qr"
+      "divider";
+    gap: 13px;
+    padding: 15px 14px 11px;
+    text-align: center;
+  }
+
+  body.rlb-whish-payment-route .rlb-whish-pay-options-title {
+    font-size: 16px;
+  }
+
+  body.rlb-whish-payment-route .rlb-whish-qr {
+    width: 164px;
+    max-width: 164px;
+    height: 164px;
+  }
+
+}
+
+/* v0.1.11: checkout Whish branding + customer cancellation controls. */
+body.woocommerce-checkout .payment_method_rlb_whish_bridge > label img,
+body.woocommerce-checkout label[for="payment_method_rlb_whish_bridge"] img,
+body.woocommerce-checkout .wc_payment_method.payment_method_rlb_whish_bridge label img {
+  width: auto !important;
+  height: 28px !important;
+  max-width: 92px !important;
+  max-height: 28px !important;
+  margin: 0 0 0 10px !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 5px;
+  object-fit: contain;
+  vertical-align: middle;
+  box-shadow: none !important;
+}
+
+body.rlb-whish-payment-route .rlb-whish-cancel-form {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin: 12px 0 0;
+  padding: 11px 12px;
+  border: 1px solid #20271d;
+  border-radius: 12px;
+  background: #080b08;
+}
+
+body.rlb-whish-payment-route .rlb-whish-cancel-button {
+  flex: 0 0 auto;
+  min-height: 36px;
+  box-sizing: border-box;
+  padding: 8px 13px;
+  border: 1px solid #3a4237;
+  border-radius: 9px;
+  background: #101410;
+  color: #c8cec4;
+  font: 800 11px/1 Arial, Helvetica, sans-serif;
+  letter-spacing: .03em;
+  cursor: pointer;
+  transition: border-color .16s ease, color .16s ease, background .16s ease, opacity .16s ease;
+}
+
+body.rlb-whish-payment-route .rlb-whish-cancel-button:hover {
+  border-color: #727d6c;
+  background: #141914;
+  color: #fff;
+}
+
+body.rlb-whish-payment-route .rlb-whish-cancel-button:focus-visible {
+  outline: 2px solid #baff00;
+  outline-offset: 2px;
+}
+
+body.rlb-whish-payment-route .rlb-whish-cancel-button:disabled {
+  cursor: not-allowed;
+  opacity: .42;
+}
+
+body.rlb-whish-payment-route .rlb-whish-cancel-note {
+  color: #737b70;
+  font-size: 11px;
+  line-height: 1.4;
+  text-align: right;
+}
+
+body.rlb-whish-payment-route .rlb-whish-cancel-error {
+  margin: 12px 0 0;
+  padding: 11px 13px;
+  border: 1px solid #633232;
+  border-radius: 10px;
+  background: rgba(255, 100, 100, .05);
+  color: #e7b0b0;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+@media (max-width: 600px) {
+  body.woocommerce-checkout .payment_method_rlb_whish_bridge > label img,
+  body.woocommerce-checkout label[for="payment_method_rlb_whish_bridge"] img,
+  body.woocommerce-checkout .wc_payment_method.payment_method_rlb_whish_bridge label img {
+    height: 24px !important;
+    max-width: 80px !important;
+    max-height: 24px !important;
+    margin-left: 7px !important;
+  }
+
+  body.rlb-whish-payment-route .rlb-whish-cancel-form {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  body.rlb-whish-payment-route .rlb-whish-cancel-button {
+    width: 100%;
+    min-height: 40px;
+  }
+
+  body.rlb-whish-payment-route .rlb-whish-cancel-note {
+    text-align: center;
+  }
+}
+
+/* v0.1.15: correct horizontal Whish Money logo, tightly cropped and aligned before the title like Raffle Points. */
+body.woocommerce-checkout .payment_method_rlb_whish_bridge > label,
+body.woocommerce-checkout label[for="payment_method_rlb_whish_bridge"],
+body.woocommerce-checkout .wc_payment_method.payment_method_rlb_whish_bridge label {
+  display: inline-flex !important;
+  width: auto !important;
+  max-width: 100%;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  gap: 10px !important;
+}
+
+body.woocommerce-checkout .payment_method_rlb_whish_bridge .rlb-whish-checkout-badge,
+body.woocommerce-checkout label[for="payment_method_rlb_whish_bridge"] .rlb-whish-checkout-badge,
+body.woocommerce-checkout .wc_payment_method.payment_method_rlb_whish_bridge .rlb-whish-checkout-badge {
+  order: -1;
+  display: inline-flex !important;
+  width: 108px !important;
+  height: 36px !important;
+  min-width: 108px !important;
+  box-sizing: border-box;
+  align-items: center;
+  justify-content: center;
+  margin: 0 !important;
+  padding: 4px 6px !important;
+  overflow: hidden;
+  border: 1px solid rgba(186, 255, 0, .55) !important;
+  border-radius: 8px !important;
+  background: #fff !important;
+  box-shadow: none !important;
+  line-height: 1 !important;
+}
+
+body.woocommerce-checkout .payment_method_rlb_whish_bridge .rlb-whish-checkout-badge img,
+body.woocommerce-checkout label[for="payment_method_rlb_whish_bridge"] .rlb-whish-checkout-badge img,
+body.woocommerce-checkout .wc_payment_method.payment_method_rlb_whish_bridge .rlb-whish-checkout-badge img {
+  display: block !important;
+  width: 100% !important;
+  height: 100% !important;
+  max-width: none !important;
+  max-height: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 5px !important;
+  background: #fff !important;
+  object-fit: contain !important;
+  object-position: center !important;
+  float: none !important;
+  box-shadow: none !important;
+}
+
+/* Compatibility for custom checkout renderers that output $gateway->icon directly. */
+body.woocommerce-checkout .payment_method_rlb_whish_bridge > label > img:not(.rlb-whish-checkout-icon),
+body.woocommerce-checkout label[for="payment_method_rlb_whish_bridge"] > img:not(.rlb-whish-checkout-icon),
+body.woocommerce-checkout .wc_payment_method.payment_method_rlb_whish_bridge label > img:not(.rlb-whish-checkout-icon) {
+  order: -1;
+  display: inline-block !important;
+  width: 108px !important;
+  height: 36px !important;
+  min-width: 108px !important;
+  max-width: 108px !important;
+  max-height: 36px !important;
+  box-sizing: border-box;
+  margin: 0 !important;
+  padding: 4px 6px !important;
+  border: 1px solid rgba(186, 255, 0, .55) !important;
+  border-radius: 8px !important;
+  background: #fff !important;
+  object-fit: contain !important;
+  float: none !important;
+  box-shadow: none !important;
+}
+
+@media (max-width: 600px) {
+  body.woocommerce-checkout .payment_method_rlb_whish_bridge > label,
+  body.woocommerce-checkout label[for="payment_method_rlb_whish_bridge"],
+  body.woocommerce-checkout .wc_payment_method.payment_method_rlb_whish_bridge label {
+    gap: 8px !important;
+  }
+
+  body.woocommerce-checkout .payment_method_rlb_whish_bridge .rlb-whish-checkout-badge,
+  body.woocommerce-checkout label[for="payment_method_rlb_whish_bridge"] .rlb-whish-checkout-badge,
+  body.woocommerce-checkout .wc_payment_method.payment_method_rlb_whish_bridge .rlb-whish-checkout-badge,
+  body.woocommerce-checkout .payment_method_rlb_whish_bridge > label > img:not(.rlb-whish-checkout-icon),
+  body.woocommerce-checkout label[for="payment_method_rlb_whish_bridge"] > img:not(.rlb-whish-checkout-icon),
+  body.woocommerce-checkout .wc_payment_method.payment_method_rlb_whish_bridge label > img:not(.rlb-whish-checkout-icon) {
+    width: 98px !important;
+    min-width: 98px !important;
+    max-width: 98px !important;
+    height: 34px !important;
+    max-height: 34px !important;
+  }
+}
+
+/* v0.1.16: payment-method logos on the right edge.
+ * Keep radio + method title on the left, with each brand mark aligned to the
+ * far right. This intentionally covers Raffle Points (rendered by the custom
+ * checkout as a ::before badge) and Whish Money (gateway-provided badge).
+ */
+body.woocommerce-checkout .rlcc-pay #payment ul.payment_methods > li > label,
+body.woocommerce-checkout .payment_method_rlb_whish_bridge > label,
+body.woocommerce-checkout label[for="payment_method_rlb_whish_bridge"],
+body.woocommerce-checkout .wc_payment_method.payment_method_rlb_whish_bridge label {
+  display: flex !important;
+  width: 100% !important;
+  max-width: none !important;
+  box-sizing: border-box !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+}
+
+/* Raffle Points logo is supplied by the RaffleLB checkout as a pseudo-element. */
+body.woocommerce-checkout .rlcc-pay #payment .payment_method_rafflelb_points > label::before {
+  order: 50 !important;
+  margin-left: auto !important;
+  margin-right: 0 !important;
+}
+
+/* Whish gateway logo badge. */
+body.woocommerce-checkout .payment_method_rlb_whish_bridge .rlb-whish-checkout-badge,
+body.woocommerce-checkout label[for="payment_method_rlb_whish_bridge"] .rlb-whish-checkout-badge,
+body.woocommerce-checkout .wc_payment_method.payment_method_rlb_whish_bridge .rlb-whish-checkout-badge {
+  order: 50 !important;
+  margin-left: auto !important;
+  margin-right: 0 !important;
+}
+
+/* Compatibility for checkout renderers that output the raw gateway icon. */
+body.woocommerce-checkout .payment_method_rlb_whish_bridge > label > img:not(.rlb-whish-checkout-icon),
+body.woocommerce-checkout label[for="payment_method_rlb_whish_bridge"] > img:not(.rlb-whish-checkout-icon),
+body.woocommerce-checkout .wc_payment_method.payment_method_rlb_whish_bridge label > img:not(.rlb-whish-checkout-icon) {
+  order: 50 !important;
+  margin-left: auto !important;
+  margin-right: 0 !important;
+}
+
+@media (max-width: 600px) {
+  body.woocommerce-checkout .rlcc-pay #payment ul.payment_methods > li > label,
+  body.woocommerce-checkout .payment_method_rlb_whish_bridge > label,
+  body.woocommerce-checkout label[for="payment_method_rlb_whish_bridge"],
+  body.woocommerce-checkout .wc_payment_method.payment_method_rlb_whish_bridge label {
+    width: 100% !important;
+  }
+}

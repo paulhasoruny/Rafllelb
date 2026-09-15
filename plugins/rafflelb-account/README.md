@@ -1,3 +1,44 @@
+# RaffleLB Account 0.1.12 — early-closure customer states
+
+- My Raffles distinguishes early cancellation/refund from early close-to-selection while keeping the Draw Engine internal compatibility status private.
+- Cancelled raffles move to Past and display `Cancelled`; early-close-to-selection raffles remain Active with `Awaiting Selection`.
+- Progress stops after closure and the existing View Selection Status action remains available for both states.
+- No raffle, refund, selection, or account writes are added.
+
+# RaffleLB Account 0.1.11 — My Raffles button color/cascade fix
+
+- Keeps the dedicated 0.1.10 My Raffles action markup and endpoint enqueue unchanged.
+- Adds high-specificity, endpoint-scoped overrides so the existing global account `a`/`span` `!important` color rules cannot override the two button states.
+- `View Raffle` stays dark with lime border/text and becomes lime with black text on hover/focus.
+- `View Selection Status` stays solid lime with black label/arrow in normal, hover, and focus states.
+- No raffle/account business logic or URLs changed.
+
+# RaffleLB Account 0.1.10 — dedicated My Raffles button component
+
+- Replaces the two My Raffles action anchors with dedicated `rlb-raffle-action` primary/secondary markup and an embedded arrow element.
+- Styles only those dedicated classes, including explicit theme-resistant dimensions, colors, pseudo-element suppression, hover, focus, and mobile stacking.
+- Enqueues `account-premium.css` directly on the `rafflelb-entries` endpoint at priority 100 with plugin version `0.1.10`; the existing footer loader remains only as a fallback.
+- Preserves the product and canonical Selection URLs and all raffle/account business logic.
+
+# RaffleLB Account 0.1.9 — premium My Raffles actions
+
+- Presents View Raffle and View Selection Status as equal-size, vertically separated RaffleLB buttons in the existing action area.
+- Uses an outlined dark View Raffle action and a higher-priority solid lime Selection Status action with restrained hover and keyboard-focus states.
+- Stacks both actions full-width below raffle information on mobile while preserving the existing product and canonical Selection URLs.
+- Changes presentation only; grouping, tickets, tabs, status, dates, progress, and account data logic remain unchanged.
+
+# RaffleLB Account 0.1.8 — Selection Status action
+
+- Added one `View Selection Status` secondary action per grouped raffle in My Raffles.
+- Links use the existing Selection Engine route for the card's canonical product and add no customer or ticket data to the URL.
+- The action is available for open, awaiting-selection, and completed raffle groups.
+
+# RaffleLB Account 0.1.6 — typography and readability
+
+- Account-owned typography now uses `var(--rl-font, "Manrope", sans-serif)`.
+- Page titles, summary identity, metrics, navigation, raffle/order metadata, addresses, and forms use a clearer responsive hierarchy.
+- Layout structure, dimensions, responsive ordering, icons, endpoints, queries, and account/business logic are unchanged.
+
 # RaffleLB Account 0.1.5 — prize fulfillment visibility
 
 - My Raffles now reads the existing Draw Engine fulfillment fields for winning raffles.

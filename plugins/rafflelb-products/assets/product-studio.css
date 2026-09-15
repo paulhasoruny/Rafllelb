@@ -72,13 +72,12 @@
 
 /* ---------- table shell ---------- */
 .rafflelb-products .rlp-table-wrap { overflow: auto; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
-.rafflelb-products .rlp-table { width: 100%; min-width: 1040px; table-layout: fixed; border-collapse: collapse; }
-.rafflelb-products .rlp-col-product { width: 30%; }
-.rafflelb-products .rlp-col-mode { width: 11%; }
-.rafflelb-products .rlp-col-store { width: 14%; }
-.rafflelb-products .rlp-col-ops { width: 20%; }
-.rafflelb-products .rlp-col-pub { width: 13%; }
-.rafflelb-products .rlp-col-actions { width: 12%; }
+.rafflelb-products .rlp-table { width: 100%; min-width: 920px; table-layout: fixed; border-collapse: collapse; }
+.rafflelb-products .rlp-col-product { width: 32%; }
+.rafflelb-products .rlp-col-mode { width: 12%; }
+.rafflelb-products .rlp-col-store { width: 16%; }
+.rafflelb-products .rlp-col-ops { width: 22%; }
+.rafflelb-products .rlp-col-actions { width: 18%; }
 
 .rafflelb-products .rlp-table th,
 .rafflelb-products .rlp-table td {
@@ -186,7 +185,17 @@
 .rafflelb-products .rlp-pill--pub-default { color: var(--muted); }
 
 /* ---------- actions ---------- */
-.rafflelb-products .rlp-actions { display: flex; flex-direction: column; align-items: flex-start; gap: 7px; }
+.rafflelb-products .rlp-actions {
+    display: flex;
+    min-height: 58px;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: center;
+    gap: 6px;
+}
+.rafflelb-products .rlp-table th:last-child,
+.rafflelb-products .rlp-table td:last-child { padding-left: 18px; padding-right: 18px; }
+.rafflelb-products .rlp-action { display: inline-flex; align-items: center; line-height: 1.25; white-space: nowrap; }
 .rafflelb-products .rlp-action, .rafflelb-products .rlp-back { text-decoration: none; }
 .rafflelb-products .rlp-action--primary, .rafflelb-products .rlp-back { color: var(--lime); font-size: 12.5px; font-weight: 750; }
 .rafflelb-products .rlp-action--secondary { color: #c3cdb9; font-size: 12px; font-weight: 550; }
@@ -291,3 +300,4 @@
 .rafflelb-products input[type=checkbox]:focus-visible { outline: 2px solid #baff00; outline-offset: 3px; }
 .rafflelb-products .rlp-mode-options input[type=radio]:hover,
 .rafflelb-products input[type=checkbox]:hover { border-color: #baff00; }
+

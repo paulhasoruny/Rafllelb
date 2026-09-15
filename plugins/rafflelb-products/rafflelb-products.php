@@ -1,13 +1,13 @@
 <?php
 /** Plugin Name: RaffleLB Products
  * Description: Product Studio for WooCommerce and RaffleLB operations.
- * Version: 0.2.10
+ * Version: 0.2.13
  * Author: RaffleLB
  * Requires Plugins: woocommerce */
 defined('ABSPATH') || exit;
 
 final class RaffleLB_Products {
-    const VERSION = '0.2.10';
+    const VERSION = '0.2.13';
     const SLUG = 'rafflelb-products';
     const CAPABILITY = 'manage_woocommerce';
     const ENABLED = '_rafflelb_draw_enabled';
@@ -22,6 +22,7 @@ final class RaffleLB_Products {
         add_action('admin_menu', [__CLASS__, 'menu'], 20);
         add_action('admin_enqueue_scripts', [__CLASS__, 'assets']);
         add_action('admin_post_rafflelb_products_save', [__CLASS__, 'save']);
+        add_action('admin_post_rafflelb_products_publish_state', [__CLASS__, 'publish_state']);
         add_action('wp_ajax_rafflelb_products_tag_search', [__CLASS__, 'ajax_tag_search']);
         add_filter('posts_clauses', [__CLASS__, 'search'], 10, 2);
     }
@@ -194,17 +195,18 @@ final class RaffleLB_Products {
 
         echo '<div class="wrap rafflelb-products"><main class="rlp-shell">'
             . '<header class="rlp-header"><div><span class="rlp-kicker">RAFFLELB OPERATIONS</span><h1>Product Studio <em>' . esc_html($counts['all']) . '</em></h1><p>Manage simple store and raffle products from one workspace.</p></div>'
-            . '<div class="rlp-header-actions"><a class="rlp-button" href="' . esc_url(self::url(['action' => 'new'])) . '">+ Create Product</a><a class="rlp-button rlp-button--quiet" href="' . esc_url(admin_url('edit.php?post_type=product')) . '">Advanced WooCommerce Editor ↗</a></div></header>'
-            . '<nav class="rlp-tabs">';
+            . '<div class="rlp-header-actions"><a class="rlp-button" href="' . esc_url(self::url(['action' => 'new'])) . '">+ Create Product</a><a class="rlp-button rlp-button--quiet" href="' . esc_url(admin_url('edit.php?post_type=product')) . '">Advanced WooCommerce Editor ↗</a></div></header>';
+        self::notice();
+        echo '<nav class="rlp-tabs">';
         foreach (['all' => 'All', 'store' => 'Store Only', 'raffle' => 'Raffle Only', 'both' => 'Store + Raffle', 'stock' => 'Out of Stock'] as $k => $v) {
             echo '<a class="' . ($f === $k ? 'is-active' : '') . '" href="' . esc_url(self::url(['filter' => $k, 's' => $s])) . '">' . esc_html($v) . ' <b>' . esc_html($counts[$k]) . '</b></a>';
         }
         echo '</nav>'
             . '<form class="rlp-toolbar"><input type="hidden" name="page" value="' . esc_attr(self::SLUG) . '"><input type="hidden" name="filter" value="' . esc_attr($f) . '"><input type="search" name="s" value="' . esc_attr($s) . '" placeholder="Search product name or SKU"><button class="rlp-button">Search</button></form>'
             . '<div class="rlp-table-wrap"><table class="rlp-table"><colgroup>'
-            . '<col class="rlp-col-product"><col class="rlp-col-mode"><col class="rlp-col-store"><col class="rlp-col-ops"><col class="rlp-col-pub"><col class="rlp-col-actions">'
-            . '</colgroup><thead><tr><th>Product</th><th>Mode</th><th>Store</th><th>Raffle operations</th><th>Publishing</th><th>Actions</th></tr></thead><tbody>';
-        if (!$q->posts) echo '<tr><td colspan="6"><div class="rlp-empty">No products found</div></td></tr>';
+            . '<col class="rlp-col-product"><col class="rlp-col-mode"><col class="rlp-col-store"><col class="rlp-col-ops"><col class="rlp-col-actions">'
+            . '</colgroup><thead><tr><th>Product</th><th>Mode</th><th>Store</th><th>Raffle operations</th><th>Actions</th></tr></thead><tbody>';
+        if (!$q->posts) echo '<tr><td colspan="5"><div class="rlp-empty">No products found</div></td></tr>';
         foreach ($q->posts as $post) {
             if ($p = wc_get_product($post)) self::row($p);
         }
@@ -262,20 +264,26 @@ final class RaffleLB_Products {
         }
         echo '</td>';
 
-        [$pub_label, $pub_mod] = self::pubpill($p->get_status());
-        $visibility = ucwords(str_replace('-', ' ', $p->get_catalog_visibility()));
-        echo '<td><div class="rlp-cell"><span class="rlp-pill rlp-pill--pub-' . esc_attr($pub_mod) . '">' . esc_html($pub_label) . '</span><small class="rlp-cell-sub">' . esc_html($visibility) . '</small></div></td>';
 
-        echo '<td class="rlp-actions"><a class="rlp-action rlp-action--primary" href="' . esc_url(self::edit($id)) . '">Manage →</a>'
+
+        echo '<td><div class="rlp-actions"><a class="rlp-action rlp-action--primary" href="' . esc_url(self::edit($id)) . '">Manage →</a>'
             . ($p->is_visible() ? '<a class="rlp-action rlp-action--secondary" target="_blank" rel="noopener" href="' . esc_url(get_permalink($id)) . '">View</a>' : '')
-            . '<a class="rlp-action rlp-action--tertiary" href="' . esc_url(get_edit_post_link($id, 'raw')) . '">Advanced Edit</a></td></tr>';
+            . '<a class="rlp-action rlp-action--tertiary" href="' . esc_url(get_edit_post_link($id, 'raw')) . '">Advanced Edit</a></div></td></tr>';
     }
 
     private static function section($t, $body) { echo '<section class="rlp-card rlp-form-card"><h2>' . esc_html($t) . '</h2>' . $body . '</section>'; }
 
     private static function notice() {
         $n = sanitize_key(self::get('rlp'));
-        if ($n) echo '<div class="rlp-notice">' . esc_html($n === 'created' ? 'Product created successfully.' : 'Product updated successfully.') . '</div>';
+        if ($n) {
+            $messages = [
+                'created' => 'Product created successfully.',
+                'updated' => 'Product updated successfully.',
+                'drafted' => 'Product moved to Draft.',
+                'published' => 'Product published.',
+            ];
+            echo '<div class="rlp-notice">' . esc_html($messages[$n] ?? 'Product updated successfully.') . '</div>';
+        }
         $e = rawurldecode((string) self::get('rlp_error'));
         if ($e) echo '<div class="rlp-notice rlp-notice--error">' . esc_html($e) . '</div>';
     }
@@ -365,6 +373,28 @@ final class RaffleLB_Products {
         $nonce = wp_create_nonce(self::TAG_NONCE);
         $ajax_url = admin_url('admin-ajax.php');
         ?><script>jQuery(function($){var $select=$('.rlp-tag-select');if(!$select.length)return;var enhancer=null;if(typeof $.fn.selectWoo==='function'){enhancer='selectWoo';}else if(typeof $.fn.select2==='function'){enhancer='select2';}if(!enhancer)return;$select[enhancer]({width:'100%',tags:true,tokenSeparators:[',','\n'],placeholder:$select.data('placeholder')||'Search or add a tag…',ajax:{url:<?php echo wp_json_encode($ajax_url); ?>,dataType:'json',delay:250,data:function(params){return {action:'rafflelb_products_tag_search',nonce:<?php echo wp_json_encode($nonce); ?>,q:params.term||''};},processResults:function(data){return {results:(data||[]).map(function(t){return {id:t.id,text:t.text};})};}},createTag:function(params){var term=$.trim(params.term);if(term==='')return null;return {id:term,text:term,newTag:true};}});});</script><?php
+    }
+
+    public static function publish_state() {
+        if (!self::ok()) wp_die('You do not have permission to change product publishing state.', '', ['response' => 403]);
+
+        $id = isset($_POST['product_id']) ? absint($_POST['product_id']) : 0;
+        $state = isset($_POST['publish_state']) ? sanitize_key(wp_unslash($_POST['publish_state'])) : '';
+        if (!$id || get_post_type($id) !== 'product' || !in_array($state, ['draft', 'publish'], true)) {
+            wp_safe_redirect(self::url());
+            exit;
+        }
+        check_admin_referer('rafflelb_products_publish_state_' . $id . '_' . $state);
+        if (!current_user_can('edit_post', $id)) wp_die('You cannot edit this product.', '', ['response' => 403]);
+        if ($state === 'publish' && !current_user_can('publish_products')) wp_die('You cannot publish products.', '', ['response' => 403]);
+
+        $updated = wp_update_post(['ID' => $id, 'post_status' => $state], true);
+        if (is_wp_error($updated)) wp_die(esc_html($updated->get_error_message()));
+
+        $fallback = self::url();
+        $redirect = isset($_POST['redirect_to']) ? wp_validate_redirect(wp_unslash($_POST['redirect_to']), $fallback) : $fallback;
+        wp_safe_redirect(add_query_arg('rlp', $state === 'draft' ? 'drafted' : 'published', $redirect));
+        exit;
     }
 
     public static function save() {

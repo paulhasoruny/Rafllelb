@@ -2,7 +2,7 @@
 Contributors: rafflelb
 Requires at least: 6.5
 Requires PHP: 7.4
-Stable tag: 0.1.3
+Stable tag: 0.1.5
 License: GPLv2 or later
 
 Product-first administration of saved WooCommerce carts and existing RaffleLB holds.
@@ -72,6 +72,19 @@ It does not restore manually removed items or alter remaining holds. No custom t
 or schedules are created. Uninstall removes only this plugin's two option flags.
 
 == Changelog ==
+= 0.1.5 =
+* Compatibility review for the current RaffleLB Draw Engine 0.34.18 line.
+  The reservation/hold API, hold table, 15-minute timer, sync/release methods,
+  and all other pinned reservation methods are unchanged. The only pinned
+  method that changed is draw_status(): when a full raffle cannot persist its
+  ready-to-selection transition, it now safely remains live instead of
+  reporting ready prematurely. This does not change Cart Manager removal or
+  hold reconciliation, so the reviewed contract is re-pinned to the current
+  engine source and Remove Now is re-enabled.
+
+= 0.1.4 =
+* Frontend-only WoodMart off-canvas mini-cart styling: visible light header and close control, readable product/meta/subtotal text, and matching rounded View Cart and Checkout actions. Cart contents, fragments, removal, URLs, totals, holds, and reservation behavior are unchanged.
+
 = 0.1.3 =
 * Compatibility review: Draw Engine's sync_hold_from_cart() changed since the
   0.1.2 contract was pinned (it now also blocks a guest-only session from

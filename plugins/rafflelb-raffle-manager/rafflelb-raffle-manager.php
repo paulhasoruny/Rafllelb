@@ -2,14 +2,14 @@
 /**
  * Plugin Name: RaffleLB Raffle Manager
  * Description: A dedicated "Raffles" admin section (like WooCommerce Products) for creating, editing, and monitoring every raffle in one place. Reads and writes the same product fields, meta, and database tables as RaffleLB Draw Engine instead of duplicating its logic.
- * Version: 1.6.8
+ * Version: 1.6.15
  * Author: RaffleLB
  */
 
 if (!defined('ABSPATH')) exit;
 
 final class RaffleLB_Raffle_Manager {
-    const VERSION = '1.6.8';
+    const VERSION = '1.6.15';
 
     // Mirrors RaffleLB Draw Engine's own constants and table names so this
     // plugin reads/writes the exact same product meta and DB tables without
@@ -22,8 +22,16 @@ final class RaffleLB_Raffle_Manager {
     const META_WINNER_SELECTED_AT = '_rafflelb_winner_selected_at';
     const META_EARLY_CLOSED       = '_rafflelb_early_closed';
     const META_EARLY_CLOSE_REASON = '_rafflelb_early_close_reason';
+    const META_EARLY_CLOSE_PUBLIC_NOTE = '_rafflelb_early_close_public_note';
+    const META_EARLY_CLOSE_MODE = '_rafflelb_early_close_mode';
+    const META_EARLY_CLOSE_REFUND_STATUS = '_rafflelb_early_close_refund_status';
     const META_EARLY_CLOSED_BY    = '_rafflelb_early_closed_by';
     const META_EARLY_CLOSE_CLAIMED = '_rafflelb_early_close_claimed';
+    const META_EARLY_CLOSE_REFUND_POINTS = '_rafflelb_early_close_refund_points';
+    const META_EARLY_CLOSE_REFUND_COMPLETED_AT = '_rafflelb_early_close_refund_completed_at';
+    const META_LOCKED_POOL_REVISION = '_rafflelb_locked_pool_revision';
+    const META_LOCKED_POOL_COUNT    = '_rafflelb_locked_pool_count';
+    const META_LOCKED_POOL_AT       = '_rafflelb_locked_pool_at';
     const META_BUY_NOW_ENABLED    = '_rafflelb_buy_now_enabled';
     const META_BUY_NOW_PRICE      = '_rafflelb_buy_now_price';
 
@@ -55,7 +63,9 @@ final class RaffleLB_Raffle_Manager {
         add_action('admin_post_rafflelb_rm_trash_raffle', [__CLASS__, 'handle_trash']);
         add_action('admin_post_rafflelb_rm_reset_winners', [__CLASS__, 'handle_reset_winners']);
         add_action('admin_post_rafflelb_rm_delete_test_orders', [__CLASS__, 'handle_delete_test_orders']);
+        add_action('admin_post_rafflelb_rm_fresh_test_reset', [__CLASS__, 'handle_fresh_test_reset']);
         add_action('admin_post_rafflelb_rm_export_entries', [__CLASS__, 'handle_export_entries']);
+        add_action('admin_post_rafflelb_rm_set_publish_state', [__CLASS__, 'handle_set_publish_state']);
     }
 
     public static function missing_draw_engine_notice() {
@@ -111,6 +121,60 @@ final class RaffleLB_Raffle_Manager {
         ));
     }
 
+    /**
+     * Read-only revenue total for currently active raffle entries.
+     *
+     * Revenue is derived from the actual WooCommerce line-item value attached
+     * to each active entry, rather than current raffle price x claimed count.
+     * This keeps complimentary $0 participation in capacity/eligibility while
+     * contributing $0 to revenue. Discounts already reflected in the order
+     * item's line total are respected. Shipping/order-level amounts are not
+     * counted as raffle-entry revenue.
+     */
+    private static function actual_entry_revenue($pid) {
+        global $wpdb;
+
+        $groups = $wpdb->get_results($wpdb->prepare(
+            "SELECT order_id, order_item_id, COUNT(*) active_entries
+             FROM {$wpdb->prefix}" . self::ENTRY_TABLE . "
+             WHERE product_id=%d AND status='active' AND order_id>0 AND order_item_id>0
+             GROUP BY order_id, order_item_id",
+            $pid
+        ));
+
+        if (!$groups) return 0.0;
+
+        $revenue = 0.0;
+        foreach ($groups as $group) {
+            $order = wc_get_order(absint($group->order_id));
+            $item = $order ? $order->get_item(absint($group->order_item_id)) : false;
+            if (!$item instanceof WC_Order_Item_Product) continue;
+
+            // Private complimentary participation remains a normal eligible
+            // entry, but it must never contribute to admin revenue/profit.
+            if ($item->get_meta('_rafflelb_complimentary', true) === 'yes') continue;
+
+            // If purchase-mode metadata exists, reject anything explicitly
+            // identified as a non-raffle line. Historical rows with no mode
+            // metadata remain readable because the entry table itself is the
+            // authoritative link to this raffle.
+            $mode = sanitize_key((string) $item->get_meta('_rafflelb_purchase_mode', true));
+            if ($mode === '') $mode = sanitize_key((string) $item->get_meta('rafflelb_purchase_mode', true));
+            if ($mode !== '' && $mode !== 'raffle_entry') continue;
+
+            $quantity = max(1, absint($item->get_quantity()));
+            $active_entries = min($quantity, max(0, absint($group->active_entries)));
+            if ($active_entries < 1) continue;
+
+            $line_paid = max(0.0, (float) $item->get_total());
+            if ($line_paid <= 0) continue;
+
+            $revenue += ($line_paid / $quantity) * $active_entries;
+        }
+
+        return max(0.0, $revenue);
+    }
+
     private static function draw_status($pid) {
         $status = (string) get_post_meta($pid, self::META_DRAW_STATUS, true);
         if (in_array($status, ['ready_to_draw', 'winner_selected'], true)) return $status;
@@ -123,12 +187,51 @@ final class RaffleLB_Raffle_Manager {
         return 'live';
     }
 
+    private static function early_close_mode($pid) {
+        if (get_post_meta($pid, self::META_EARLY_CLOSED, true) !== 'yes') return '';
+        $mode = sanitize_key((string) get_post_meta($pid, self::META_EARLY_CLOSE_MODE, true));
+        if (in_array($mode, ['selection', 'cancel_refund'], true)) return $mode;
+
+        if (class_exists('RaffleLB_Draw_Engine') && method_exists('RaffleLB_Draw_Engine', 'selection_bridge_public_closure')) {
+            $public = RaffleLB_Draw_Engine::selection_bridge_public_closure($pid);
+            if (is_array($public) && in_array(($public['mode'] ?? ''), ['selection', 'cancel_refund'], true)) {
+                return (string) $public['mode'];
+            }
+        }
+
+        $refund_status = sanitize_key((string) get_post_meta($pid, self::META_EARLY_CLOSE_REFUND_STATUS, true));
+        return in_array($refund_status, ['processing', 'attention_required', 'complete'], true) ? 'cancel_refund' : 'selection';
+    }
+
+    private static function display_status($pid, $engine_status) {
+        if ($engine_status === 'ready_to_draw' && self::early_close_mode($pid) === 'cancel_refund') {
+            return 'cancelled_refunded';
+        }
+        return $engine_status;
+    }
+
+    private static function supports_split_early_close() {
+        return defined('RaffleLB_Draw_Engine::EARLY_CLOSE_MODE_VERSION')
+            && RaffleLB_Draw_Engine::EARLY_CLOSE_MODE_VERSION === '1';
+    }
+
     /** Needs Attention: purely derived from data this plugin already reads —
      *  draw status, the existing early-close meta, and the existing per-row
      *  fulfillment status. No new database state and no Draw Engine change. */
     private static function needs_attention($pid, $status, $fulfillment = null) {
+        $early_mode = self::early_close_mode($pid);
+        $early_closed = get_post_meta($pid, self::META_EARLY_CLOSED, true) === 'yes';
+
+        // A completed Cancel + Refund outcome is terminal and must disappear
+        // from Needs Attention. Only a refund still processing/failed belongs
+        // there. This check intentionally comes before the generic early-close
+        // branch below.
+        if ($early_mode === 'cancel_refund') {
+            return get_post_meta($pid, self::META_EARLY_CLOSE_REFUND_STATUS, true) !== 'complete';
+        }
+
         if ($status === 'ready_to_draw') return true;
-        if ($status !== 'winner_selected' && get_post_meta($pid, self::META_EARLY_CLOSED, true) === 'yes') return true;
+        if ($early_closed && $early_mode === 'selection' && $status !== 'winner_selected') return true;
         if ($status === 'winner_selected' && $fulfillment !== null && $fulfillment !== 'fulfilled') return true;
         return false;
     }
@@ -158,6 +261,49 @@ final class RaffleLB_Raffle_Manager {
         return 'Guest';
     }
 
+
+    /** Admin-only winner contact details. Prefer the verified RaffleLB Auth
+     *  phone saved on the user account; fall back to WooCommerce billing
+     *  phone only when no verified phone is available. */
+    private static function winner_contact_details($user_id, $order) {
+        $user = $user_id ? get_user_by('id', $user_id) : false;
+        $phone = '';
+        $phone_verified = false;
+
+        if ($user) {
+            $auth_phone = trim((string) get_user_meta($user->ID, '_rafflelb_phone', true));
+            $auth_verified = get_user_meta($user->ID, '_rafflelb_phone_verified', true) === 'yes';
+            if ($auth_phone !== '' && $auth_verified) {
+                $phone = $auth_phone;
+                $phone_verified = true;
+            }
+        }
+
+        if ($phone === '' && $order) {
+            $phone = trim((string) $order->get_billing_phone());
+        }
+        if ($phone === '' && $user) {
+            $phone = trim((string) get_user_meta($user->ID, 'billing_phone', true));
+        }
+
+        $email = '';
+        if ($order) $email = sanitize_email((string) $order->get_billing_email());
+        if ($email === '' && $user) $email = sanitize_email((string) $user->user_email);
+
+        $tel = preg_replace('/[^0-9+]/', '', $phone);
+        $whatsapp = preg_replace('/\D+/', '', $phone);
+
+        return [
+            'name'           => self::customer_name($user_id, $order),
+            'username'       => $user ? (string) $user->user_login : '',
+            'phone'          => $phone,
+            'phone_verified' => $phone_verified,
+            'email'          => $email,
+            'tel'            => $tel,
+            'whatsapp'       => $whatsapp,
+        ];
+    }
+
     /** Status pill: [label, modifier]. Presentational only — the status
      *  string itself still comes only from draw_status()/Draw Engine data. */
     private static function status_pill_parts($status) {
@@ -165,6 +311,7 @@ final class RaffleLB_Raffle_Manager {
             'live'             => ['LIVE', 'live'],
             'ready_to_draw'    => ['READY TO DRAW', 'ready'],
             'winner_selected'  => ['WINNER SELECTED', 'winner'],
+            'cancelled_refunded' => ['CANCELLED / REFUNDED', 'cancelled'],
         ];
         return $map[$status] ?? [strtoupper(str_replace('_', ' ', (string) $status)), 'default'];
     }
@@ -239,6 +386,7 @@ final class RaffleLB_Raffle_Manager {
         .rlbrm-winner-cell strong{display:block;color:#fff;font-size:13.5px;font-weight:650}
         .rlbrm-winner-flag{display:block;margin-bottom:3px;color:#ffd98a;font-size:9.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase}
         .rlbrm-winner-cell small{display:block;margin-top:3px;color:#818c7e;font-size:11px}
+        .rlbrm-contact-actions{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0 4px}.rlbrm-verified-phone{display:inline-flex;align-items:center;gap:5px}.rlbrm-verified-phone__badge{display:inline-flex;padding:2px 7px;border:1px solid #3c6e00;border-radius:999px;background:rgba(60,110,0,.16);color:#c7e79b;font-size:9px;font-weight:800;letter-spacing:.05em;text-transform:uppercase}.rlbrm-unverified-phone__badge{display:inline-flex;padding:2px 7px;border:1px solid #6b5a2a;border-radius:999px;background:rgba(219,166,23,.10);color:#ffd98a;font-size:9px;font-weight:800;letter-spacing:.05em;text-transform:uppercase}
         .rlbrm-no-winner{color:#6f786a;font-size:12.5px;font-style:normal}
         .rlbrm-actions-cell{display:flex;flex-direction:column;align-items:flex-start;gap:6px}
         .rlbrm-action{text-decoration:none}
@@ -305,16 +453,19 @@ final class RaffleLB_Raffle_Manager {
 
         global $wpdb;
         $rows = [];
-        $counts = ['live' => 0, 'ready_to_draw' => 0, 'winner_selected' => 0, 'needs_fulfillment' => 0, 'fulfilled' => 0, 'needs_attention' => 0];
+        $counts = ['live' => 0, 'ready_to_draw' => 0, 'cancelled_refunded' => 0, 'winner_selected' => 0, 'needs_fulfillment' => 0, 'fulfilled' => 0, 'needs_attention' => 0];
         foreach ($ids as $pid) {
             $status = self::draw_status($pid);
-            $counts[$status] = ($counts[$status] ?? 0) + 1;
+            $display_status = self::display_status($pid, $status);
+            $counts[$display_status] = ($counts[$display_status] ?? 0) + 1;
 
             $row = [
                 'id'     => $pid,
-                'status' => $status,
+                'status' => $display_status,
+                'engine_status' => $status,
                 'total'  => absint(get_post_meta($pid, self::META_TOTAL, true)),
                 'claimed'=> self::claimed($pid),
+                'title'  => get_the_title($pid),
             ];
 
             if ($status === 'winner_selected') {
@@ -333,7 +484,7 @@ final class RaffleLB_Raffle_Manager {
             if ($row['needs_attention']) $counts['needs_attention']++;
 
             $matches_filter = $status_filter === ''
-                || $status === $status_filter
+                || $display_status === $status_filter
                 || ($status_filter === 'needs_fulfillment' && isset($row['fulfillment']) && $row['fulfillment'] !== 'fulfilled')
                 || ($status_filter === 'fulfilled' && isset($row['fulfillment']) && $row['fulfillment'] === 'fulfilled')
                 || ($status_filter === 'needs_attention' && $row['needs_attention']);
@@ -355,6 +506,8 @@ final class RaffleLB_Raffle_Manager {
         $notice = isset($_GET['rlbrm']) ? sanitize_key(wp_unslash($_GET['rlbrm'])) : '';
         if ($notice === 'saved') echo '<div class="notice notice-success is-dismissible"><p>Raffle saved.</p></div>';
         if ($notice === 'trashed') echo '<div class="notice notice-success is-dismissible"><p>Raffle moved to trash.</p></div>';
+        if ($notice === 'drafted') echo '<div class="notice notice-success is-dismissible"><p>Raffle moved to Draft. Operational data was preserved.</p></div>';
+        if ($notice === 'published') echo '<div class="notice notice-success is-dismissible"><p>Raffle published.</p></div>';
 
         echo '<header class="rlbrm-list-header"><div><p class="rlbrm-kicker">RAFFLELB / OPERATIONS</p><h1>Raffle Operations</h1><p>Manage live raffles, draws, winners and fulfillment. ' . esc_html(count($ids)) . ' total raffles.</p></div><a href="' . esc_url(admin_url('admin.php?page=' . self::SLUG_ADD)) . '" class="button button-primary">+ Create Raffle</a></header>';
 
@@ -362,6 +515,7 @@ final class RaffleLB_Raffle_Manager {
             ''                   => 'All ' . count($ids),
             'live'               => 'Live ' . $counts['live'],
             'ready_to_draw'      => 'Ready to Draw ' . $counts['ready_to_draw'],
+            'cancelled_refunded'  => 'Cancelled / Refunded ' . $counts['cancelled_refunded'],
             'winner_selected'    => 'Winner Selected ' . $counts['winner_selected'],
             'needs_fulfillment'  => 'Needs Fulfillment ' . $counts['needs_fulfillment'],
             'fulfilled'          => 'Fulfilled ' . $counts['fulfilled'],
@@ -369,7 +523,10 @@ final class RaffleLB_Raffle_Manager {
         ];
         $links = [];
         foreach ($tabs as $key => $label) {
-            $url = $key === '' ? $base_url : add_query_arg('rm_status', $key, $base_url);
+            $tab_args = [];
+            if ($key !== '') $tab_args['rm_status'] = $key;
+            if ($search !== '') $tab_args['rm_s'] = $search;
+            $url = $tab_args ? add_query_arg($tab_args, $base_url) : $base_url;
             $classes = [];
             if ($status_filter === $key) $classes[] = 'current';
             if ($key === 'needs_attention') $classes[] = 'rlbrm-tab-attention';
@@ -382,10 +539,12 @@ final class RaffleLB_Raffle_Manager {
         echo '<input type="hidden" name="page" value="' . esc_attr(self::SLUG) . '">';
         if ($status_filter !== '') echo '<input type="hidden" name="rm_status" value="' . esc_attr($status_filter) . '">';
         echo '<input type="search" name="rm_s" value="' . esc_attr($search) . '" placeholder="Search raffles…">';
-        echo '<button type="submit" class="button">Search</button>';
+        echo '<button type="submit" class="button">Apply</button>';
         if ($search !== '') {
-            $clear = $status_filter !== '' ? add_query_arg('rm_status', $status_filter, $base_url) : $base_url;
-            echo '<a class="button" href="' . esc_url($clear) . '">Clear</a>';
+            $clear_args = [];
+            if ($status_filter !== '') $clear_args['rm_status'] = $status_filter;
+            $clear = $clear_args ? add_query_arg($clear_args, $base_url) : $base_url;
+            echo '<a class="button" href="' . esc_url($clear) . '">Clear Search</a>';
         }
         echo '</form>';
 
@@ -396,7 +555,7 @@ final class RaffleLB_Raffle_Manager {
                 echo '<p>No raffles yet. <a href="' . esc_url(admin_url('admin.php?page=' . self::SLUG_ADD)) . '">Create your first raffle.</a></p>';
             }
         } else {
-            echo '<div class="rlbrm-list-wrap"><table class="widefat rlbrm-table"><thead><tr><th>Prize</th><th>Status</th><th>Entry / Capacity</th><th>Winner</th><th>Fulfillment</th><th>Action</th></tr></thead><tbody>';
+            echo '<div class="rlbrm-list-wrap"><table class="widefat rlbrm-table"><thead><tr><th>Prize</th><th>Status</th><th>Entry / Capacity</th><th>Winner</th><th>Fulfillment</th></tr></thead><tbody>';
             foreach ($page_rows as $row) {
                 $pid = $row['id'];
                 $view_url = add_query_arg(['page' => self::SLUG, 'action' => 'view', 'id' => $pid], admin_url('admin.php'));
@@ -415,7 +574,7 @@ final class RaffleLB_Raffle_Manager {
                 echo '<td>' . self::status_badge($row['status']) . ($row['needs_attention'] ? '<span class="rlbrm-attention-flag" title="Needs admin action">Needs attention</span>' : '') . '</td>';
 
                 echo '<td><div class="rlbrm-entry-cell"><span class="rlbrm-cell-label">Entry price</span><strong class="rlbrm-cell-value">' . wp_kses_post(wc_price($price)) . '</strong>'
-                    . '<span class="rlbrm-cell-sub">' . esc_html($row['claimed']) . ' / ' . esc_html($row['total']) . ' claimed · ' . esc_html($pct) . '%</span>'
+                    . '<span class="rlbrm-cell-sub">' . esc_html($row['claimed']) . ' / ' . esc_html($row['total']) . ' claimed · ' . esc_html($pct) . '% · ' . esc_html($row['total'] > 0 ? max(0, $row['total'] - $row['claimed']) : 0) . ' left</span>'
                     . '<span class="rlbrm-bar"><span style="width:' . esc_attr($pct) . '%"></span></span></div></td>';
 
                 if (isset($row['winner'])) {
@@ -427,14 +586,7 @@ final class RaffleLB_Raffle_Manager {
 
                 echo '<td>' . (isset($row['fulfillment']) ? self::fulfillment_badge($row['fulfillment']) : '<span class="rlbrm-no-winner">—</span>') . '</td>';
 
-                echo '<td class="rlbrm-actions-cell"><a class="rlbrm-action rlbrm-action--primary" href="' . esc_url($view_url) . '">Manage →</a>';
-                if ($row['status'] === 'ready_to_draw') {
-                    echo '<a class="rlbrm-action rlbrm-action--secondary" href="' . esc_url($view_url . '#draw') . '">Draw Winner</a>';
-                }
-                if (isset($row['fulfillment']) && $row['fulfillment'] !== 'fulfilled') {
-                    echo '<a class="rlbrm-action rlbrm-action--secondary" href="' . esc_url($view_url . '#fulfillment') . '">Manage Fulfillment</a>';
-                }
-                echo '<a class="rlbrm-action rlbrm-action--tertiary" href="' . esc_url($edit_url) . '">Edit</a></td>';
+
 
                 echo '</tr>';
             }
@@ -763,12 +915,13 @@ final class RaffleLB_Raffle_Manager {
         self::render_notices();
 
         $status = self::draw_status($id);
+        $display_status = self::display_status($id, $status);
         $total = absint(get_post_meta($id, self::META_TOTAL, true));
         $claimed = self::claimed($id);
         $price = get_post_meta($id, '_regular_price', true);
         $buy_now_enabled = get_post_meta($id, self::META_BUY_NOW_ENABLED, true) === 'yes';
         $pct = $total > 0 ? min(100, round(($claimed / $total) * 100)) : 0;
-        $revenue = $claimed * (float) $price;
+        $revenue = self::actual_entry_revenue($id);
         $item_type = get_post_meta($id, self::META_ITEM_TYPE, true);
         $item_type = in_array($item_type, ['tangible', 'digital'], true) ? $item_type : 'tangible';
         $active_holds = (int) $wpdb->get_var($wpdb->prepare(
@@ -779,7 +932,7 @@ final class RaffleLB_Raffle_Manager {
 
         echo '<div class="rlbrm-card"><div class="rlbrm-stats">';
         echo '<div>' . get_the_post_thumbnail($id, [90, 90], ['style' => 'border-radius:8px']) . '</div>';
-        echo '<div><strong>Status</strong><br>' . self::status_badge($status) . '</div>';
+        echo '<div><strong>Status</strong><br>' . self::status_badge($display_status) . '</div>';
         echo '<div><strong>Entries</strong><br><span class="rlbrm-bar" style="width:160px"><span style="width:' . esc_attr($pct) . '%"></span></span>' . esc_html($claimed) . ' / ' . esc_html($total) . '</div>';
         echo '<div><strong>Raffle Price</strong><br>' . wp_kses_post(wc_price($price)) . '</div>';
         echo '<div><strong>Entry Revenue</strong><br>' . wp_kses_post(wc_price($revenue)) . '</div>';
@@ -791,7 +944,7 @@ final class RaffleLB_Raffle_Manager {
         echo '</div></div>';
 
         ob_start();
-        self::render_overview_section($id, $status, $total, $claimed, $price, $revenue, $buy_now_enabled, $item_type, $active_holds);
+        self::render_overview_section($id, $display_status, $total, $claimed, $price, $revenue, $buy_now_enabled, $item_type, $active_holds);
         $overview_panel = ob_get_clean();
 
         ob_start();
@@ -836,7 +989,7 @@ final class RaffleLB_Raffle_Manager {
 
     private static function render_overview_section($id, $status, $total, $claimed, $price, $revenue, $buy_now_enabled, $item_type, $active_holds) {
         global $wpdb;
-        $available = max(0, $total - $claimed - $active_holds);
+        $available = get_post_meta($id, self::META_EARLY_CLOSED, true) === 'yes' ? 0 : max(0, $total - $claimed - $active_holds);
         $pct = $total > 0 ? min(100, round(($claimed / $total) * 100)) : 0;
         $result = $wpdb->get_row($wpdb->prepare("SELECT * FROM {$wpdb->prefix}" . self::RESULT_TABLE . " WHERE product_id=%d LIMIT 1", $id));
 
@@ -850,11 +1003,9 @@ final class RaffleLB_Raffle_Manager {
         echo '<div><span>Available</span><strong>' . esc_html($available) . '</strong><small>after active holds</small></div>';
         echo '<div><span>Capacity</span><strong>' . esc_html($total) . '</strong></div>';
         echo '<div><span>Active Holds</span><strong>' . esc_html($active_holds) . '</strong><small>reserved, not yet paid</small></div>';
-        /* Same current-price x claimed-count figure already shown in the stats
-         * bar above (render_monitor's own $revenue) — an operational estimate,
-         * not an authoritative accounting total, since it doesn't account for
-         * historical price changes. No paid/pending split is derived from it. */
-        echo '<div><span>Entry Revenue</span><strong>' . wp_kses_post(wc_price($revenue)) . '</strong><small>estimate at current entry price</small></div>';
+        /* Read-only actual line-item value for currently active eligible entries.
+         * Complimentary $0 entries still consume capacity but contribute $0. */
+        echo '<div><span>Entry Revenue</span><strong>' . wp_kses_post(wc_price($revenue)) . '</strong><small>actual paid entry value</small></div>';
         echo '</div>';
 
         echo '<div class="rlbrm-overview-sections">';
@@ -926,8 +1077,17 @@ final class RaffleLB_Raffle_Manager {
         $messages = [
             'success'                => ['success', 'Winner selected and permanently recorded.'],
             'manual_success'         => ['success', 'Manual/external winner recorded and permanently audited.'],
-            'early_closed'           => ['success', 'Raffle closed early. New entries are now blocked and the current paid-entry pool is frozen for winner selection.'],
-            'early_reason_required'  => ['error', 'Closing a raffle early requires an admin reason.'],
+            'early_closed_selection' => ['success', 'Raffle closed early. The eligible pool is locked and the raffle will proceed to Selection. No Points refund was issued.'],
+            'early_selection_already_closed' => ['warning', 'This raffle was already closed early to proceed to Selection.'],
+            'early_cancelled_refunded' => ['success', 'Raffle cancelled early. Eligible paid entry value was returned as Raffle Points and no selection will take place.'],
+            'early_lock_failed'      => ['error', 'RaffleLB could not safely lock this raffle for early close. Nothing was changed; please try again.'],
+            'early_reason_required'  => ['error', 'Closing a raffle early requires a private admin reason.'],
+            'early_public_note_required' => ['error', 'Add a public early-closure explanation of at least 20 characters. The internal reason remains private.'],
+            'early_mode_locked' => ['error', 'This raffle is already closed early and its closure outcome cannot be changed.'],
+            'selection_blocked_cancelled' => ['error', 'Selection is blocked because this raffle was cancelled early and participants were refunded.'],
+            'early_refund_unavailable' => ['error', 'RaffleLB Referral & Points 1.2.18 or newer is required before this raffle can be cancelled early with Points refunds.'],
+            'early_refund_failed'    => ['error', 'The raffle is closed, but one or more Points refunds need attention. Use Retry Points Refunds on the Ready to Draw record. Already completed credits will not be duplicated.'],
+            'early_refunds_complete' => ['success', 'Early-closure Points refunds were verified. Existing credits were not duplicated.'],
             'early_not_available'    => ['error', 'This raffle cannot be closed early right now.'],
             'already_selected'       => ['warning', 'A winner has already been selected for this raffle.'],
             'manual_reason_required' => ['error', 'Manual winner selection requires a reason or external draw reference.'],
@@ -980,15 +1140,24 @@ final class RaffleLB_Raffle_Manager {
         if ($total < 1 || $claimed < 1 || $claimed >= $total) return;
 
         echo '<div class="rlbrm-card rlbrm-border-amber">';
-        echo '<h2>Close Raffle Early</h2>';
-        echo '<p class="description">Closing early immediately blocks new entries and freezes the current paid-entry pool for winner selection. A reason is required and recorded in the audit trail.</p>';
-        echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" onsubmit="return confirm(\'Close this raffle early now? New entries will be blocked immediately.\');">';
+        echo '<h2>Early Closure</h2>';
+        echo '<p class="description">Both options immediately block new entries and freeze the current eligible pool. Choose whether this raffle should continue to Selection or be cancelled with eligible paid value returned as Raffle Points.</p>';
+        echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '">';
         echo '<input type="hidden" name="action" value="rafflelb_close_raffle_early">';
         echo '<input type="hidden" name="product_id" value="' . esc_attr($id) . '">';
         echo '<input type="hidden" name="rafflelb_redirect_to" value="' . esc_attr($view_url) . '">';
         wp_nonce_field('rafflelb_close_raffle_early_' . $id);
-        echo '<textarea name="close_reason" rows="2" required placeholder="Required reason for early closure" class="large-text"></textarea>';
-        echo '<p><button type="submit" class="button">Close Raffle Early</button></p>';
+        echo '<p><label><strong>Internal closure reason</strong><br><textarea name="close_reason" rows="2" required placeholder="Private admin / audit reason" class="large-text"></textarea><br><small>This stays private and is never shown on the public Selection Engine.</small></label></p>';
+        echo '<p><label><strong>Public Early Closure Note</strong><br><textarea name="public_close_note" rows="3" required minlength="20" maxlength="1000" placeholder="Explain why the raffle closed early, without internal details" class="large-text"></textarea><br><small>This customer-safe explanation is shown on the public Selection Engine.</small></label></p>';
+        if (!self::supports_split_early_close()) {
+            echo '<div class="notice notice-warning inline" style="margin:12px 0"><p><strong>Update RaffleLB Draw Engine to 0.34.18.45 or newer</strong> before using Close Early &amp; Proceed to Selection. Until then, only the established cancel/refund outcome is available.</p></div>';
+            echo '<div style="margin-top:14px;padding:14px;border:1px solid #d3a447;border-radius:8px;background:#fffaf0"><strong style="display:block;margin-bottom:5px">Cancel &amp; Refund</strong><small style="display:block;margin-bottom:10px">Lock the record, refund eligible paid value in Raffle Points, and do not select a winner.</small><button type="submit" name="close_mode" value="cancel_refund" class="button" style="border-color:#b7791f;color:#7a4b00;font-weight:700" onclick="return confirm(\'Cancel this raffle early and refund eligible paid entry value as Raffle Points? No winner will be selected.\');">Cancel Raffle &amp; Refund Participants</button></div>';
+        } else {
+            echo '<div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:14px">';
+            echo '<div style="padding:14px;border:1px solid #8ba52b;border-radius:8px;background:#fbfff2"><strong style="display:block;margin-bottom:5px">Proceed to Selection</strong><small style="display:block;margin-bottom:10px">Lock the current eligible entries, issue no refund, and continue to winner selection.</small><button type="submit" name="close_mode" value="selection" class="button button-primary" onclick="return confirm(\'Close early and proceed to Selection using the locked eligible pool? No Raffle Points refund will be issued.\');">Close Early &amp; Proceed to Selection</button></div>';
+            echo '<div style="padding:14px;border:1px solid #d3a447;border-radius:8px;background:#fffaf0"><strong style="display:block;margin-bottom:5px">Cancel &amp; Refund</strong><small style="display:block;margin-bottom:10px">Lock the record, refund eligible paid value in Raffle Points, and do not select a winner.</small><button type="submit" name="close_mode" value="cancel_refund" class="button" style="border-color:#b7791f;color:#7a4b00;font-weight:700" onclick="return confirm(\'Cancel this raffle early and refund eligible paid entry value as Raffle Points? No winner will be selected.\');">Cancel Raffle &amp; Refund Participants</button></div>';
+            echo '</div>';
+        }
         echo '</form></div>';
     }
 
@@ -999,18 +1168,42 @@ final class RaffleLB_Raffle_Manager {
             $id
         ));
         $early_closed = get_post_meta($id, self::META_EARLY_CLOSED, true) === 'yes';
+        $early_mode = self::early_close_mode($id);
         $early_reason = (string) get_post_meta($id, self::META_EARLY_CLOSE_REASON, true);
+        $early_public_note = (string) get_post_meta($id, self::META_EARLY_CLOSE_PUBLIC_NOTE, true);
+        $refund_status = sanitize_key((string) get_post_meta($id, self::META_EARLY_CLOSE_REFUND_STATUS, true));
+
+        if ($early_closed && $early_mode === 'cancel_refund') {
+            echo '<div class="rlbrm-card rlbrm-border-amber">';
+            echo '<h2>Raffle Cancelled Early</h2>';
+            echo '<p><strong>Selection will not proceed.</strong> The authoritative eligible pool remains locked as a public record.</p>';
+            if ($early_reason !== '') echo '<p><small><strong>Internal reason:</strong> ' . esc_html($early_reason) . '</small></p>';
+            if ($early_public_note !== '') echo '<p><small><strong>Public Early Closure Note:</strong> ' . esc_html($early_public_note) . '</small></p>';
+            $refund_label = $refund_status === 'complete' ? 'Complete' : ($refund_status === 'attention_required' ? 'Needs attention' : 'Processing');
+            echo '<p><strong>Raffle Points refund status:</strong> ' . esc_html($refund_label) . '</p>';
+            if ($refund_status !== 'complete') {
+                echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" onsubmit="return confirm(\'Verify or retry the Points refunds? Existing credits cannot be duplicated.\');">';
+                echo '<input type="hidden" name="action" value="rafflelb_close_raffle_early"><input type="hidden" name="close_mode" value="cancel_refund"><input type="hidden" name="product_id" value="' . esc_attr($id) . '"><input type="hidden" name="rafflelb_redirect_to" value="' . esc_attr($view_url) . '">';
+                echo '<input type="hidden" name="close_reason" value="' . esc_attr($early_reason) . '"><input type="hidden" name="public_close_note" value="' . esc_attr($early_public_note) . '">';
+                wp_nonce_field('rafflelb_close_raffle_early_' . $id);
+                echo '<button type="submit" class="button">Retry / Verify Points Refunds</button></form>';
+            }
+            echo '</div>';
+            return;
+        }
 
         echo '<div class="rlbrm-card rlbrm-border-lime">';
-        echo '<h2>Ready to Draw</h2>';
-        if ($early_closed && $early_reason !== '') echo '<p><small><strong>Early-close reason:</strong> ' . esc_html($early_reason) . '</small></p>';
+        echo '<h2>' . ($early_closed ? 'Ready for Selection' : 'Ready to Draw') . '</h2>';
+        if ($early_closed && $early_reason !== '') echo '<p><small><strong>Internal early-close reason:</strong> ' . esc_html($early_reason) . '</small></p>';
+        if ($early_closed && $early_public_note !== '') echo '<p><small><strong>Public Early Closure Note:</strong> ' . esc_html($early_public_note) . '</small></p>';
+        if ($early_closed) echo '<p><small><strong>Early-close outcome:</strong> Proceed to Selection — no Raffle Points refund issued.</small></p>';
 
-        echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" style="margin-bottom:16px" onsubmit="return confirm(\'Run the secure random draw now? This result is permanent.\');">';
+        echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" style="margin-bottom:16px" onsubmit="return confirm(\'Run the secure random selection now? This result is permanent.\');">';
         echo '<input type="hidden" name="action" value="rafflelb_select_winner">';
         echo '<input type="hidden" name="product_id" value="' . esc_attr($id) . '">';
         echo '<input type="hidden" name="rafflelb_redirect_to" value="' . esc_attr($view_url) . '">';
         wp_nonce_field('rafflelb_select_winner_' . $id);
-        echo '<button type="submit" class="button button-primary">Secure Random Draw</button>';
+        echo '<button type="submit" class="button button-primary">Secure Random Selection</button>';
         echo '</form>';
 
         echo '<details><summary style="cursor:pointer;font-weight:600">Record Chosen Winner (manual/external)</summary>';
@@ -1019,7 +1212,7 @@ final class RaffleLB_Raffle_Manager {
         echo '<input type="hidden" name="product_id" value="' . esc_attr($id) . '">';
         echo '<input type="hidden" name="rafflelb_redirect_to" value="' . esc_attr($view_url) . '">';
         wp_nonce_field('rafflelb_choose_winner_' . $id);
-        echo '<p><label><strong>Choose eligible winning entry</strong><br><select name="entry_number" required class="regular-text"><option value="">Select paid entry…</option>';
+        echo '<p><label><strong>Choose eligible winning entry</strong><br><select name="entry_number" required class="regular-text"><option value="">Select eligible entry…</option>';
         foreach ($eligible as $row) {
             $order = wc_get_order(absint($row->order_id));
             $name = self::customer_name(absint($row->user_id), $order);
@@ -1027,7 +1220,7 @@ final class RaffleLB_Raffle_Manager {
             echo '<option value="' . esc_attr($row->entry_number) . '">' . esc_html($option) . '</option>';
         }
         echo '</select></label></p>';
-        echo '<p><label><strong>Reason / external draw reference</strong><br><textarea name="selection_note" rows="2" required class="large-text"></textarea></label></p>';
+        echo '<p><label><strong>Reason / external selection reference</strong><br><textarea name="selection_note" rows="2" required class="large-text"></textarea></label></p>';
         echo '<button type="submit" class="button">Record Chosen Winner</button>';
         echo '</form></details>';
         echo '</div>';
@@ -1039,7 +1232,8 @@ final class RaffleLB_Raffle_Manager {
         if (!$result) return;
 
         $order = wc_get_order(absint($result->order_id));
-        $name = self::customer_name(absint($result->user_id), $order);
+        $contact = self::winner_contact_details(absint($result->user_id), $order);
+        $name = $contact['name'];
         $method_label = (!empty($result->selection_method) && $result->selection_method === 'manual') ? 'Manual / External' : 'Secure Random';
 
         echo '<div class="rlbrm-card rlbrm-border-dark">';
@@ -1047,10 +1241,27 @@ final class RaffleLB_Raffle_Manager {
         echo '<table class="widefat striped"><tbody>';
         echo '<tr><th>Winning Entry</th><td><strong>#' . esc_html(str_pad((string) $result->entry_number, 3, '0', STR_PAD_LEFT)) . '</strong></td></tr>';
         echo '<tr><th>Customer</th><td>' . esc_html($name) . '</td></tr>';
+        echo '<tr><th>Username</th><td>' . ($contact['username'] !== '' ? esc_html($contact['username']) : '—') . '</td></tr>';
+        if ($contact['phone'] !== '') {
+            $badge = $contact['phone_verified']
+                ? '<span class="rlbrm-verified-phone__badge">Verified</span>'
+                : '<span class="rlbrm-unverified-phone__badge">Billing phone</span>';
+            echo '<tr><th>Phone</th><td><span class="rlbrm-verified-phone"><strong>' . esc_html($contact['phone']) . '</strong>' . $badge . '</span></td></tr>';
+        } else {
+            echo '<tr><th>Phone</th><td>—</td></tr>';
+        }
+        echo '<tr><th>Email</th><td>' . ($contact['email'] !== '' ? '<a href="mailto:' . esc_attr($contact['email']) . '">' . esc_html($contact['email']) . '</a>' : '—') . '</td></tr>';
         echo '<tr><th>Order</th><td>' . ($order ? '<a href="' . esc_url($order->get_edit_order_url()) . '">#' . esc_html($result->order_id) . '</a>' : '#' . esc_html($result->order_id)) . '</td></tr>';
         echo '<tr><th>Method</th><td>' . esc_html($method_label) . '</td></tr>';
         echo '<tr><th>Selected At</th><td>' . esc_html($result->selected_at) . '</td></tr>';
         echo '</tbody></table>';
+
+        if ($contact['phone'] !== '') {
+            echo '<div class="rlbrm-contact-actions">';
+            if ($contact['tel'] !== '') echo '<a class="button button-secondary" href="tel:' . esc_attr($contact['tel']) . '">Call Winner</a>';
+            if ($contact['whatsapp'] !== '') echo '<a class="button button-primary" href="' . esc_url('https://wa.me/' . $contact['whatsapp']) . '" target="_blank" rel="noopener noreferrer">WhatsApp Winner</a>';
+            echo '</div>';
+        }
 
         echo '<h3 style="margin-top:20px">Notification</h3>';
         echo !empty($result->winner_email_sent_at)
@@ -1437,6 +1648,37 @@ final class RaffleLB_Raffle_Manager {
         return $value;
     }
 
+    public static function handle_set_publish_state() {
+        if (!current_user_can('manage_woocommerce')) {
+            wp_die('You are not allowed to change raffle publishing state.');
+        }
+
+        $id = isset($_POST['raffle_id']) ? absint($_POST['raffle_id']) : 0;
+        $state = isset($_POST['publish_state']) ? sanitize_key(wp_unslash($_POST['publish_state'])) : '';
+        if (!$id || !in_array($state, ['publish', 'draft'], true)) {
+            wp_safe_redirect(admin_url('admin.php?page=' . self::SLUG));
+            exit;
+        }
+        check_admin_referer('rafflelb_rm_publish_state_' . $id . '_' . $state);
+
+        if (get_post_type($id) !== 'product' || get_post_meta($id, self::META_ENABLED, true) !== 'yes' || !current_user_can('edit_post', $id)) {
+            wp_die('This raffle cannot be updated.');
+        }
+        if ($state === 'publish' && !current_user_can('publish_products')) {
+            wp_die('You are not allowed to publish products.');
+        }
+
+        $updated = wp_update_post(['ID' => $id, 'post_status' => $state], true);
+        if (is_wp_error($updated)) {
+            wp_die(esc_html($updated->get_error_message()));
+        }
+
+        $fallback = admin_url('admin.php?page=' . self::SLUG);
+        $redirect = isset($_POST['redirect_to']) ? wp_validate_redirect(wp_unslash($_POST['redirect_to']), $fallback) : $fallback;
+        wp_safe_redirect(add_query_arg('rlbrm', $state === 'draft' ? 'drafted' : 'published', $redirect));
+        exit;
+    }
+
     public static function handle_trash() {
         if (!current_user_can('manage_woocommerce')) {
             wp_die('You are not allowed to delete raffles.');
@@ -1456,6 +1698,117 @@ final class RaffleLB_Raffle_Manager {
      * Reset / Cleanup (danger zone: wipe completed-draw test data)
      * ------------------------------------------------------------- */
 
+    private static function reset_meta_keys() {
+        return [
+            self::META_DRAW_STATUS,
+            self::META_CLOSED_AT,
+            self::META_WINNER_ENTRY_ID,
+            self::META_WINNER_SELECTED_AT,
+            self::META_EARLY_CLOSED,
+            self::META_EARLY_CLOSE_REASON,
+            self::META_EARLY_CLOSE_PUBLIC_NOTE,
+            self::META_EARLY_CLOSE_MODE,
+            self::META_EARLY_CLOSE_REFUND_STATUS,
+            self::META_EARLY_CLOSED_BY,
+            self::META_EARLY_CLOSE_CLAIMED,
+            self::META_EARLY_CLOSE_REFUND_POINTS,
+            self::META_EARLY_CLOSE_REFUND_COMPLETED_AT,
+            self::META_LOCKED_POOL_REVISION,
+            self::META_LOCKED_POOL_COUNT,
+            self::META_LOCKED_POOL_AT,
+        ];
+    }
+
+    private static function table_exists($table) {
+        global $wpdb;
+        return $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $table)) === $table;
+    }
+
+    private static function clear_selection_snapshot_cache($pid) {
+        $pid = absint($pid);
+        if (!$pid) return;
+
+        // Selection Engine's public COMPLETE snapshot cache is versioned. Clear
+        // every version used during this build/test cycle so the reset is visible
+        // immediately even with a persistent object cache.
+        foreach (['0213','0212','0211','0210','0209','0208','0207','0206'] as $version) {
+            $key = 'rlse_public_snapshot_' . $version . '_' . $pid;
+            delete_transient($key);
+            wp_cache_delete($key, 'rafflelb-selection-engine');
+        }
+    }
+
+    private static function reset_product_operational_state($pid, $reset_stock = true) {
+        $pid = absint($pid);
+        if (!$pid) return false;
+
+        foreach (self::reset_meta_keys() as $meta_key) {
+            delete_post_meta($pid, $meta_key);
+        }
+        self::clear_selection_snapshot_cache($pid);
+
+        if ($reset_stock) {
+            $total = absint(get_post_meta($pid, self::META_TOTAL, true));
+            $product = wc_get_product($pid);
+            if ($product && $total > 0) {
+                if ($product->managing_stock()) {
+                    $product->set_stock_quantity($total);
+                }
+                $product->set_stock_status('instock');
+                $product->save();
+            }
+        }
+
+        clean_post_cache($pid);
+        return true;
+    }
+
+    private static function all_raffle_product_ids_for_reset() {
+        global $wpdb;
+        $ids = [];
+
+        $enabled = get_posts([
+            'post_type'      => 'product',
+            'post_status'    => 'any',
+            'posts_per_page' => -1,
+            'fields'         => 'ids',
+            'meta_key'       => self::META_ENABLED,
+            'meta_value'     => 'yes',
+            'no_found_rows'  => true,
+        ]);
+        foreach ((array) $enabled as $pid) {
+            $pid = absint($pid);
+            if ($pid) $ids[$pid] = true;
+        }
+
+        // Include products with operational state even if Draw/Raffle was later
+        // disabled, plus anything still referenced by an engine table.
+        $keys = array_merge(self::reset_meta_keys(), [self::META_TOTAL]);
+        $placeholders = implode(',', array_fill(0, count($keys), '%s'));
+        $sql = $wpdb->prepare(
+            "SELECT DISTINCT p.ID
+             FROM {$wpdb->posts} p
+             INNER JOIN {$wpdb->postmeta} pm ON pm.post_id=p.ID
+             WHERE p.post_type='product' AND pm.meta_key IN ({$placeholders})",
+            ...$keys
+        );
+        foreach ((array) $wpdb->get_col($sql) as $pid) {
+            $pid = absint($pid);
+            if ($pid) $ids[$pid] = true;
+        }
+
+        foreach ([self::ENTRY_TABLE, self::HISTORY_TABLE, self::HOLD_TABLE, self::RESULT_TABLE] as $suffix) {
+            $table = $wpdb->prefix . $suffix;
+            if (!self::table_exists($table)) continue;
+            foreach ((array) $wpdb->get_col("SELECT DISTINCT product_id FROM {$table} WHERE product_id>0") as $pid) {
+                $pid = absint($pid);
+                if ($pid) $ids[$pid] = true;
+            }
+        }
+
+        return array_keys($ids);
+    }
+
     public static function render_reset_page() {
         if (!current_user_can('manage_woocommerce')) return;
 
@@ -1466,6 +1819,26 @@ final class RaffleLB_Raffle_Manager {
         echo '<div class="wrap rafflelb-rm">';
         self::print_styles();
         echo '<h1>Reset / Cleanup</h1>';
+
+        $fresh_notice = isset($_GET['rlbrm_fresh']) ? sanitize_key(wp_unslash($_GET['rlbrm_fresh'])) : '';
+        if ($fresh_notice === 'done') {
+            $orders = isset($_GET['orders']) ? absint($_GET['orders']) : 0;
+            $entries = isset($_GET['entries']) ? absint($_GET['entries']) : 0;
+            $history = isset($_GET['history']) ? absint($_GET['history']) : 0;
+            $holds = isset($_GET['holds']) ? absint($_GET['holds']) : 0;
+            $results_count = isset($_GET['results']) ? absint($_GET['results']) : 0;
+            $products = isset($_GET['products']) ? absint($_GET['products']) : 0;
+            $notifications = isset($_GET['notifications']) ? absint($_GET['notifications']) : 0;
+            echo '<div class="notice notice-success is-dismissible"><p><strong>Fresh testing reset complete.</strong> Deleted ' . esc_html($orders) . ' WooCommerce order(s), ' . esc_html($entries) . ' raffle entry row(s), ' . esc_html($history) . ' history row(s), ' . esc_html($holds) . ' hold row(s), ' . esc_html($results_count) . ' result row(s), and ' . esc_html($notifications) . ' product-linked notification(s). Reset operational state/stock on ' . esc_html($products) . ' raffle product(s). Products, users, referral relationships, Raffle Points balances/ledgers and plugin settings were preserved.</p></div>';
+        } elseif ($fresh_notice === 'confirm_mismatch') {
+            echo '<div class="notice notice-error is-dismissible"><p>Nothing was reset: check the confirmation box and type <code>RESET TEST DATA</code> exactly.</p></div>';
+        } elseif ($fresh_notice === 'failed') {
+            echo '<div class="notice notice-error is-dismissible"><p>The fresh testing reset could not start because WooCommerce order APIs are unavailable.</p></div>';
+        } elseif ($fresh_notice === 'partial_orders') {
+            $deleted = isset($_GET['orders']) ? absint($_GET['orders']) : 0;
+            $failed = isset($_GET['failed']) ? absint($_GET['failed']) : 0;
+            echo '<div class="notice notice-error is-dismissible"><p><strong>Reset stopped before raffle tables were cleared.</strong> ' . esc_html($deleted) . ' order(s) were deleted, but ' . esc_html($failed) . ' order(s) could not be permanently removed. Fix/retry the reset; raffle operational tables and product state were intentionally left in place to avoid a silent inconsistent wipe.</p></div>';
+        }
 
         $notice = isset($_GET['rlbrm_reset']) ? sanitize_key(wp_unslash($_GET['rlbrm_reset'])) : '';
         if ($notice === 'done') {
@@ -1507,6 +1880,34 @@ final class RaffleLB_Raffle_Manager {
                 $order_count = absint($count_query->total);
             }
         }
+
+        $entries_table = $wpdb->prefix . self::ENTRY_TABLE;
+        $history_table = $wpdb->prefix . self::HISTORY_TABLE;
+        $holds_table = $wpdb->prefix . self::HOLD_TABLE;
+        $fresh_entries = self::table_exists($entries_table) ? absint($wpdb->get_var("SELECT COUNT(*) FROM {$entries_table}")) : 0;
+        $fresh_history = self::table_exists($history_table) ? absint($wpdb->get_var("SELECT COUNT(*) FROM {$history_table}")) : 0;
+        $fresh_holds = self::table_exists($holds_table) ? absint($wpdb->get_var("SELECT COUNT(*) FROM {$holds_table}")) : 0;
+        $fresh_results = self::table_exists($results_table) ? absint($wpdb->get_var("SELECT COUNT(*) FROM {$results_table}")) : 0;
+        $fresh_products = count(self::all_raffle_product_ids_for_reset());
+
+        echo '<div class="rlbrm-card" style="border:2px solid #b42318">';
+        echo '<h2 style="margin-top:0;color:#b42318">&#9888; Fresh Testing Reset — Everything in One</h2>';
+        echo '<p><strong>Use this when you want a clean testing environment without deleting the catalog, users, referrals, or Raffle Points.</strong></p>';
+        echo '<p><strong>Will clear:</strong> all WooCommerce orders, all RaffleLB entries, entry-history/locked-pool snapshots, active holds, winner/result rows, early-close/Selection/winner state, product-linked test notifications, Selection snapshot cache, and raffle stock state. Raffle products are returned to their configured Total Entries and made available for fresh testing.</p>';
+        echo '<p><strong>Will preserve:</strong> WooCommerce products/images/prices/categories/tags, WordPress/WooCommerce users, login/auth data, referral relationships/codes, Raffle Points balances and Points ledgers, referral settings, plugin settings, coupons, and general/manual notifications.</p>';
+        echo '<p class="description"><strong>Referral note:</strong> Points balances and referral user data are untouched. However, referral statistics that are calculated directly from WooCommerce order history can no longer count the test orders that this reset permanently deletes.</p>';
+        echo '<p><strong>Current data:</strong> ' . esc_html($order_count) . ' order(s) &middot; ' . esc_html($fresh_entries) . ' entry row(s) &middot; ' . esc_html($fresh_history) . ' history row(s) &middot; ' . esc_html($fresh_holds) . ' active/expired hold row(s) &middot; ' . esc_html($fresh_results) . ' result row(s) &middot; ' . esc_html($fresh_products) . ' raffle product(s) to normalize.</p>';
+        echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '">';
+        echo '<input type="hidden" name="action" value="rafflelb_rm_fresh_test_reset">';
+        wp_nonce_field('rafflelb_rm_fresh_test_reset');
+        echo '<p><label><input type="checkbox" name="confirm_fresh_reset" value="1" required> I understand this permanently deletes <strong>ALL WooCommerce orders and ALL RaffleLB test/selection data</strong>, while intentionally preserving products, users and Raffle Points.</label></p>';
+        echo '<p><label>Type <code>RESET TEST DATA</code> to confirm:<br><input type="text" name="confirm_fresh_text" class="regular-text" autocomplete="off" required></label></p>';
+        echo '<p><button type="submit" class="button" style="background:#b42318;border-color:#b42318;color:#fff;font-weight:700" onclick="return confirm(&quot;Fresh Testing Reset will permanently delete ALL WooCommerce orders and ALL raffle test/Selection data. Products, users and Raffle Points are preserved. Continue?&quot;);">RESET ALL TEST DATA</button></p>';
+        echo '</form>';
+        echo '</div>';
+
+        echo '<h2 style="margin-top:30px">Advanced / Targeted Cleanup</h2>';
+        echo '<p class="description">The older targeted tools remain available below for cases where you do not want a complete testing reset.</p>';
 
         echo '<div class="rlbrm-card rlbrm-border-amber">';
         echo '<h2 style="color:#b42318">&#9888; Danger Zone — Delete All Test Orders &amp; Related Entries</h2>';
@@ -1569,6 +1970,135 @@ final class RaffleLB_Raffle_Manager {
         <?php
 
         echo '</div>';
+    }
+
+    public static function handle_fresh_test_reset() {
+        if (!current_user_can('manage_woocommerce')) {
+            wp_die('You are not allowed to reset RaffleLB test data.');
+        }
+        check_admin_referer('rafflelb_rm_fresh_test_reset');
+
+        $redirect = admin_url('admin.php?page=' . self::SLUG_RESET);
+        $confirmed = !empty($_POST['confirm_fresh_reset']);
+        $confirm_text = isset($_POST['confirm_fresh_text']) ? trim(wp_unslash($_POST['confirm_fresh_text'])) : '';
+        if (!$confirmed || $confirm_text !== 'RESET TEST DATA') {
+            wp_safe_redirect(add_query_arg('rlbrm_fresh', 'confirm_mismatch', $redirect));
+            exit;
+        }
+        if (!function_exists('wc_get_orders') || !function_exists('wc_get_order')) {
+            wp_safe_redirect(add_query_arg('rlbrm_fresh', 'failed', $redirect));
+            exit;
+        }
+
+        global $wpdb;
+        $entries_table = $wpdb->prefix . self::ENTRY_TABLE;
+        $history_table = $wpdb->prefix . self::HISTORY_TABLE;
+        $holds_table = $wpdb->prefix . self::HOLD_TABLE;
+        $results_table = $wpdb->prefix . self::RESULT_TABLE;
+        $notifications_table = $wpdb->prefix . 'rafflelb_notifications';
+
+        // Capture every raffle product before clearing engine tables so products
+        // can be normalized even when they are disabled or have stale state.
+        $product_ids = self::all_raffle_product_ids_for_reset();
+
+        $orders_deleted = 0;
+        $failed_order_ids = [];
+
+        // Delete orders through WooCommerce APIs (HPOS-safe). Stock is restored
+        // before deletion. No order status transition is forced, so this reset
+        // deliberately does not call referral/Points reversal hooks.
+        do {
+            $query_args = [
+                'limit'   => 100,
+                'return'  => 'ids',
+                'type'    => 'shop_order',
+                'status'  => array_keys(wc_get_order_statuses()),
+                'orderby' => 'ID',
+                'order'   => 'ASC',
+            ];
+            if ($failed_order_ids) {
+                $query_args['exclude'] = array_values(array_unique($failed_order_ids));
+            }
+            $order_ids = array_values(array_unique(array_filter(array_map('absint', (array) wc_get_orders($query_args)))));
+            if (!$order_ids) break;
+
+            foreach ($order_ids as $order_id) {
+                $order = wc_get_order($order_id);
+                if (!$order) {
+                    $failed_order_ids[] = $order_id;
+                    continue;
+                }
+
+                if (function_exists('wc_maybe_increase_stock_levels')) {
+                    wc_maybe_increase_stock_levels($order_id);
+                }
+
+                $deleted = $order->delete(true);
+                if ($deleted !== false && !wc_get_order($order_id)) {
+                    $orders_deleted++;
+                } else {
+                    $failed_order_ids[] = $order_id;
+                }
+            }
+        } while (true);
+
+        if ($failed_order_ids) {
+            if (function_exists('wc_delete_shop_order_transients')) {
+                wc_delete_shop_order_transients();
+            }
+            wp_safe_redirect(add_query_arg([
+                'rlbrm_fresh' => 'partial_orders',
+                'orders'      => $orders_deleted,
+                'failed'      => count(array_unique($failed_order_ids)),
+            ], $redirect));
+            exit;
+        }
+
+        // With orders gone, clear the entire operational raffle dataset. These
+        // are engine/test tables only; referral/Points data lives elsewhere and
+        // is intentionally never touched here.
+        $entries_deleted = self::table_exists($entries_table) ? absint($wpdb->get_var("SELECT COUNT(*) FROM {$entries_table}")) : 0;
+        $history_deleted = self::table_exists($history_table) ? absint($wpdb->get_var("SELECT COUNT(*) FROM {$history_table}")) : 0;
+        $holds_deleted = self::table_exists($holds_table) ? absint($wpdb->get_var("SELECT COUNT(*) FROM {$holds_table}")) : 0;
+        $results_deleted = self::table_exists($results_table) ? absint($wpdb->get_var("SELECT COUNT(*) FROM {$results_table}")) : 0;
+
+        if (self::table_exists($entries_table)) $wpdb->query("DELETE FROM {$entries_table}");
+        if (self::table_exists($history_table)) $wpdb->query("DELETE FROM {$history_table}");
+        if (self::table_exists($holds_table)) $wpdb->query("DELETE FROM {$holds_table}");
+        if (self::table_exists($results_table)) $wpdb->query("DELETE FROM {$results_table}");
+
+        $notifications_deleted = 0;
+        if (self::table_exists($notifications_table)) {
+            $notifications_deleted = absint($wpdb->get_var("SELECT COUNT(*) FROM {$notifications_table} WHERE product_id>0"));
+            $wpdb->query("DELETE FROM {$notifications_table} WHERE product_id>0");
+        }
+
+        $products_reset = 0;
+        foreach ($product_ids as $pid) {
+            if (self::reset_product_operational_state($pid, true)) {
+                $products_reset++;
+            }
+        }
+
+        // Remove any lingering DB-transient rows from older Selection Engine
+        // versions. Product-specific object-cache keys are already deleted above.
+        $wpdb->query("DELETE FROM {$wpdb->options} WHERE option_name LIKE '_transient_rlse_public_snapshot_%' OR option_name LIKE '_transient_timeout_rlse_public_snapshot_%'");
+
+        if (function_exists('wc_delete_shop_order_transients')) {
+            wc_delete_shop_order_transients();
+        }
+
+        wp_safe_redirect(add_query_arg([
+            'rlbrm_fresh'   => 'done',
+            'orders'        => $orders_deleted,
+            'entries'       => $entries_deleted,
+            'history'       => $history_deleted,
+            'holds'         => $holds_deleted,
+            'results'       => $results_deleted,
+            'products'      => $products_reset,
+            'notifications' => $notifications_deleted,
+        ], $redirect));
+        exit;
     }
 
     public static function handle_delete_test_orders() {
@@ -1705,8 +2235,17 @@ final class RaffleLB_Raffle_Manager {
             delete_post_meta($pid, self::META_WINNER_SELECTED_AT);
             delete_post_meta($pid, self::META_EARLY_CLOSED);
             delete_post_meta($pid, self::META_EARLY_CLOSE_REASON);
+            delete_post_meta($pid, self::META_EARLY_CLOSE_PUBLIC_NOTE);
+            delete_post_meta($pid, self::META_EARLY_CLOSE_MODE);
+            delete_post_meta($pid, self::META_EARLY_CLOSE_REFUND_STATUS);
             delete_post_meta($pid, self::META_EARLY_CLOSED_BY);
             delete_post_meta($pid, self::META_EARLY_CLOSE_CLAIMED);
+            delete_post_meta($pid, self::META_EARLY_CLOSE_REFUND_POINTS);
+            delete_post_meta($pid, self::META_EARLY_CLOSE_REFUND_COMPLETED_AT);
+            delete_post_meta($pid, self::META_LOCKED_POOL_REVISION);
+            delete_post_meta($pid, self::META_LOCKED_POOL_COUNT);
+            delete_post_meta($pid, self::META_LOCKED_POOL_AT);
+            self::clear_selection_snapshot_cache($pid);
 
             if (!empty($winner_products[$pid]) && $notifications_exist) {
                 // Winner/draw-complete notifications are no longer valid once that
@@ -1803,8 +2342,17 @@ final class RaffleLB_Raffle_Manager {
             delete_post_meta($pid, self::META_WINNER_SELECTED_AT);
             delete_post_meta($pid, self::META_EARLY_CLOSED);
             delete_post_meta($pid, self::META_EARLY_CLOSE_REASON);
+            delete_post_meta($pid, self::META_EARLY_CLOSE_PUBLIC_NOTE);
+            delete_post_meta($pid, self::META_EARLY_CLOSE_MODE);
+            delete_post_meta($pid, self::META_EARLY_CLOSE_REFUND_STATUS);
             delete_post_meta($pid, self::META_EARLY_CLOSED_BY);
             delete_post_meta($pid, self::META_EARLY_CLOSE_CLAIMED);
+            delete_post_meta($pid, self::META_EARLY_CLOSE_REFUND_POINTS);
+            delete_post_meta($pid, self::META_EARLY_CLOSE_REFUND_COMPLETED_AT);
+            delete_post_meta($pid, self::META_LOCKED_POOL_REVISION);
+            delete_post_meta($pid, self::META_LOCKED_POOL_COUNT);
+            delete_post_meta($pid, self::META_LOCKED_POOL_AT);
+            self::clear_selection_snapshot_cache($pid);
 
             $product = wc_get_product($pid);
             if ($product) {

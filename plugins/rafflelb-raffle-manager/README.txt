@@ -1,3 +1,40 @@
+RaffleLB Raffle Manager 1.6.15
+
+- Fixed Needs Attention so a successfully cancelled/refunded raffle is no longer flagged after its Points refund reaches complete.
+- Added useful raffle sorting: Priority, Closest to Full, Newest, Oldest, and Name A–Z. Priority surfaces real admin work first and then active raffles closest to filling.
+- Added remaining-entry count beside capacity progress.
+- Removed the Action column from Raffle Operations; the prize name remains the Manage entry point.
+- Added a Publishing column with safe one-click Draft/Publish controls. Drafting changes only the WooCommerce product publishing state; raffle entries/history/status are preserved.
+
+RaffleLB Raffle Manager v1.6.13
+
+Fresh Testing Reset:
+- Added one consolidated Reset / Cleanup action for starting a clean QA cycle without deleting the catalog, users, referral relationships, or Raffle Points.
+- The unified reset permanently deletes all WooCommerce orders through WooCommerce APIs, then clears all RaffleLB entries, entry-history/locked-pool snapshots, holds, winner/result rows, product-linked notifications, and Selection snapshot cache.
+- Every raffle product is returned to fresh operational state: winner/Selection/early-close/refund/locked-pool metadata is cleared and managed raffle stock is restored to configured Total Entries.
+- Products, images, prices, categories/tags, users/auth data, referral codes/relationships, Raffle Points balances and Points ledgers, plugin settings, coupons, and general/manual notifications are intentionally preserved.
+- Referral statistics that are computed directly from order history can no longer count orders that were permanently deleted; stored Points and referral user data are not modified.
+- Added strict checkbox + exact RESET TEST DATA confirmation and a fail-safe: if any WooCommerce order cannot be removed, the global raffle-table wipe stops instead of silently creating a partial operational reset.
+- Existing targeted order cleanup and completed-raffle reset remain available below the unified tool; their product-state cleanup now also clears the newer public-note/mode/refund and authoritative locked-pool metadata introduced by later Draw Engine versions.
+
+RaffleLB Raffle Manager v1.6.12
+
+Early-closure outcome split:
+- Replaces the single early-close action with two explicit choices: Close Early & Proceed to Selection, or Cancel Raffle & Refund Participants.
+- Both choices reuse Draw Engine's authoritative locked pool; the Manager does not duplicate selection/refund logic.
+- Cancelled/refunded raffles have a separate admin display state, no winner controls, and an idempotent Retry / Verify Points Refunds action only when needed.
+- Early-close-to-selection raffles keep the existing secure/manual internal winner controls and explicitly show that no Points refund was issued.
+- Existing actual-paid Entry Revenue logic from v1.6.11 is preserved.
+- The proceed-to-Selection option is shown only when Draw Engine advertises split-mode capability; during an out-of-order upgrade the legacy cancel/refund path remains the only available action.
+
+RaffleLB Raffle Manager v1.6.11
+
+Winner contact details:
+- Winner tab now shows the winner's WordPress username, email, phone number and related order alongside the existing winning-entry details.
+- The phone shown prefers the verified RaffleLB Auth `_rafflelb_phone` when `_rafflelb_phone_verified` is `yes`; a WooCommerce billing phone is used only as a clearly labeled fallback for older/non-Auth customers.
+- Added admin-only Call Winner and WhatsApp Winner actions. No phone/contact data is exposed on the public storefront.
+- No draw, winner-selection, fulfillment, entry, order, or database logic was changed.
+
 RaffleLB Raffle Manager v1.6.8
 
 Correction pass on the v1.6.7 Operations redesign (visual design, status pills, Overview/Entries/Orders layout, and Needs Attention logic are unchanged from 1.6.7):
@@ -110,3 +147,20 @@ WHAT IT DOES
 - Hides the old WooCommerce -> RaffleLB Entries menu item from the sidebar
   (the page and its handlers are untouched and still work if linked to
   directly — nothing here deletes or migrates data).
+
+
+v1.6.10
+- Raffle Manager early-close form now sends both the private internal reason and the separate Public Early Closure Note required by Draw Engine 0.34.18.44.
+- Adds customer-safe public-note guidance and surfaces the saved public note on the admin Ready to Draw record.
+- Adds Draw Engine early-close/refund notice messages so failures are visible inside Raffle Manager.
+
+v1.6.11
+- Corrected admin Entry Revenue so it is calculated from the actual WooCommerce raffle line-item value attached to active entries instead of current raffle price multiplied by claimed count.
+- Complimentary participation remains eligible and consumes raffle capacity, but its private `_rafflelb_complimentary=yes` order-item marker now explicitly contributes $0 to Raffle Manager revenue.
+- Active-entry revenue respects discounted line totals and excludes shipping/order-level amounts; no checkout, entry allocation, Draw Engine, refund, or database-write logic was changed.
+
+
+
+1.6.15
+- Removed customer-facing raffle sorting controls from Raffle Manager; Store owns raffle discovery/sorting.
+- Removed the Publishing column from the Raffle Operations list. Draft/Published state remains available inside the raffle Manage/Edit form.

@@ -2,7 +2,7 @@
 /**
  * Plugin Name: RaffleLB Premium Mobile Menu
  * Description: Replaces the Woodmart mobile hamburger drawer with the premium RaffleLB navigation design.
- * Version: 1.1.7
+ * Version: 1.1.9
  * Author: RaffleLB
  * Text Domain: rafflelb-premium-mobile-menu
  */
@@ -12,7 +12,7 @@ if (!defined('ABSPATH')) {
 }
 
 final class RaffleLB_Premium_Mobile_Menu {
-    const VERSION = '1.1.7';
+    const VERSION = '1.1.9';
     const OPTION  = 'rafflelb_mobile_menu_socials';
 
     public static function init() {
@@ -133,6 +133,14 @@ final class RaffleLB_Premium_Mobile_Menu {
             case 'winners':
                 return is_page('winners');
 
+            case 'selection-engine':
+                $request_path = wp_parse_url(isset($_SERVER['REQUEST_URI']) ? wp_unslash($_SERVER['REQUEST_URI']) : '/', PHP_URL_PATH);
+                $request_path = '/' . ltrim((string) $request_path, '/');
+
+                return is_page('selection-engine')
+                    || 0 === strpos($request_path, '/selection-engine/')
+                    || 0 === strpos($request_path, '/selection/');
+
             case 'my-raffles':
                 return function_exists('is_wc_endpoint_url') && is_wc_endpoint_url('rafflelb-entries');
 
@@ -162,6 +170,7 @@ final class RaffleLB_Premium_Mobile_Menu {
             'raffles' => '<path d="M7.2 12.2 17.6 3.8l10.6 13.1-10.4 8.4a3.1 3.1 0 0 1-4.4-.5L6.7 16.6a3.1 3.1 0 0 1 .5-4.4Z"/><path d="m13.1 10.3 1.2 1.5m2.2 2.7 1.2 1.5m2.2 2.7 1.2 1.5"/><path d="M20.8 7.4 23 10"/>',
             'how' => '<path d="M12.7 3.5h6.6l.8 3.2c.7.3 1.3.6 1.9 1.1l3-1.1 3.3 5.7-2.4 2.1c.1.5.1 1 .1 1.5s0 1-.1 1.5l2.4 2.1-3.3 5.7-3-1.1c-.6.5-1.2.8-1.9 1.1l-.8 3.2h-6.6l-.8-3.2c-.7-.3-1.3-.6-1.9-1.1l-3 1.1-3.3-5.7 2.4-2.1A9 9 0 0 1 6 16c0-.5 0-1 .1-1.5l-2.4-2.1L7 6.7l3 1.1c.6-.5 1.2-.8 1.9-1.1l.8-3.2Z"/><circle cx="16" cy="16" r="4.1"/>',
             'winners' => '<path d="M10.3 5.5h11.4v6.1a5.7 5.7 0 0 1-11.4 0V5.5Z"/><path d="M10.2 8H6.4v2.1a5.1 5.1 0 0 0 5.2 5.1M21.8 8h3.8v2.1a5.1 5.1 0 0 1-5.2 5.1M16 17.3v5.1M11.8 27h8.4M13.4 22.4h5.2V27"/>',
+            'selection' => '<rect x="6.2" y="7.2" width="19.6" height="17.6" rx="4"/><path d="M10.2 12h11.6M10.2 20h11.6"/><circle cx="16" cy="16" r="2.8"/><path d="M16 3.6v3.6M16 24.8v3.6M3.6 16h2.6M25.8 16h2.6"/>',
             'ticket' => '<path d="M5.2 9.2h21.6v5a3.2 3.2 0 0 0 0 6.4v5.2H5.2v-5.2a3.2 3.2 0 0 0 0-6.4v-5Z"/><path d="M12 12.2h9M12 16h7M12 19.8h9"/>',
             'refer' => '<circle cx="12" cy="10" r="4"/><path d="M4.8 25.5v-2.8a7.2 7.2 0 0 1 14.4 0v2.8M24 10v8M20 14h8"/>',
             'contact' => '<path d="M9.3 4.6 5.7 8.2c-1.5 1.5.1 6.8 5.4 12.1s10.6 6.9 12.1 5.4l3.6-3.6-5.2-4-2.9 2.6c-1.7-.6-3.4-1.7-5-3.3s-2.7-3.3-3.3-5l2.9-2.8-4-5Z"/>',
@@ -230,6 +239,7 @@ final class RaffleLB_Premium_Mobile_Menu {
             <?php self::nav_item('raffles', 'Raffles', self::raffle_shop_url(), 'raffles'); ?>
             <?php self::nav_item('how-it-works', 'How It Works', home_url('/#how-it-works'), 'how'); ?>
             <?php self::nav_item('winners', 'Winners', self::page_url('winners', '/winners/'), 'winners'); ?>
+            <?php self::nav_item('selection-engine', 'Selection Engine', self::page_url('selection-engine', '/selection-engine/'), 'selection'); ?>
             <?php self::nav_item('my-raffles', 'My Raffles', self::account_url('rafflelb-entries'), 'ticket'); ?>
             <?php self::nav_item('refer', 'Refer & Earn', self::account_url('refer-and-earn'), 'refer'); ?>
         </nav>
