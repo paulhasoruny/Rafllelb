@@ -2,14 +2,14 @@
 /**
  * Plugin Name: RaffleLB Shop
  * Description: Existing RaffleLB catalog and product presentation with reversible Draw Engine delegation.
- * Version: 0.2.36
+ * Version: 0.2.37
  * Author: RaffleLB
  * Requires PHP: 7.4
  */
 if (!defined('ABSPATH')) { exit; }
 require_once plugin_dir_path(__FILE__) . 'includes/class-rafflelb-store-only-renderer.php';
 final class RaffleLB_Shop {
-    const VERSION = '0.2.36';
+    const VERSION = '0.2.37';
     private static $selection_entry_form_context = false;
     private static $public_banners_rendered = false;
     public static function ready() {
@@ -4412,13 +4412,19 @@ final class RaffleLB_Shop {
          *
          * v0.2.36 — category_brand_terms() picks its own taxonomy from
          * evidence on the eligible products (see brand_taxonomy_candidates()
-         * for why), so it is no longer told which one to use. */
+         * for why), so it is no longer told which one to use.
+         *
+         * v0.2.37 — this server-computed list now only seeds the client-side
+         * cache for the category active at THIS request. Every other
+         * category the shopper reaches through WoodMart's in-page AJAX shop
+         * is fetched fresh — see rafflelb-shop-native-filters-ui-v03324's
+         * setupBrandFilter()/fetchCategoryBrands() and
+         * ajax_category_brands() below. */
         $rl_brand_terms = [];
         if ($rl_current_category_id > 0) {
             $rl_brand_result = self::category_brand_terms($rl_current_category_id, $rl_shop_mode);
             $rl_brand_terms = $rl_brand_result['brands'];
         }
-        $rl_selected_brand = self::shop_brand_slug();
         ?>
         <style id="rafflelb-brand-filter-css-v0235">
         body.rafflelb-raffle-archive .rl-brand-filter-widget{
@@ -4517,9 +4523,25 @@ final class RaffleLB_Shop {
             var rlInitialCategoryId = <?php echo (int) $rl_current_category_id; ?>;
             var rlShopUrl = <?php echo wp_json_encode((string) $rl_shop_url); ?> || '/shop/';
             var rlShopMode = <?php echo wp_json_encode((string) $rl_shop_mode); ?> || 'both';
-            var rlBrandTerms = <?php echo wp_json_encode($rl_brand_terms); ?> || [];
-            var rlSelectedBrand = <?php echo wp_json_encode((string) $rl_selected_brand); ?> || '';
+            var rlAjaxUrl = <?php echo wp_json_encode(admin_url('admin-ajax.php')); ?>;
             var rlReturnKey = 'rafflelb_shop_return_v03324';
+
+            /* v0.2.37 — Brands used to be a one-time PHP snapshot
+             * (rlBrandTerms) taken from the category active at the initial
+             * full page load. WoodMart's AJAX shop swaps category/product
+             * DOM in place without a full reload, so that snapshot went
+             * stale the moment a shopper picked a different category
+             * in-page: Category/Subcategory stayed correct because they
+             * re-derive the active term from the live DOM/URL on every
+             * sync() pass (currentCategoryTerm()), but Brands kept reading
+             * the original request's data. Brands are now fetched per
+             * category id + Shopping Mode through a small AJAX endpoint and
+             * cached client-side, seeded with this request's own server-
+             * rendered result so a normal full page load/back-navigation
+             * still needs no round trip. */
+            var rlBrandCache = {};
+            var rlBrandPending = {};
+            rlBrandCache[String(rlInitialCategoryId) + ':' + rlShopMode] = <?php echo wp_json_encode($rl_brand_terms); ?> || [];
 
             function showShopNavOverlay(){
                 var el = document.getElementById('rl-shop-nav-overlay');
@@ -5106,22 +5128,73 @@ final class RaffleLB_Shop {
                 });
             }
 
+            function currentSelectedBrand(){
+                try {
+                    return new URLSearchParams(window.location.search).get('rl_brand') || '';
+                } catch (e) {
+                    return '';
+                }
+            }
+
+            function fetchCategoryBrands(categoryId, mode, cacheKey){
+                if (rlBrandPending[cacheKey]) return;
+                rlBrandPending[cacheKey] = true;
+                var xhr = new XMLHttpRequest();
+                var url = rlAjaxUrl + '?action=rafflelb_category_brands&category_id=' + encodeURIComponent(categoryId) + '&mode=' + encodeURIComponent(mode) + '&_=' + Date.now();
+                xhr.open('GET', url, true);
+                xhr.onload = function(){
+                    delete rlBrandPending[cacheKey];
+                    if (xhr.status !== 200) return;
+                    try {
+                        var response = JSON.parse(xhr.responseText);
+                        var brands = (response && response.success && Array.isArray(response.data && response.data.brands)) ? response.data.brands : [];
+                        rlBrandCache[cacheKey] = brands;
+                        setupBrandFilter();
+                    } catch (e) {}
+                };
+                xhr.onerror = function(){ delete rlBrandPending[cacheKey]; };
+                xhr.send();
+            }
+
             function setupBrandFilter(){
                 areas().forEach(function(area){
                     Array.prototype.slice.call(area.querySelectorAll('.rl-brand-filter-widget')).forEach(function(node){
                         node.remove();
                     });
 
-                    // Hidden until a real category archive is active, and hidden
-                    // when that category has no assigned brands.
-                    if (!rlInitialCategoryId || !Array.isArray(rlBrandTerms) || !rlBrandTerms.length) return;
-
                     var grid = area.querySelector('.filters-inner-area, .widget-area') || area;
                     var categoryWidget = area.querySelector('.rl-category-widget-enhanced');
                     if (!grid || !categoryWidget) return;
 
+                    // Hidden until a real category is the active one (All
+                    // Categories has no term here), matching Category/
+                    // Subcategory's own live DOM/URL-derived state instead of
+                    // a value frozen at the initial page load.
                     var current = currentCategoryTerm(categoryWidget);
                     if (!current) return;
+
+                    var cacheKey = String(current.id) + ':' + rlShopMode;
+                    if (!Object.prototype.hasOwnProperty.call(rlBrandCache, cacheKey)) {
+                        fetchCategoryBrands(current.id, rlShopMode, cacheKey);
+                        return; // setupBrandFilter() re-runs itself once the fetch resolves.
+                    }
+
+                    var brands = rlBrandCache[cacheKey];
+                    if (!Array.isArray(brands) || !brands.length) return;
+
+                    var selectedBrand = currentSelectedBrand();
+                    if (selectedBrand && !brands.some(function(brand){ return brand && String(brand.slug) === selectedBrand; })) {
+                        // The category changed (in-page, via WoodMart AJAX) and the
+                        // brand carried over in the URL no longer applies to it.
+                        // Drop it locally instead of leaving a filter applied that
+                        // no longer matches what the Brand row shows as selected.
+                        selectedBrand = '';
+                        try {
+                            var cleanUrl = new URL(window.location.href);
+                            cleanUrl.searchParams.delete('rl_brand');
+                            window.history.replaceState(window.history.state, '', cleanUrl.toString());
+                        } catch (e) {}
+                    }
 
                     var block = document.createElement('div');
                     block.className = 'widget rl-brand-filter-widget';
@@ -5157,15 +5230,15 @@ final class RaffleLB_Shop {
                     }
 
                     var all = document.createElement('a');
-                    all.className = 'rl-brand-filter-link rl-brand-all' + (!rlSelectedBrand ? ' is-active' : '');
+                    all.className = 'rl-brand-filter-link rl-brand-all' + (!selectedBrand ? ' is-active' : '');
                     all.href = brandUrl('');
                     all.textContent = 'All Brands';
                     list.appendChild(all);
 
-                    rlBrandTerms.forEach(function(brand){
+                    brands.forEach(function(brand){
                         if (!brand || !brand.slug || !brand.name) return;
                         var link = document.createElement('a');
-                        link.className = 'rl-brand-filter-link' + (String(rlSelectedBrand) === String(brand.slug) ? ' is-active' : '');
+                        link.className = 'rl-brand-filter-link' + (selectedBrand === String(brand.slug) ? ' is-active' : '');
                         link.href = brandUrl(String(brand.slug));
                         link.textContent = String(brand.name);
                         list.appendChild(link);
@@ -9675,6 +9748,32 @@ final class RaffleLB_Shop {
         return $result;
     }
 
+    /**
+     * Public read-only endpoint: brands for a category + Shopping Mode.
+     *
+     * v0.2.37 — WoodMart's AJAX shop changes the active category in place
+     * (no full page reload), so the Brands row can no longer rely on the
+     * PHP-rendered snapshot taken for whichever category was active at the
+     * initial page load (that snapshot is what shop_native_filters_ui()
+     * still seeds its client-side cache with, for the one category it
+     * already knows about for free). Every other category reached through
+     * an in-page AJAX transition is fetched through this endpoint instead,
+     * keyed by category id + mode exactly like that client-side cache.
+     */
+    public static function ajax_category_brands() {
+        $category_id = isset($_GET['category_id']) ? absint(wp_unslash($_GET['category_id'])) : 0;
+        $mode = isset($_GET['mode']) ? sanitize_key(wp_unslash($_GET['mode'])) : 'both';
+        if (!in_array($mode, ['both', 'retail', 'raffle'], true)) $mode = 'both';
+
+        $term = $category_id > 0 ? get_term($category_id, 'product_cat') : null;
+        if (!$term || is_wp_error($term)) {
+            wp_send_json_success(['brands' => []]);
+        }
+
+        $result = self::category_brand_terms($category_id, $mode);
+        wp_send_json_success(['brands' => $result['brands']]);
+    }
+
     /** Apply the selected brand to the real WooCommerce category catalogue. */
     public static function apply_brand_filter_to_catalog($query) {
         if (!$query instanceof WP_Query || !$query->is_main_query()) return;
@@ -9778,10 +9877,14 @@ add_action('delete_term', ['RaffleLB_Shop', 'clear_store_search_lexicon_cache'])
  * shop_native_filters_ui() (see that method) — the filter UI Draw Engine
  * actually delegates to on wp_footer, and the only one confirmed live on
  * this theme's customised archive layout. These hooks apply/validate the
- * selection against the real WooCommerce query. */
+ * selection against the real WooCommerce query, and serve fresh per-
+ * category brand lists to that JS for categories reached through
+ * WoodMart's in-page AJAX shop (see ajax_category_brands()). */
 add_action('pre_get_posts', ['RaffleLB_Shop', 'apply_brand_filter_to_catalog'], 9);
 add_action('woocommerce_product_query', ['RaffleLB_Shop', 'apply_brand_filter_to_catalog'], 98);
 add_action('template_redirect', ['RaffleLB_Shop', 'validate_brand_filter_request']);
+add_action('wp_ajax_rafflelb_category_brands', ['RaffleLB_Shop', 'ajax_category_brands']);
+add_action('wp_ajax_nopriv_rafflelb_category_brands', ['RaffleLB_Shop', 'ajax_category_brands']);
 add_action('save_post_product', ['RaffleLB_Shop', 'bump_brand_cache_version']);
 add_action('created_term', ['RaffleLB_Shop', 'bump_brand_cache_version']);
 add_action('edited_term', ['RaffleLB_Shop', 'bump_brand_cache_version']);
