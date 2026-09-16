@@ -2,14 +2,14 @@
 /**
  * Plugin Name: RaffleLB Shop
  * Description: Existing RaffleLB catalog and product presentation with reversible Draw Engine delegation.
- * Version: 0.2.61
+ * Version: 0.2.62
  * Author: RaffleLB
  * Requires PHP: 7.4
  */
 if (!defined('ABSPATH')) { exit; }
 require_once plugin_dir_path(__FILE__) . 'includes/class-rafflelb-store-only-renderer.php';
 final class RaffleLB_Shop {
-    const VERSION = '0.2.61';
+    const VERSION = '0.2.62';
     private static $selection_entry_form_context = false;
     private static $public_banners_rendered = false;
     public static function ready() {
@@ -7918,6 +7918,19 @@ final class RaffleLB_Shop {
        for the desktop-only typography rules below, which are unrelated
        to card geometry and still apply. */
     /* 0.1.95 — typography/readability only. Geometry and behavior are frozen. */
+    /* v0.2.62 — this whole typography block (through the nested
+       max-width:767px sub-block below) is now scoped to
+       @media(min-width:768px). Two of its selectors were still
+       reaching mobile and fighting assets/mobile-store-card.css:
+       #rl-shop-controls .rl-shop-view-mode/.rl-shop-filter-toggle/
+       .rl-shop-sort-trigger (an ID selector, always outranking any
+       number of classes) and .rl-shop-prices:not(.is-dual-price)
+       small/strong (tied specificity with mobile-store-card.css,
+       decided by print order) — the source of Store Only/Raffle
+       Only's solo price type reverting to 10px/18-20px on phones.
+       Desktop keeps every one of these values unchanged; only the
+       viewport they apply at is now explicit. */
+    @media(min-width:768px){
     body.rafflelb-raffle-archive :is(.rl-shop-hero,#rl-shop-controls,.rl-raffle-card),
     body.rafflelb-raffle-archive :is(.rl-shop-hero,#rl-shop-controls,.rl-raffle-card) *{
         font-family:var(--rl-font,"Manrope",sans-serif)!important;
@@ -8022,6 +8035,7 @@ final class RaffleLB_Shop {
         body.rafflelb-raffle-archive .rl-shop-raffle-line strong *,
         body.rafflelb-raffle-archive .rl-shop-raffle-meta,
         body.rafflelb-raffle-archive .rl-shop-raffle-meta *{font-size:11px!important}
+    }
     }
     </style>
     <?php
@@ -8733,7 +8747,26 @@ final class RaffleLB_Shop {
             color:#f4f6f2!important;
         }
     }
-    /* Keep the 0.1.95 type layer authoritative over historical presentation rules. */
+    /* v0.2.62 — "Keep the 0.1.95 type layer authoritative" was a second,
+       unscoped copy of legacy_callback_18334's typography block (itself
+       already cleaned up in 0.2.61), printed even later (this function
+       runs at a later wp_head priority than legacy_callback_18334), so
+       it was the actual final word on several mobile properties:
+       #rl-shop-controls .rl-shop-view-mode / .rl-shop-toolbar-actions>
+       .rl-shop-filter-toggle / .rl-shop-sort-trigger (an ID selector,
+       always outranking assets/mobile-store-card.css's classes), and
+       .rl-shop-prices:not(.is-dual-price) small/strong (tied specificity
+       with mobile-store-card.css, decided by this printing later) — the
+       exact cause of Store Only / Raffle Only's solo price type
+       reverting to 10px/18-20px instead of the compact mobile values.
+       Scoped the whole block to @media(min-width:768px) so it stays the
+       desktop typography layer it was always meant to be (including
+       the trailing max-width:767px sub-block below, which only ever
+       existed to retune THIS block for phones and is now moot — a
+       max-width:767px condition can never match inside a min-width:768px
+       one, so it is dead weight kept only for history, not deleted, to
+       avoid re-litigating the exact pixel values it once carried). */
+    @media(min-width:768px){
     body.rafflelb-raffle-archive :is(.rl-shop-hero,#rl-shop-controls,.rl-raffle-card),
     body.rafflelb-raffle-archive :is(.rl-shop-hero,#rl-shop-controls,.rl-raffle-card) *{font-family:var(--rl-font,"Manrope",sans-serif)!important}
     body.rafflelb-raffle-archive .rl-shop-title-row h1{font-size:48px!important;font-weight:var(--rl-weight-heavy,800)!important;line-height:var(--rl-line-heading,1.08)!important;letter-spacing:var(--rl-tracking-tight,-.025em)!important}
@@ -8749,6 +8782,7 @@ final class RaffleLB_Shop {
     body.rafflelb-raffle-archive .rl-shop-raffle-live,body.rafflelb-raffle-archive .rl-shop-raffle-line strong,body.rafflelb-raffle-archive .rl-shop-raffle-line strong *,body.rafflelb-raffle-archive .rl-shop-raffle-meta,body.rafflelb-raffle-archive .rl-shop-raffle-meta *{font-size:11px!important;font-weight:var(--rl-weight-semibold,600)!important}
     body.rafflelb-raffle-archive .rl-shop-buy,body.rafflelb-raffle-archive .rl-shop-buy-label,body.rafflelb-raffle-archive .rl-shop-enter-label,body.rafflelb-raffle-archive .rl-shop-enter-price,body.rafflelb-raffle-archive .rl-shop-enter-price *{font-size:12px!important;font-weight:var(--rl-weight-bold,700)!important;letter-spacing:0!important}
     @media(max-width:767px){body.rafflelb-raffle-archive .rl-shop-title-row h1{font-size:44px!important}body.rafflelb-raffle-archive .rl-raffle-card :is(.wd-entities-title,.product-title,h3),body.rafflelb-raffle-archive .rl-raffle-card :is(.wd-entities-title,.product-title,h3) a{font-size:16px!important}body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices:not(.is-dual-price) strong,body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices:not(.is-dual-price) strong *{font-size:18px!important}}
+    }
     </style>
     <?php
 }

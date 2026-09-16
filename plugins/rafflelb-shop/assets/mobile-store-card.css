@@ -1,4 +1,4 @@
-/* RaffleLB Shop 0.2.61 — the ONE authoritative mobile Store stylesheet.
+/* RaffleLB Shop 0.2.62 — the ONE authoritative mobile Store stylesheet.
  *
  * Presentation only. Scoped to body.rafflelb-raffle-archive.rl-store-reference
  * (the Shop and product-category archives — both classes are always present
@@ -104,6 +104,22 @@
  *      force the same compact geometry Store + Raffle already uses, so
  *      STORE ONLY can't revert to the tall old layout on a phone even if
  *      that desktop rule ever leaked through.
+ *
+ * v0.2.62 — a second, later-printed copy of exactly the same typography
+ * block existed at the end of legacy_callback_18600 ("Keep the 0.1.95
+ * type layer authoritative"), plus legacy_callback_18334 itself still
+ * had an UNCONDITIONAL (not even inside a media query) copy of the same
+ * #rl-shop-controls ID-based mode/filter/sort sizing and
+ * .rl-shop-prices:not(.is-dual-price) small/strong rules — 0.2.61 only
+ * removed the mobile-only duplicate of the ID rule, not this always-on
+ * one, so Store Only / Raffle Only's solo price type could still come
+ * out at 10px/18-20px on a phone instead of this file's compact values.
+ * Both copies are now wrapped in @media(min-width:768px) in
+ * rafflelb-shop.php (no rules deleted, no desktop values changed — the
+ * dead max-width:767px sub-blocks inside them, which only ever existed
+ * to retune those same rules for phones, are now unreachable and kept
+ * only for history). This file's own compact mobile values (below) are
+ * the only ones that reach the mobile toolbar and mobile price type now.
  *
  * Card DOM (verified against the real WoodMart loop, not assumed):
  *   .product-wrapper
