@@ -1,10 +1,37 @@
-/* RaffleLB Shop 0.2.57 — mobile Store archive card + toolbar redesign.
+/* RaffleLB Shop 0.2.58 — the ONE authoritative mobile Store stylesheet.
  *
- * Presentation only. Scoped to body.rafflelb-raffle-archive (the Shop and
- * product-category archives) and to max-width:767px, so desktop and the
- * single product page (body.rafflelb-raffle-product) are never touched.
- * No markup change: this only repositions/restyles the existing WoodMart
- * loop item and the existing RaffleLB archive markup.
+ * Presentation only. Scoped to body.rafflelb-raffle-archive.rl-store-reference
+ * (the Shop and product-category archives — both classes are always present
+ * together there, see legacy_callback_18802/18806 in rafflelb-shop.php) and
+ * to max-width:767px, so desktop and the single product page
+ * (body.rafflelb-raffle-product) are never touched. No markup change: this
+ * only repositions/restyles the existing WoodMart loop item and the
+ * existing RaffleLB archive markup.
+ *
+ * WHY THIS FILE INCLUDES .rl-store-reference IN EVERY SELECTOR (v0.2.58):
+ * assets/shop-reference.css is unconditionally enqueued on every Shop/
+ * category archive and its selectors are always
+ * "body.rafflelb-raffle-archive.rl-store-reference ...". A plain
+ * "body.rafflelb-raffle-archive ..." selector here has one less class of
+ * specificity, so — regardless of `!important` — it LOSES the cascade to
+ * shop-reference.css's unconditional (all-widths) rules, including its own
+ * base .products 3-column grid and .product-wrapper 42%/58% desktop split.
+ * That mismatch is the real root cause behind the 0.2.56/0.2.57 reports of
+ * "missing prices" and layout breakage: two different grid systems were
+ * fighting over the same elements, and the loser's rows/columns didn't
+ * exist in the winner's grid, so content landed off-grid or invisible.
+ * v0.2.58 fixes this in two parts instead of another blind patch:
+ *   1. every @media(max-width:...) rule that used to live in
+ *      shop-reference.css (the actual, working, previously-tuned mobile
+ *      narrowing for .products, .rl-shop-hero, .rl-shop-toolbar, etc.) has
+ *      moved here, so shop-reference.css is now desktop/base-only;
+ *   2. every selector below matches shop-reference.css's own specificity
+ *      (.rl-store-reference included) and this file is enqueued with an
+ *      explicit dependency on the 'rafflelb-store-reference' handle (see
+ *      enqueue_mobile_store_card_styles() in rafflelb-shop.php), so it is
+ *      always printed after shop-reference.css and always wins ties.
+ * This is now the single, authoritative mobile implementation — card
+ * layout, hero, toolbar, search and product grid all live here, once.
  *
  * Card DOM (unchanged):
  *   .product-wrapper
@@ -19,42 +46,171 @@
  * display:contents so their children become direct grid items of
  * .product-wrapper and can be placed independently (image left, text
  * right, one full-width action row underneath) without touching the
- * theme/hook markup. Loaded as an enqueued file (not an inline <style>
- * block) and excluded from WP Rocket's CSS optimization in
+ * theme/hook markup. Protected from WP Rocket's CSS optimization in
  * rafflelb-shop.php (rocket_exclude_css / rocket_minify_excluded_external_css
- * / rocket_exclude_defer_css / rocket_rucss_safelist) so Remove Unused CSS
- * can never rewrite or drop these mobile-only rules — see the v0.2.57
- * docblock on enqueue_mobile_store_card_styles() for why 0.2.56 (an inline
- * style block) never reached real phones. */
+ * / rocket_exclude_defer_css / rocket_rucss_safelist), same as
+ * assets/single-product.css. */
 
 @media(max-width:767px){
-    body.rafflelb-raffle-archive .rl-raffle-card{
-        --rl-mcard-img:clamp(80px,26vw,100px);
+    /* ---- Page-level: hero, toolbar, search — same narrowing that used
+       to live in shop-reference.css's own mobile blocks. ---- */
+    body.rafflelb-raffle-archive.rl-store-reference .rl-shop-hero{
+        padding:16px 4px 12px!important;
+    }
+    body.rafflelb-raffle-archive.rl-store-reference .rl-shop-heading::before{
+        font-size:8px!important;
+        letter-spacing:.30em!important;
+        margin-bottom:5px!important;
+    }
+    body.rafflelb-raffle-archive.rl-store-reference .rl-shop-title-row{
+        display:block!important;
+    }
+    body.rafflelb-raffle-archive.rl-store-reference .rl-shop-title-row h1{
+        font-size:36px!important;
+        line-height:.95!important;
+    }
+    body.rafflelb-raffle-archive.rl-store-reference .rl-shop-title-row p{
+        margin:8px 0 0!important;
+        max-width:100%!important;
+        font-size:13px!important;
+        line-height:1.45!important;
+    }
+    body.rafflelb-raffle-archive.rl-store-reference .rl-shop-assurances{
+        display:none!important;
     }
 
-    /* Card shell: badge row / image + text row / full-width actions row. */
-    body.rafflelb-raffle-archive .rl-raffle-card .product-wrapper{
+    body.rafflelb-raffle-archive.rl-store-reference .rl-shop-toolbar{
+        display:flex!important;
+        flex-direction:column!important;
+        align-items:stretch!important;
+        flex-wrap:nowrap!important;
+        min-height:0!important;
+        padding:8px!important;
+        gap:7px!important;
+    }
+    body.rafflelb-raffle-archive.rl-store-reference .rl-shop-toolbar-spacer:empty{
+        display:none!important;
+    }
+    body.rafflelb-raffle-archive.rl-store-reference .rl-shop-mode-block{
+        width:100%!important;
+        flex:0 0 auto!important;
+        margin:0!important;
+    }
+    body.rafflelb-raffle-archive.rl-store-reference .rl-shop-mode-eyebrow{
+        font-size:8px!important;
+        padding:0!important;
+    }
+    body.rafflelb-raffle-archive.rl-store-reference .rl-shop-view-modes{
+        display:grid!important;
+        grid-template-columns:repeat(3,minmax(0,1fr))!important;
+        width:100%!important;
+        gap:6px!important;
+        margin:0!important;
+    }
+    body.rafflelb-raffle-archive.rl-store-reference .rl-shop-view-mode{
+        width:100%!important;
+        min-height:40px!important;
+        padding:0 6px!important;
+        font-size:10px!important;
+        text-align:center!important;
+        white-space:normal!important;
+    }
+    body.rafflelb-raffle-archive.rl-store-reference .rl-shop-toolbar-divider{
+        display:none!important;
+    }
+    body.rafflelb-raffle-archive.rl-store-reference .rl-shop-toolbar-actions{
+        display:flex!important;
+        width:100%!important;
+        gap:8px!important;
+    }
+    body.rafflelb-raffle-archive.rl-store-reference .rl-shop-filter-toggle{
+        flex:0 0 auto!important;
+    }
+    body.rafflelb-raffle-archive.rl-store-reference .rl-shop-sort{
+        flex:1 1 auto!important;
+        min-width:0!important;
+    }
+    body.rafflelb-raffle-archive.rl-store-reference .rl-shop-filter-toggle,
+    body.rafflelb-raffle-archive.rl-store-reference .rl-shop-sort .woocommerce-ordering,
+    body.rafflelb-raffle-archive.rl-store-reference .rl-shop-sort .woocommerce-ordering select{
+        height:40px!important;
+        min-height:40px!important;
+        max-height:40px!important;
+    }
+
+    /* Search panel (#rl-store-search, from store_search_ui()): its own
+       CSS (rafflelb-shop.php) already keeps it position:relative in
+       normal document flow — it was never absolutely/fixed-positioned,
+       so it cannot itself float over a card. The "search overlapping the
+       first product" report matches what the .products 3-column grid
+       regression above would produce: with cards squeezed to roughly a
+       third of the phone width, a full-width search panel sitting right
+       above a cluster of tiny, overflowing cards reads as "on top of" the
+       first product. Restoring .products to a single column (above) is
+       the structural fix; this block only compacts the panel's own
+       height and never repositions it. */
+    body.rafflelb-raffle-archive.rl-store-reference .rl-store-search{
+        position:relative!important;
+        margin:0 0 12px!important;
+        padding:9px!important;
+    }
+    /* "SEARCH THE STORE" heading + "Searching X" scope text removed on
+       mobile per the brief — the search icon and input placeholder
+       ("Search products, raffles, brands...") already say what the field
+       does, so this is presentation-only: the field, its AJAX results,
+       and the Search All Store toggle keep working exactly as before. */
+    body.rafflelb-raffle-archive.rl-store-reference .rl-store-search-head{
+        display:none!important;
+    }
+    body.rafflelb-raffle-archive.rl-store-reference .rl-store-search-shell{
+        min-height:42px!important;
+    }
+    body.rafflelb-raffle-archive.rl-store-reference .rl-store-search-input{
+        height:42px!important;
+        font-size:12.5px!important;
+    }
+    body.rafflelb-raffle-archive.rl-store-reference .rl-store-search-all{
+        margin-top:6px!important;
+        font-size:8.5px!important;
+    }
+
+    /* Single column of compact horizontal cards — the whole point of this
+       redesign is several products visible per scroll, never one huge
+       product per screen. */
+    body.rafflelb-raffle-archive.rl-store-reference .products{
+        display:grid!important;
+        grid-template-columns:1fr!important;
+        gap:12px!important;
+    }
+
+    /* ---- Card shell: badge row / image + text row / full-width actions
+       row. ---- */
+    body.rafflelb-raffle-archive.rl-store-reference .rl-raffle-card{
+        --rl-mcard-img:29%;
+    }
+    body.rafflelb-raffle-archive.rl-store-reference .rl-raffle-card .product-wrapper{
         display:grid!important;
         grid-template-columns:var(--rl-mcard-img) minmax(0,1fr)!important;
         grid-template-rows:auto auto auto auto auto auto!important;
         column-gap:10px!important;
         row-gap:4px!important;
         padding:9px!important;
+        height:auto!important;
         border:1px solid #222a21!important;
         border-radius:13px!important;
         background:linear-gradient(150deg,#10160f,#090d09)!important;
         box-shadow:0 8px 22px rgba(0,0,0,.16)!important;
         overflow:visible!important;
     }
-    body.rafflelb-raffle-archive .rl-raffle-card .product-information,
-    body.rafflelb-raffle-archive .rl-raffle-card .product-element-bottom{
+    body.rafflelb-raffle-archive.rl-store-reference .rl-raffle-card .product-information,
+    body.rafflelb-raffle-archive.rl-store-reference .rl-raffle-card .product-element-bottom{
         display:contents!important;
     }
 
     /* Compact product-type pill, replaces the old full-width "STORE ONLY"
        status note (hidden below) with one small badge that also covers
        Store + Raffle and Raffle Only. */
-    body.rafflelb-raffle-archive .rl-raffle-card:is(.rl-shop-card-both,.rl-shop-card-raffle,.rl-shop-card-retail) .product-wrapper::before{
+    body.rafflelb-raffle-archive.rl-store-reference .rl-raffle-card:is(.rl-shop-card-both,.rl-shop-card-raffle,.rl-shop-card-retail) .product-wrapper::before{
         grid-column:1/-1!important;
         grid-row:1!important;
         justify-self:start!important;
@@ -75,31 +231,32 @@
         text-transform:uppercase!important;
         white-space:nowrap!important;
     }
-    body.rafflelb-raffle-archive .rl-raffle-card.rl-shop-card-both .product-wrapper::before{
+    body.rafflelb-raffle-archive.rl-store-reference .rl-raffle-card.rl-shop-card-both .product-wrapper::before{
         content:"\25CF BUY + RAFFLE";
         border:1px solid rgba(186,255,0,.5)!important;
         background:rgba(186,255,0,.12)!important;
         color:#baff00!important;
     }
-    body.rafflelb-raffle-archive .rl-raffle-card.rl-shop-card-raffle .product-wrapper::before{
+    body.rafflelb-raffle-archive.rl-store-reference .rl-raffle-card.rl-shop-card-raffle .product-wrapper::before{
         content:"\25CF RAFFLE ONLY";
         border:1px solid rgba(56,189,248,.5)!important;
         background:rgba(56,189,248,.10)!important;
         color:#7fd7fb!important;
     }
-    body.rafflelb-raffle-archive .rl-raffle-card.rl-shop-card-retail .product-wrapper::before{
+    body.rafflelb-raffle-archive.rl-store-reference .rl-raffle-card.rl-shop-card-retail .product-wrapper::before{
         content:"\25CF STORE ONLY";
         border:1px solid rgba(178,140,255,.45)!important;
         background:rgba(178,140,255,.10)!important;
         color:#c9b3ff!important;
     }
     /* Superseded by the pill above; avoid showing "STORE ONLY" twice. */
-    body.rafflelb-raffle-archive .rl-raffle-card .rl-shop-store-status{
+    body.rafflelb-raffle-archive.rl-store-reference .rl-raffle-card .rl-shop-store-status{
         display:none!important;
     }
 
-    /* Left media column. */
-    body.rafflelb-raffle-archive .rl-raffle-card .product-element-top{
+    /* Left media column: ~28-32% of the card width, object-fit:contain,
+       never cropped, never forcing the card taller than its content. */
+    body.rafflelb-raffle-archive.rl-store-reference .rl-raffle-card .product-element-top{
         grid-column:1!important;
         grid-row:2/6!important;
         align-self:start!important;
@@ -118,28 +275,31 @@
         align-items:center!important;
         justify-content:center!important;
     }
-    body.rafflelb-raffle-archive .rl-raffle-card .product-element-top>a{
+    body.rafflelb-raffle-archive.rl-store-reference .rl-raffle-card .product-element-top>a{
         display:flex!important;
         width:100%!important;
         height:100%!important;
         align-items:center!important;
         justify-content:center!important;
     }
-    body.rafflelb-raffle-archive .rl-raffle-card .product-element-top img{
+    body.rafflelb-raffle-archive.rl-store-reference .rl-raffle-card .product-element-top img{
         display:block!important;
         width:100%!important;
         height:100%!important;
+        max-height:none!important;
         aspect-ratio:auto!important;
         object-fit:contain!important;
         object-position:center!important;
         transform:none!important;
+        filter:none!important;
     }
 
     /* Right text column. */
-    body.rafflelb-raffle-archive .rl-raffle-card :is(.wd-product-cats,.product-categories){
+    body.rafflelb-raffle-archive.rl-store-reference .rl-raffle-card :is(.wd-product-cats,.product-categories){
         grid-column:2!important;
         grid-row:2!important;
         align-self:end!important;
+        height:auto!important;
         margin:0!important;
         padding:0!important;
         min-height:0!important;
@@ -150,13 +310,15 @@
         letter-spacing:.06em!important;
         text-transform:uppercase!important;
         text-align:left!important;
+        justify-content:flex-start!important;
         color:#96a191!important;
     }
-    body.rafflelb-raffle-archive .rl-raffle-card :is(.wd-entities-title,.product-title,h3){
+    body.rafflelb-raffle-archive.rl-store-reference .rl-raffle-card :is(.wd-entities-title,.product-title,h3){
         grid-column:2!important;
         grid-row:3!important;
         align-self:start!important;
         min-height:0!important;
+        height:auto!important;
         max-height:none!important;
         margin:1px 0 0!important;
         display:-webkit-box!important;
@@ -170,60 +332,99 @@
         text-align:left!important;
         color:#f5f7f3!important;
     }
-    body.rafflelb-raffle-archive .rl-raffle-card :is(.wd-entities-title,.product-title,h3) a{
+    body.rafflelb-raffle-archive.rl-store-reference .rl-raffle-card :is(.wd-entities-title,.product-title,h3) a{
         display:-webkit-box!important;
         -webkit-line-clamp:2!important;
         -webkit-box-orient:vertical!important;
         overflow:hidden!important;
+        height:auto!important;
+        max-height:none!important;
         font-size:13px!important;
         line-height:1.25!important;
         color:#f5f7f3!important;
     }
 
-    /* Retail / raffle price boxes, still side-by-side but narrower. */
-    body.rafflelb-raffle-archive .rl-raffle-card .rl-shop-prices{
+    /* Retail / raffle price boxes — always the real WooCommerce/RaffleLB
+       price from raffle_product_price_html() (see rafflelb-shop.php),
+       never hard-coded. Both boxes stay visible side-by-side for Store +
+       Raffle; a single full-width box for Store Only / Raffle Only. */
+    body.rafflelb-raffle-archive.rl-store-reference .rl-raffle-card .rl-shop-prices{
         grid-column:2!important;
         grid-row:4!important;
         align-self:start!important;
+        display:grid!important;
+        grid-template-columns:1fr 1fr!important;
         margin:4px 0 0!important;
+        padding:0!important;
+        border:0!important;
+        background:none!important;
         gap:6px!important;
     }
-    body.rafflelb-raffle-archive .rl-raffle-card .rl-shop-prices.is-retail-only,
-    body.rafflelb-raffle-archive .rl-raffle-card .rl-shop-prices.is-raffle-only{
+    body.rafflelb-raffle-archive.rl-store-reference .rl-raffle-card .rl-shop-prices.is-retail-only,
+    body.rafflelb-raffle-archive.rl-store-reference .rl-raffle-card .rl-shop-prices.is-raffle-only{
         grid-template-columns:1fr!important;
     }
-    body.rafflelb-raffle-archive .rl-raffle-card .rl-shop-prices>div{
+    body.rafflelb-raffle-archive.rl-store-reference .rl-raffle-card .rl-shop-prices>div{
+        display:flex!important;
+        flex-direction:column!important;
+        align-items:flex-start!important;
+        justify-content:center!important;
         min-width:0!important;
         padding:5px 7px!important;
+        border:1px solid #2a352b!important;
         border-radius:8px!important;
+        background:#0b110d!important;
+        text-align:left!important;
     }
-    body.rafflelb-raffle-archive .rl-raffle-card .rl-shop-prices small{
+    body.rafflelb-raffle-archive.rl-store-reference .rl-raffle-card .rl-shop-prices small{
+        display:block!important;
+        width:auto!important;
         margin:0 0 2px!important;
+        color:#9da79a!important;
         font-size:6.8px!important;
+        font-weight:800!important;
         letter-spacing:.05em!important;
+        text-transform:uppercase!important;
     }
-    body.rafflelb-raffle-archive .rl-raffle-card .rl-shop-prices strong,
-    body.rafflelb-raffle-archive .rl-raffle-card .rl-shop-prices strong *{
+    body.rafflelb-raffle-archive.rl-store-reference .rl-raffle-card .rl-shop-prices strong,
+    body.rafflelb-raffle-archive.rl-store-reference .rl-raffle-card .rl-shop-prices strong *{
+        display:inline!important;
+        width:auto!important;
+        color:#fff!important;
         font-size:13.5px!important;
+        font-weight:900!important;
         letter-spacing:-.02em!important;
     }
-    body.rafflelb-raffle-archive .rl-raffle-card .rl-shop-price-raffle strong,
-    body.rafflelb-raffle-archive .rl-raffle-card .rl-shop-price-raffle strong *{
+    body.rafflelb-raffle-archive.rl-store-reference .rl-raffle-card .rl-shop-price-raffle{
+        border-color:rgba(186,255,0,.25)!important;
+    }
+    body.rafflelb-raffle-archive.rl-store-reference .rl-raffle-card .rl-shop-price-raffle strong,
+    body.rafflelb-raffle-archive.rl-store-reference .rl-raffle-card .rl-shop-price-raffle strong *{
+        color:#baff00!important;
         font-size:12px!important;
     }
-    body.rafflelb-raffle-archive .rl-raffle-card .rl-shop-price-raffle em{
+    body.rafflelb-raffle-archive.rl-store-reference .rl-raffle-card .rl-shop-price-raffle .rl-shop-entry-value{
+        display:inline-flex!important;
+        align-items:baseline!important;
+        gap:3px!important;
+        align-self:flex-start!important;
+        justify-content:flex-start!important;
+    }
+    body.rafflelb-raffle-archive.rl-store-reference .rl-raffle-card .rl-shop-price-raffle em{
+        color:#8f998c!important;
         font-size:6.8px!important;
+        font-style:normal!important;
     }
 
     /* Raffle availability / progress box: the full live-badge + progress
        bar + repeated price makes the mobile archive card too tall, so it
-       is trimmed here to a single "N left" line. The full block (live
-       badge, progress bar, claimed/left) is untouched everywhere else,
+       is trimmed here to a single "N left" line. The underlying data is
+       untouched, and the full block stays exactly as-is everywhere else,
        including the product detail page — this file only ever matches
-       body.rafflelb-raffle-archive. The already-compact "RAFFLE CLOSED /
-       DIRECT SHOPPING VIEW" state (.is-closed) is left as-is; it is one
-       line already. */
-    body.rafflelb-raffle-archive .rl-raffle-card .rl-shop-raffle-box{
+       body.rafflelb-raffle-archive.rl-store-reference. The already-compact
+       "RAFFLE CLOSED / DIRECT SHOPPING VIEW" state (.is-closed) is left
+       as-is; it is one line already. */
+    body.rafflelb-raffle-archive.rl-store-reference .rl-raffle-card .rl-shop-raffle-box{
         grid-column:2!important;
         grid-row:5!important;
         align-self:start!important;
@@ -232,130 +433,69 @@
         border:0!important;
         background:none!important;
     }
-    body.rafflelb-raffle-archive .rl-raffle-card .rl-shop-raffle-box:not(.is-closed) .rl-shop-raffle-live,
-    body.rafflelb-raffle-archive .rl-raffle-card .rl-shop-raffle-box:not(.is-closed) .rl-shop-raffle-line strong,
-    body.rafflelb-raffle-archive .rl-raffle-card .rl-shop-raffle-box:not(.is-closed) .rl-shop-raffle-progress{
+    body.rafflelb-raffle-archive.rl-store-reference .rl-raffle-card .rl-shop-raffle-box:not(.is-closed) .rl-shop-raffle-live,
+    body.rafflelb-raffle-archive.rl-store-reference .rl-raffle-card .rl-shop-raffle-box:not(.is-closed) .rl-shop-raffle-line strong,
+    body.rafflelb-raffle-archive.rl-store-reference .rl-raffle-card .rl-shop-raffle-box:not(.is-closed) .rl-shop-raffle-progress{
         display:none!important;
     }
-    body.rafflelb-raffle-archive .rl-raffle-card .rl-shop-raffle-box .rl-shop-raffle-meta,
-    body.rafflelb-raffle-archive .rl-raffle-card .rl-shop-raffle-box .rl-shop-raffle-meta *{
+    body.rafflelb-raffle-archive.rl-store-reference .rl-raffle-card .rl-shop-raffle-box .rl-shop-raffle-meta,
+    body.rafflelb-raffle-archive.rl-store-reference .rl-raffle-card .rl-shop-raffle-box .rl-shop-raffle-meta *{
         font-size:8px!important;
     }
-    body.rafflelb-raffle-archive .rl-raffle-card .rl-shop-raffle-box.is-closed .rl-shop-raffle-line{
-        font-size:8px!important;
-    }
-    body.rafflelb-raffle-archive .rl-raffle-card .rl-shop-raffle-box.is-closed .rl-shop-raffle-line span,
-    body.rafflelb-raffle-archive .rl-raffle-card .rl-shop-raffle-box.is-closed .rl-shop-raffle-line strong{
+    body.rafflelb-raffle-archive.rl-store-reference .rl-raffle-card .rl-shop-raffle-box.is-closed .rl-shop-raffle-line,
+    body.rafflelb-raffle-archive.rl-store-reference .rl-raffle-card .rl-shop-raffle-box.is-closed .rl-shop-raffle-line span,
+    body.rafflelb-raffle-archive.rl-store-reference .rl-raffle-card .rl-shop-raffle-box.is-closed .rl-shop-raffle-line strong{
         font-size:8px!important;
     }
 
-    /* Buy Now / Enter Raffle: one full-width row under image + text,
-       matching the approved reference direction. */
-    body.rafflelb-raffle-archive .rl-raffle-card .rl-shop-card-actions{
+    /* Buy Now / Enter Raffle: one compact full-width row under image +
+       text, ~50/50 split for Store + Raffle, full width for a single
+       action — matching the approved reference direction. */
+    body.rafflelb-raffle-archive.rl-store-reference .rl-raffle-card .rl-shop-card-actions{
         grid-column:1/-1!important;
         grid-row:6!important;
         display:grid!important;
-        grid-template-columns:1fr auto 1fr!important;
+        grid-template-columns:1fr 1fr!important;
         gap:8px!important;
         align-items:center!important;
         margin:7px 0 0!important;
         padding:0!important;
     }
-    body.rafflelb-raffle-archive .rl-raffle-card .rl-shop-card-actions:is(.rl-shop-actions-retail,.rl-shop-actions-raffle){
+    body.rafflelb-raffle-archive.rl-store-reference .rl-raffle-card .rl-shop-card-actions:is(.rl-shop-actions-retail,.rl-shop-actions-raffle){
         grid-template-columns:1fr!important;
     }
-    body.rafflelb-raffle-archive .rl-raffle-card .rl-shop-card-actions-or{
-        display:block!important;
-        color:#8c9688!important;
-        font-size:8px!important;
-        font-weight:800!important;
-        text-transform:uppercase!important;
+    body.rafflelb-raffle-archive.rl-store-reference .rl-raffle-card .rl-shop-card-actions-or{
+        display:none!important;
     }
-    body.rafflelb-raffle-archive .rl-raffle-card .rl-shop-buy-form{
+    body.rafflelb-raffle-archive.rl-store-reference .rl-raffle-card .rl-shop-buy-form{
         margin:0!important;
         width:100%!important;
     }
-    body.rafflelb-raffle-archive .rl-raffle-card .rl-shop-buy,
-    body.rafflelb-raffle-archive .rl-raffle-card .rl-shop-enter{
+    body.rafflelb-raffle-archive.rl-store-reference .rl-raffle-card .rl-shop-buy,
+    body.rafflelb-raffle-archive.rl-store-reference .rl-raffle-card .rl-shop-enter{
         width:100%!important;
         height:42px!important;
         min-height:42px!important;
-        padding:0 10px!important;
+        padding:0 8px!important;
         font-size:9.5px!important;
     }
-    body.rafflelb-raffle-archive .rl-raffle-card .rl-shop-selection-status{
+    body.rafflelb-raffle-archive.rl-store-reference .rl-raffle-card .rl-shop-selection-status{
         grid-column:1/-1!important;
         margin-top:6px!important;
-    }
-
-    /* Compact Shopping Mode row. */
-    body.rafflelb-raffle-archive .rl-shop-toolbar{
-        min-height:0!important;
-        padding:8px!important;
-        gap:7px!important;
-    }
-    body.rafflelb-raffle-archive .rl-shop-mode-eyebrow{
-        font-size:8px!important;
-        padding:0!important;
-    }
-    body.rafflelb-raffle-archive .rl-shop-view-modes{
-        gap:6px!important;
-    }
-    body.rafflelb-raffle-archive .rl-shop-view-mode{
-        min-height:40px!important;
-        padding:0 6px!important;
-        font-size:10px!important;
-    }
-    body.rafflelb-raffle-archive .rl-shop-filter-toggle,
-    body.rafflelb-raffle-archive .rl-shop-sort .woocommerce-ordering,
-    body.rafflelb-raffle-archive .rl-shop-sort .woocommerce-ordering select{
-        height:40px!important;
-        min-height:40px!important;
-        max-height:40px!important;
-    }
-
-    /* Compact search panel (#rl-store-search): keeps product search and
-       the Search All Store toggle, just takes noticeably less height. */
-    body.rafflelb-raffle-archive .rl-store-search{
-        margin:0 0 12px!important;
-        padding:9px!important;
-    }
-    body.rafflelb-raffle-archive .rl-store-search-head{
-        margin:0 0 6px!important;
-    }
-    body.rafflelb-raffle-archive .rl-store-search-title strong{
-        font-size:8.5px!important;
-    }
-    body.rafflelb-raffle-archive .rl-store-search-title small{
-        display:none!important;
-    }
-    body.rafflelb-raffle-archive .rl-store-search-scope-text{
-        font-size:8px!important;
-    }
-    body.rafflelb-raffle-archive .rl-store-search-shell{
-        min-height:42px!important;
-    }
-    body.rafflelb-raffle-archive .rl-store-search-input{
-        height:42px!important;
-        font-size:12.5px!important;
-    }
-    body.rafflelb-raffle-archive .rl-store-search-all{
-        margin-top:6px!important;
-        font-size:8.5px!important;
     }
 }
 
 @media(max-width:390px){
-    body.rafflelb-raffle-archive .rl-raffle-card :is(.wd-entities-title,.product-title,h3),
-    body.rafflelb-raffle-archive .rl-raffle-card :is(.wd-entities-title,.product-title,h3) a{
+    body.rafflelb-raffle-archive.rl-store-reference .rl-raffle-card :is(.wd-entities-title,.product-title,h3),
+    body.rafflelb-raffle-archive.rl-store-reference .rl-raffle-card :is(.wd-entities-title,.product-title,h3) a{
         font-size:12.5px!important;
     }
-    body.rafflelb-raffle-archive .rl-raffle-card .rl-shop-prices strong,
-    body.rafflelb-raffle-archive .rl-raffle-card .rl-shop-prices strong *{
+    body.rafflelb-raffle-archive.rl-store-reference .rl-raffle-card .rl-shop-prices strong,
+    body.rafflelb-raffle-archive.rl-store-reference .rl-raffle-card .rl-shop-prices strong *{
         font-size:12.5px!important;
     }
-    body.rafflelb-raffle-archive .rl-raffle-card .rl-shop-price-raffle strong,
-    body.rafflelb-raffle-archive .rl-raffle-card .rl-shop-price-raffle strong *{
+    body.rafflelb-raffle-archive.rl-store-reference .rl-raffle-card .rl-shop-price-raffle strong,
+    body.rafflelb-raffle-archive.rl-store-reference .rl-raffle-card .rl-shop-price-raffle strong *{
         font-size:11px!important;
     }
 }

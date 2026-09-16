@@ -2,14 +2,14 @@
 /**
  * Plugin Name: RaffleLB Shop
  * Description: Existing RaffleLB catalog and product presentation with reversible Draw Engine delegation.
- * Version: 0.2.57
+ * Version: 0.2.58
  * Author: RaffleLB
  * Requires PHP: 7.4
  */
 if (!defined('ABSPATH')) { exit; }
 require_once plugin_dir_path(__FILE__) . 'includes/class-rafflelb-store-only-renderer.php';
 final class RaffleLB_Shop {
-    const VERSION = '0.2.57';
+    const VERSION = '0.2.58';
     private static $selection_entry_form_context = false;
     private static $public_banners_rendered = false;
     public static function ready() {
@@ -9977,10 +9977,24 @@ final class RaffleLB_Shop {
         if (!self::shop_query_is_catalog()) return;
         $path = plugin_dir_path(__FILE__) . 'assets/mobile-store-card.css';
         $version = file_exists($path) ? (string) filemtime($path) : self::VERSION;
+        /* v0.2.58 — assets/shop-reference.css is unconditionally enqueued
+           on every Shop/category archive (legacy_callback_18806, proxied
+           from RaffleLB_Draw_Engine) and its selectors always carry the
+           .rl-store-reference body class (legacy_callback_18802) in
+           addition to .rafflelb-raffle-archive, which gives its rules one
+           more class of specificity than a plain
+           "body.rafflelb-raffle-archive ..." selector. Declaring it here
+           as a dependency guarantees this stylesheet always prints AFTER
+           shop-reference.css regardless of hook-priority timing, and every
+           selector in mobile-store-card.css now also carries
+           .rl-store-reference so it matches (never loses on) that same
+           specificity instead of quietly losing the cascade to it. See
+           the v0.2.58 note in shop-reference.css and mobile-store-card.css.
+        */
         wp_enqueue_style(
             'rafflelb-mobile-store-card',
             plugins_url('assets/mobile-store-card.css', __FILE__),
-            [],
+            ['rafflelb-store-reference'],
             $version
         );
     }
