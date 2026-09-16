@@ -2,14 +2,14 @@
 /**
  * Plugin Name: RaffleLB Shop
  * Description: Existing RaffleLB catalog and product presentation with reversible Draw Engine delegation.
- * Version: 0.2.60
+ * Version: 0.2.61
  * Author: RaffleLB
  * Requires PHP: 7.4
  */
 if (!defined('ABSPATH')) { exit; }
 require_once plugin_dir_path(__FILE__) . 'includes/class-rafflelb-store-only-renderer.php';
 final class RaffleLB_Shop {
-    const VERSION = '0.2.60';
+    const VERSION = '0.2.61';
     private static $selection_entry_form_context = false;
     private static $public_banners_rendered = false;
     public static function ready() {
@@ -8003,9 +8003,15 @@ final class RaffleLB_Shop {
     @media(max-width:767px){
         body.rafflelb-raffle-archive .rl-shop-title-row h1{font-size:44px!important}
         body.rafflelb-raffle-archive .rl-shop-title-row p{font-size:15px!important}
-        #rl-shop-controls .rl-shop-view-mode,
-        #rl-shop-controls .rl-shop-toolbar-actions>.rl-shop-filter-toggle:not(.rl-shop-sort-trigger),
-        #rl-shop-controls .rl-shop-sort-trigger{font-size:12px!important}
+        /* v0.2.61 — #rl-shop-controls .rl-shop-view-mode / .rl-shop-toolbar-actions>
+           .rl-shop-filter-toggle / .rl-shop-sort-trigger removed from here: an ID
+           selector (#rl-shop-controls) always outranks any number of classes, so
+           this always beat assets/mobile-store-card.css's mobile toolbar sizing
+           (body.rafflelb-raffle-archive.rl-store-reference .rl-shop-view-mode,
+           0 IDs) no matter what that file did — the authoritative mobile
+           stylesheet could never actually control this. mobile-store-card.css
+           already sets its own mobile size for .rl-shop-view-mode; the desktop
+           #rl-shop-controls typography above this media query is untouched. */
         body.rafflelb-raffle-archive .rl-raffle-card :is(.wd-entities-title,.product-title,h3),
         body.rafflelb-raffle-archive .rl-raffle-card :is(.wd-entities-title,.product-title,h3) a{font-size:16px!important;line-height:1.35!important}
         body.rafflelb-raffle-archive.rl-store-reference .rl-shop-prices:not(.is-dual-price) strong,

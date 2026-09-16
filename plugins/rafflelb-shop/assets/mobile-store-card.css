@@ -1,4 +1,4 @@
-/* RaffleLB Shop 0.2.60 — the ONE authoritative mobile Store stylesheet.
+/* RaffleLB Shop 0.2.61 — the ONE authoritative mobile Store stylesheet.
  *
  * Presentation only. Scoped to body.rafflelb-raffle-archive.rl-store-reference
  * (the Shop and product-category archives — both classes are always present
@@ -81,6 +81,29 @@
  *      checkbox, JS, URL/query handling and desktop appearance are
  *      unchanged) so the compact mobile search field is exactly one row
  *      — icon, input, clear — matching the approved reference.
+ *
+ * v0.2.61 — closes two remaining CSS-ownership gaps (no card redesign,
+ * 0.2.59/0.2.60 geometry and the 0.2.60 search fix are unchanged):
+ *   1. legacy_callback_18334 (rafflelb-shop.php) still had a mobile
+ *      @media(max-width:767px) block sizing #rl-shop-controls
+ *      .rl-shop-view-mode / .rl-shop-toolbar-actions>.rl-shop-filter-toggle
+ *      / .rl-shop-sort-trigger. Those selectors start with an ID
+ *      (#rl-shop-controls), which always outranks any number of classes —
+ *      this file's mobile .rl-shop-view-mode sizing could never actually
+ *      win against it. Removed from legacy_callback_18334 (its unrelated
+ *      desktop typography above that media query is untouched).
+ *   2. legacy_callback_18600's dedicated STORE ONLY desktop geometry
+ *      (body.rl-shop-view-retail, the 43%/57% split with 26/58/54/54px
+ *      fixed rows and 54px price/Buy Now boxes) already lives inside its
+ *      own @media(min-width:768px) block, so it should not reach phones
+ *      through the CSS source itself — but that inline <style> tag isn't
+ *      excluded from WP Rocket's optimization the way this file is, and
+ *      a page-optimizer mangling a media boundary is exactly what caused
+ *      the 0.2.56/0.2.57 regressions. Added .rl-shop-view-retail
+ *      overrides below (higher specificity than the desktop rule) that
+ *      force the same compact geometry Store + Raffle already uses, so
+ *      STORE ONLY can't revert to the tall old layout on a phone even if
+ *      that desktop rule ever leaked through.
  *
  * Card DOM (verified against the real WoodMart loop, not assumed):
  *   .product-wrapper
@@ -588,6 +611,73 @@
     body.rafflelb-raffle-archive.rl-store-reference .rl-raffle-card .rl-shop-selection-status{
         grid-column:1/-1!important;
         margin-top:6px!important;
+    }
+
+    /* v0.2.61 — defensive reinforcement for the dedicated STORE ONLY shop
+       view (?rl_view=retail, body.rl-shop-view-retail). Its desktop-only
+       card geometry (43%/57% split, 26/58/54/54px fixed rows, 54px price
+       and Buy Now boxes) already lives inside legacy_callback_18600's own
+       @media(min-width:768px) block in rafflelb-shop.php, so it should
+       not reach a <=767px viewport at all — but that block sits in a
+       large inline <style> tag that is not (and cannot safely be, given
+       everything else sharing that tag) excluded from WP Rocket's CSS
+       optimization the way this file is. Since a page-optimization step
+       mangling that media boundary is exactly the class of bug that hit
+       0.2.56/0.2.57, these selectors add .rl-shop-view-retail so they
+       match with MORE specificity than that desktop rule even if it ever
+       leaked, and force the same compact geometry the default Store +
+       Raffle view already uses above — never a fixed 247px-tall card, a
+       54px price slot, or a 54px Buy Now on a phone. */
+    body.rafflelb-raffle-archive.rl-store-reference.rl-shop-view-retail .rl-raffle-card .product-wrapper{
+        grid-template-columns:var(--rl-mcard-img) minmax(0,1fr)!important;
+        grid-template-rows:auto auto auto auto auto auto!important;
+        column-gap:10px!important;
+        row-gap:4px!important;
+        align-content:stretch!important;
+        min-height:0!important;
+        height:auto!important;
+        padding:9px!important;
+        border:1px solid #222a21!important;
+        border-radius:13px!important;
+        background:linear-gradient(150deg,#10160f,#090d09)!important;
+        box-shadow:0 8px 22px rgba(0,0,0,.16)!important;
+        overflow:visible!important;
+    }
+    body.rafflelb-raffle-archive.rl-store-reference.rl-shop-view-retail .rl-raffle-card .product-element-top{
+        grid-row:1/7!important;
+        align-self:start!important;
+        width:100%!important;
+        aspect-ratio:1/1!important;
+        height:auto!important;
+        max-height:none!important;
+    }
+    body.rafflelb-raffle-archive.rl-store-reference.rl-shop-view-retail .rl-raffle-card :is(.wd-product-cats,.product-categories){
+        grid-row:2!important;
+    }
+    body.rafflelb-raffle-archive.rl-store-reference.rl-shop-view-retail .rl-raffle-card :is(.wd-entities-title,.product-title,h3){
+        grid-row:3!important;
+    }
+    body.rafflelb-raffle-archive.rl-store-reference.rl-shop-view-retail .rl-raffle-card .rl-shop-prices.is-retail-only{
+        grid-column:2!important;
+        grid-row:4!important;
+        display:grid!important;
+    }
+    body.rafflelb-raffle-archive.rl-store-reference.rl-shop-view-retail .rl-raffle-card .rl-shop-prices.is-retail-only .rl-shop-price-main{
+        height:auto!important;
+        min-height:0!important;
+        display:flex!important;
+        flex-direction:column!important;
+        align-items:flex-start!important;
+        text-align:left!important;
+        padding:5px 7px!important;
+    }
+    body.rafflelb-raffle-archive.rl-store-reference.rl-shop-view-retail .rl-raffle-card .rl-shop-card-actions{
+        grid-column:2!important;
+        grid-row:6!important;
+    }
+    body.rafflelb-raffle-archive.rl-store-reference.rl-shop-view-retail .rl-raffle-card .rl-shop-buy{
+        height:42px!important;
+        min-height:42px!important;
     }
 }
 
