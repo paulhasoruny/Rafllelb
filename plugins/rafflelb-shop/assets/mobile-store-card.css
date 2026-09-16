@@ -1,4 +1,4 @@
-/* RaffleLB Shop 0.2.59 — the ONE authoritative mobile Store stylesheet.
+/* RaffleLB Shop 0.2.60 — the ONE authoritative mobile Store stylesheet.
  *
  * Presentation only. Scoped to body.rafflelb-raffle-archive.rl-store-reference
  * (the Shop and product-category archives — both classes are always present
@@ -60,6 +60,27 @@
  * implementation — card layout, hero, toolbar, search and product grid
  * all live here, once, and nothing else prints competing mobile rules
  * for these selectors.
+ *
+ * v0.2.60 — finishes the mobile control/search layout (card geometry
+ * from v0.2.59 is unchanged):
+ *   1. Mode buttons → Search → Filters/Sort was still wrong because
+ *      .rl-shop-toolbar-actions (Filters + Sort) lives INSIDE
+ *      #rl-shop-controls while #rl-store-search is a separate section
+ *      that store_search_ui()'s own place() script (JS) inserts right
+ *      AFTER the whole toolbar — no CSS order/margin can put a sibling
+ *      of #rl-shop-controls between two of its children. Fixed in
+ *      place() itself (rafflelb-shop.php): on <=767px it now inserts
+ *      #rl-store-search inside #rl-shop-controls, immediately before
+ *      .rl-shop-toolbar-actions; desktop keeps the original placement.
+ *   2. The base .rl-store-search-clear position (right:210px) assumes
+ *      the Search All Store toggle still occupies the space to its
+ *      right — true on desktop, no longer true on mobile now that the
+ *      toggle is hidden there. Given a mobile-only right:6px position
+ *      and the input a matching right padding, below.
+ *   3. Search All Store is now display:none on mobile only (its
+ *      checkbox, JS, URL/query handling and desktop appearance are
+ *      unchanged) so the compact mobile search field is exactly one row
+ *      — icon, input, clear — matching the approved reference.
  *
  * Card DOM (verified against the real WoodMart loop, not assumed):
  *   .product-wrapper
@@ -171,17 +192,16 @@
         max-height:40px!important;
     }
 
-    /* Search panel (#rl-store-search, from store_search_ui()): its own
-       CSS (rafflelb-shop.php) already keeps it position:relative in
-       normal document flow — it was never absolutely/fixed-positioned,
-       so it cannot itself float over a card. The "search overlapping the
-       first product" report matches what the .products 3-column grid
-       regression above would produce: with cards squeezed to roughly a
-       third of the phone width, a full-width search panel sitting right
-       above a cluster of tiny, overflowing cards reads as "on top of" the
-       first product. Restoring .products to a single column (above) is
-       the structural fix; this block only compacts the panel's own
-       height and never repositions it. */
+    /* Search panel (#rl-store-search, from store_search_ui()). On mobile,
+       store_search_ui()'s own place() script now moves this section to
+       inside #rl-shop-controls, immediately before .rl-shop-toolbar-actions
+       (Filters + Sort), instead of after the whole toolbar — see the
+       v0.2.60 note on place() in rafflelb-shop.php. That's what puts
+       Search between the mode buttons and Filters/Sort; desktop keeps its
+       original placement (after the whole toolbar) unchanged. Its own CSS
+       (rafflelb-shop.php) already keeps it position:relative in normal
+       document flow — it was never absolutely/fixed-positioned, so it
+       cannot itself float over a card. */
     body.rafflelb-raffle-archive.rl-store-reference .rl-store-search{
         position:relative!important;
         margin:0 0 12px!important;
@@ -200,11 +220,28 @@
     }
     body.rafflelb-raffle-archive.rl-store-reference .rl-store-search-input{
         height:42px!important;
+        padding-right:40px!important;
         font-size:12.5px!important;
     }
+    /* The base (desktop) clear-button position, right:210px, assumes the
+       Search All Store toggle still occupies space to its right in the
+       same row. On mobile that toggle is hidden entirely (below), so the
+       clear button needs its own mobile position at the far right of the
+       compact field instead of 210px from the edge — otherwise it lands
+       off in empty space rather than next to the typed text. */
+    body.rafflelb-raffle-archive.rl-store-reference .rl-store-search-clear{
+        right:6px!important;
+    }
+    /* Search All Store is visually hidden on mobile only to match the
+       approved reference (one compact search row: icon, input, clear —
+       no second row). Its checkbox, JS, URL/query handling ("respect the
+       selected Shopping Mode unless All Store is checked") and desktop
+       appearance are all untouched — this is display:none, not removed
+       markup, so the underlying toggle still exists and still works if a
+       flow ever needs it (e.g. restored programmatically); it just never
+       renders on a phone. */
     body.rafflelb-raffle-archive.rl-store-reference .rl-store-search-all{
-        margin-top:6px!important;
-        font-size:8.5px!important;
+        display:none!important;
     }
 
     /* Single column of compact horizontal cards — the whole point of this

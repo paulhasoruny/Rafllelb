@@ -2,14 +2,14 @@
 /**
  * Plugin Name: RaffleLB Shop
  * Description: Existing RaffleLB catalog and product presentation with reversible Draw Engine delegation.
- * Version: 0.2.59
+ * Version: 0.2.60
  * Author: RaffleLB
  * Requires PHP: 7.4
  */
 if (!defined('ABSPATH')) { exit; }
 require_once plugin_dir_path(__FILE__) . 'includes/class-rafflelb-store-only-renderer.php';
 final class RaffleLB_Shop {
-    const VERSION = '0.2.59';
+    const VERSION = '0.2.60';
     private static $selection_entry_form_context = false;
     private static $public_banners_rendered = false;
     public static function ready() {
@@ -9618,15 +9618,40 @@ final class RaffleLB_Shop {
             var correctedFrom=root.getAttribute('data-corrected-from')||'';
             var labels={both:'Store & Raffle',retail:'Store Only',raffle:'Raffle Only'};
 
+            /* v0.2.60 — on phones (<=767px) the approved order is Shopping
+               Mode, then Search, then Filters/Sort, but .rl-shop-toolbar-actions
+               (Filters + Sort) lives INSIDE #rl-shop-controls while this
+               search section is a separate sibling — no CSS order/margin
+               trick can put a later sibling between two children of a
+               different element. So on mobile place() moves #rl-store-search
+               INSIDE #rl-shop-controls, immediately before
+               .rl-shop-toolbar-actions, instead of after the whole toolbar.
+               Desktop keeps the original "after the whole toolbar"
+               placement unchanged. */
+            var mobileSearchQuery=window.matchMedia?window.matchMedia('(max-width:767px)'):null;
+            function isMobileSearchLayout(){ return !!(mobileSearchQuery && mobileSearchQuery.matches); }
             function place(){
                 var toolbar=document.getElementById('rl-shop-controls');
-                if(toolbar && toolbar.parentNode){ if(toolbar.nextElementSibling!==root) toolbar.insertAdjacentElement('afterend',root); return true; }
+                if(toolbar && toolbar.parentNode){
+                    if(isMobileSearchLayout()){
+                        var actions=toolbar.querySelector('.rl-shop-toolbar-actions');
+                        if(actions && actions.parentNode){
+                            if(root.parentNode!==actions.parentNode || root.nextElementSibling!==actions){
+                                actions.parentNode.insertBefore(root,actions);
+                            }
+                            return true;
+                        }
+                    }
+                    if(toolbar.nextElementSibling!==root) toolbar.insertAdjacentElement('afterend',root);
+                    return true;
+                }
                 var products=document.querySelector('.products');
                 if(products && products.parentNode){ products.parentNode.insertBefore(root,products); return true; }
                 return false;
             }
             place();
             if(document.body){ new MutationObserver(function(){ if(!document.body.contains(root)) return; place(); }).observe(document.body,{childList:true,subtree:true}); }
+            if(mobileSearchQuery){ if(mobileSearchQuery.addEventListener) mobileSearchQuery.addEventListener('change',place); else if(mobileSearchQuery.addListener) mobileSearchQuery.addListener(place); }
 
             function esc(text){ var d=document.createElement('div'); d.textContent=text==null?'':String(text); return d.innerHTML; }
             function scope(){ return allToggle.checked?'all':'current'; }
