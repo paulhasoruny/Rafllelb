@@ -1,4 +1,4 @@
-/* RaffleLB Shop 0.2.58 — the ONE authoritative mobile Store stylesheet.
+/* RaffleLB Shop 0.2.59 — the ONE authoritative mobile Store stylesheet.
  *
  * Presentation only. Scoped to body.rafflelb-raffle-archive.rl-store-reference
  * (the Shop and product-category archives — both classes are always present
@@ -16,11 +16,7 @@
  * specificity, so — regardless of `!important` — it LOSES the cascade to
  * shop-reference.css's unconditional (all-widths) rules, including its own
  * base .products 3-column grid and .product-wrapper 42%/58% desktop split.
- * That mismatch is the real root cause behind the 0.2.56/0.2.57 reports of
- * "missing prices" and layout breakage: two different grid systems were
- * fighting over the same elements, and the loser's rows/columns didn't
- * exist in the winner's grid, so content landed off-grid or invisible.
- * v0.2.58 fixes this in two parts instead of another blind patch:
+ * v0.2.58 fixed that in two parts:
  *   1. every @media(max-width:...) rule that used to live in
  *      shop-reference.css (the actual, working, previously-tuned mobile
  *      narrowing for .products, .rl-shop-hero, .rl-shop-toolbar, etc.) has
@@ -30,23 +26,57 @@
  *      explicit dependency on the 'rafflelb-store-reference' handle (see
  *      enqueue_mobile_store_card_styles() in rafflelb-shop.php), so it is
  *      always printed after shop-reference.css and always wins ties.
- * This is now the single, authoritative mobile implementation — card
- * layout, hero, toolbar, search and product grid all live here, once.
  *
- * Card DOM (unchanged):
+ * v0.2.59 — TWO further structural bugs found by inspecting the real
+ * rendered DOM instead of assuming it:
+ *   1. .rl-shop-prices (RaffleLB's own price markup, from
+ *      raffle_product_price_html()) is NOT a direct child of
+ *      .product-wrapper. WoodMart's loop template wraps whatever
+ *      get_price_html() returns in its own "<span class=\"price\">", and
+ *      that .price span never became display:contents — only
+ *      .product-information and .product-element-bottom did. So the real
+ *      grid item .product-wrapper was placing was .price, not
+ *      .rl-shop-prices, and grid-column/grid-row on .rl-shop-prices did
+ *      nothing (those properties only affect an element that is itself a
+ *      grid item) — .price fell back to implicit auto-placement, which
+ *      is what actually made the price boxes disappear/misplace on
+ *      mobile. Fixed by grid-placing .price itself; .rl-shop-prices now
+ *      just fills that correctly-placed box (see the .price rule below).
+ *   2. Three older inline callbacks (legacy_callback_18334/18430, plus a
+ *      wp_footer block inside store_search_ui()) still printed the OLD
+ *      vertical/equal-height mobile card system (flex-column
+ *      .product-wrapper/.product-information, fixed-height title/
+ *      category slots, margin-top:auto actions) and an old search-shell
+ *      layout, both conflicting in spirit with the grid card here even
+ *      where this file's higher specificity won the cascade. Neutralized
+ *      surgically in rafflelb-shop.php: the conflicting mobile
+ *      @media blocks were removed (legacy_callback_18430 is now a no-op,
+ *      legacy_callback_18334 keeps only its unrelated desktop typography
+ *      rules), while every function and its RaffleLB_Draw_Engine proxy
+ *      hook stayed in place — the compatibility bridge is untouched, and
+ *      legacy_callback_18600's unrelated desktop+mobile bug fixes (square
+ *      product image, raffle price/suffix overlap fix) are untouched too.
+ * This file is now, genuinely, the single authoritative mobile
+ * implementation — card layout, hero, toolbar, search and product grid
+ * all live here, once, and nothing else prints competing mobile rules
+ * for these selectors.
+ *
+ * Card DOM (verified against the real WoodMart loop, not assumed):
  *   .product-wrapper
- *     .product-element-top    image, printed on before_shop_loop_item_title
- *     .product-information    category, title, price boxes, raffle
- *                              availability box; printed on
- *                              after_shop_loop_item_title
- *     .product-element-bottom Buy Now / Enter Raffle actions, printed on
- *                              after_shop_loop_item
+ *     .product-element-top      image, printed on before_shop_loop_item_title
+ *     .product-information       display:contents; its children (category,
+ *                                 .price > .rl-shop-prices, the raffle
+ *                                 availability box) become real grid items
+ *     .product-element-bottom    display:contents; its child
+ *                                 .rl-shop-card-actions becomes a real grid
+ *                                 item — Buy Now / Enter Raffle
  *
- * .product-information and .product-element-bottom switch to
- * display:contents so their children become direct grid items of
- * .product-wrapper and can be placed independently (image left, text
- * right, one full-width action row underneath) without touching the
- * theme/hook markup. Protected from WP Rocket's CSS optimization in
+ * Badge/image/text geometry: the image starts at row 1 and spans every
+ * row of the information column (badge, category, title, price,
+ * availability, actions) — there is no separate full-width badge row
+ * above the image, and no full-width action row below the whole card;
+ * every row lives inside the same right-hand information column the
+ * image sits beside. Protected from WP Rocket's CSS optimization in
  * rafflelb-shop.php (rocket_exclude_css / rocket_minify_excluded_external_css
  * / rocket_exclude_defer_css / rocket_rucss_safelist), same as
  * assets/single-product.css. */
@@ -96,9 +126,12 @@
         flex:0 0 auto!important;
         margin:0!important;
     }
+    /* The "SHOPPING MODE" pill/eyebrow has no functional purpose — the
+       three mode links below it are already self-explanatory — and the
+       approved reference doesn't have it, so it's removed entirely on
+       mobile rather than just shrunk. */
     body.rafflelb-raffle-archive.rl-store-reference .rl-shop-mode-eyebrow{
-        font-size:8px!important;
-        padding:0!important;
+        display:none!important;
     }
     body.rafflelb-raffle-archive.rl-store-reference .rl-shop-view-modes{
         display:grid!important;
@@ -183,10 +216,17 @@
         gap:12px!important;
     }
 
-    /* ---- Card shell: badge row / image + text row / full-width actions
-       row. ---- */
+    /* ---- Card shell. Six stacked rows in the RIGHT column (badge,
+       category, title, price, availability, actions); the image sits in
+       the LEFT column and spans all of them — matching the approved
+       reference's "IMAGE | BADGE / CATEGORY / TITLE / PRICES / actions"
+       geometry. There is no separate full-width row above the image for
+       the badge, and no full-width action footer below the card: every
+       row lives in the same right-hand information column the image sits
+       beside, so the card never grows taller than that column's own
+       content. ---- */
     body.rafflelb-raffle-archive.rl-store-reference .rl-raffle-card{
-        --rl-mcard-img:29%;
+        --rl-mcard-img:30%;
     }
     body.rafflelb-raffle-archive.rl-store-reference .rl-raffle-card .product-wrapper{
         display:grid!important;
@@ -207,11 +247,12 @@
         display:contents!important;
     }
 
-    /* Compact product-type pill, replaces the old full-width "STORE ONLY"
-       status note (hidden below) with one small badge that also covers
-       Store + Raffle and Raffle Only. */
+    /* Compact product-type pill, in the information column next to the
+       image (not a full-width row above it), replacing the old
+       full-width "STORE ONLY" status note (hidden below) with one small
+       badge that also covers Store + Raffle and Raffle Only. */
     body.rafflelb-raffle-archive.rl-store-reference .rl-raffle-card:is(.rl-shop-card-both,.rl-shop-card-raffle,.rl-shop-card-retail) .product-wrapper::before{
-        grid-column:1/-1!important;
+        grid-column:2!important;
         grid-row:1!important;
         justify-self:start!important;
         align-self:start!important;
@@ -255,10 +296,13 @@
     }
 
     /* Left media column: ~28-32% of the card width, object-fit:contain,
-       never cropped, never forcing the card taller than its content. */
+       never cropped, never forcing the card taller than its content.
+       Spans every row of the information column (badge through actions),
+       starting at row 1 like the approved reference — there is no
+       separate badge row above it. */
     body.rafflelb-raffle-archive.rl-store-reference .rl-raffle-card .product-element-top{
         grid-column:1!important;
-        grid-row:2/6!important;
+        grid-row:1/7!important;
         align-self:start!important;
         width:100%!important;
         height:auto!important;
@@ -347,14 +391,33 @@
     /* Retail / raffle price boxes — always the real WooCommerce/RaffleLB
        price from raffle_product_price_html() (see rafflelb-shop.php),
        never hard-coded. Both boxes stay visible side-by-side for Store +
-       Raffle; a single full-width box for Store Only / Raffle Only. */
-    body.rafflelb-raffle-archive.rl-store-reference .rl-raffle-card .rl-shop-prices{
+       Raffle; a single box for Store Only / Raffle Only.
+       .rl-shop-prices is WooCommerce's price_html output, and WoodMart's
+       loop template wraps that output in its own <span class="price">
+       (woocommerce_template_loop_price()) — .rl-shop-prices is NOT a
+       direct child of .product-wrapper, it is nested one level inside
+       .price, which never became display:contents. Grid-placing
+       .rl-shop-prices directly therefore did nothing (grid-column/
+       grid-row only affect an element that is itself a grid item), and
+       .price — the real, unplaced grid item — fell back to implicit
+       auto-placement, which is what actually made the price boxes
+       disappear/misplace. The fix places .price itself on the grid;
+       .rl-shop-prices then just fills that correctly-placed box. */
+    body.rafflelb-raffle-archive.rl-store-reference .rl-raffle-card .price{
         grid-column:2!important;
         grid-row:4!important;
         align-self:start!important;
+        display:block!important;
+        width:100%!important;
+        min-width:0!important;
+        margin:4px 0 0!important;
+        padding:0!important;
+    }
+    body.rafflelb-raffle-archive.rl-store-reference .rl-raffle-card .rl-shop-prices{
         display:grid!important;
         grid-template-columns:1fr 1fr!important;
-        margin:4px 0 0!important;
+        width:100%!important;
+        margin:0!important;
         padding:0!important;
         border:0!important;
         background:none!important;
@@ -448,14 +511,20 @@
         font-size:8px!important;
     }
 
-    /* Buy Now / Enter Raffle: one compact full-width row under image +
-       text, ~50/50 split for Store + Raffle, full width for a single
-       action — matching the approved reference direction. */
+    /* Buy Now / Enter Raffle: a compact row inside the information column
+       — NOT a full-width footer under the whole card. ~50/50 split for
+       Store + Raffle; a single, still information-column-width button
+       for Store Only / Raffle Only (never "giant full-width"). For
+       logged-out shoppers the same buttons render LOGIN TO BUY / LOGIN
+       TO ENTER / ACCOUNT REQUIRED (see raffle_archive_view_button() —
+       unchanged) at this same compact size, never a taller card. */
     body.rafflelb-raffle-archive.rl-store-reference .rl-raffle-card .rl-shop-card-actions{
-        grid-column:1/-1!important;
+        grid-column:2!important;
         grid-row:6!important;
+        align-self:start!important;
         display:grid!important;
         grid-template-columns:1fr 1fr!important;
+        width:100%!important;
         gap:8px!important;
         align-items:center!important;
         margin:7px 0 0!important;

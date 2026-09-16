@@ -2,14 +2,14 @@
 /**
  * Plugin Name: RaffleLB Shop
  * Description: Existing RaffleLB catalog and product presentation with reversible Draw Engine delegation.
- * Version: 0.2.58
+ * Version: 0.2.59
  * Author: RaffleLB
  * Requires PHP: 7.4
  */
 if (!defined('ABSPATH')) { exit; }
 require_once plugin_dir_path(__FILE__) . 'includes/class-rafflelb-store-only-renderer.php';
 final class RaffleLB_Shop {
-    const VERSION = '0.2.58';
+    const VERSION = '0.2.59';
     private static $selection_entry_form_context = false;
     private static $public_banners_rendered = false;
     public static function ready() {
@@ -7908,83 +7908,15 @@ final class RaffleLB_Shop {
     if (!$is_shop && !$is_cat) return;
     ?>
     <style id="rafflelb-mobile-store-card-alignment-v03370">
-    @media (max-width:767px){
-        body.rafflelb-raffle-archive .products{
-            align-items:stretch!important;
-        }
-        body.rafflelb-raffle-archive .rl-raffle-card{
-            display:flex!important;
-            height:100%!important;
-            min-height:0!important;
-        }
-        body.rafflelb-raffle-archive .rl-raffle-card .product-wrapper{
-            display:flex!important;
-            flex-direction:column!important;
-            width:100%!important;
-            height:100%!important;
-        }
-        body.rafflelb-raffle-archive .rl-raffle-card .product-information{
-            display:flex!important;
-            flex:1 1 auto!important;
-            flex-direction:column!important;
-            height:100%!important;
-            min-height:0!important;
-        }
-
-        /* Two identical text slots keep every element below them aligned. */
-        body.rafflelb-raffle-archive .rl-raffle-card .wd-entities-title,
-        body.rafflelb-raffle-archive .rl-raffle-card .product-title,
-        body.rafflelb-raffle-archive .rl-raffle-card h3{
-            display:-webkit-box!important;
-            width:100%!important;
-            height:42px!important;
-            min-height:42px!important;
-            max-height:42px!important;
-            margin:0 0 8px!important;
-            overflow:hidden!important;
-            -webkit-box-orient:vertical!important;
-            -webkit-line-clamp:2!important;
-            line-clamp:2!important;
-            line-height:1.32!important;
-            text-align:center!important;
-        }
-        body.rafflelb-raffle-archive .rl-raffle-card .wd-entities-title a,
-        body.rafflelb-raffle-archive .rl-raffle-card .product-title a,
-        body.rafflelb-raffle-archive .rl-raffle-card h3 a{
-            display:-webkit-box!important;
-            overflow:hidden!important;
-            -webkit-box-orient:vertical!important;
-            -webkit-line-clamp:2!important;
-            line-clamp:2!important;
-        }
-        body.rafflelb-raffle-archive .rl-raffle-card .wd-product-cats,
-        body.rafflelb-raffle-archive .rl-raffle-card .product-categories{
-            display:flex!important;
-            align-items:center!important;
-            justify-content:center!important;
-            width:100%!important;
-            height:30px!important;
-            min-height:30px!important;
-            max-height:30px!important;
-            margin:0 0 8px!important;
-            overflow:hidden!important;
-            line-height:1.3!important;
-            text-align:center!important;
-        }
-        body.rafflelb-raffle-archive .rl-raffle-card .wd-product-cats a,
-        body.rafflelb-raffle-archive .rl-raffle-card .product-categories a{
-            display:-webkit-box!important;
-            overflow:hidden!important;
-            -webkit-box-orient:vertical!important;
-            -webkit-line-clamp:2!important;
-            line-clamp:2!important;
-        }
-
-        /* Keep the lower action area pinned consistently when card content varies. */
-        body.rafflelb-raffle-archive .rl-raffle-card .rl-shop-card-actions{
-            margin-top:auto!important;
-        }
-    }
+    /* v0.2.59 — the @media(max-width:767px) block that used to live here
+       (a flex-column vertical card: fixed 42px title / 30px category
+       slots, margin-top:auto actions) was the old mobile card system.
+       It's superseded by the horizontal grid card in
+       assets/mobile-store-card.css and removed here rather than left to
+       fight it — see the v0.2.59 note in mobile-store-card.css. This
+       function is kept (including its RaffleLB_Draw_Engine proxy hook)
+       for the desktop-only typography rules below, which are unrelated
+       to card geometry and still apply. */
     /* 0.1.95 — typography/readability only. Geometry and behavior are frozen. */
     body.rafflelb-raffle-archive :is(.rl-shop-hero,#rl-shop-controls,.rl-raffle-card),
     body.rafflelb-raffle-archive :is(.rl-shop-hero,#rl-shop-controls,.rl-raffle-card) *{
@@ -8090,167 +8022,16 @@ final class RaffleLB_Shop {
 }
 
     public static function legacy_callback_18430() {
-    if (!function_exists('is_shop')) return;
-    $is_shop = is_shop();
-    $is_cat  = function_exists('is_product_category') && is_product_category();
-    if (!$is_shop && !$is_cat) return;
-    ?>
-    <style id="rafflelb-mobile-store-card-equal-v03371">
-    @media (max-width:767px){
-        /* Make every grid cell a true equal-height flex item. */
-        body.rafflelb-raffle-archive .products{
-            align-items:stretch!important;
-            grid-auto-rows:auto!important;
-        }
-        body.rafflelb-raffle-archive .products > .product,
-        body.rafflelb-raffle-archive .products > .product-grid-item{
-            display:flex!important;
-            align-self:stretch!important;
-            min-width:0!important;
-            height:auto!important;
-        }
-        body.rafflelb-raffle-archive .rl-raffle-card{
-            display:flex!important;
-            width:100%!important;
-            height:auto!important;
-            min-height:0!important;
-        }
-        body.rafflelb-raffle-archive .rl-raffle-card .product-wrapper{
-            display:flex!important;
-            flex-direction:column!important;
-            width:100%!important;
-            height:100%!important;
-            min-width:0!important;
-            min-height:0!important;
-            overflow:hidden!important;
-            box-sizing:border-box!important;
-        }
-        body.rafflelb-raffle-archive .rl-raffle-card .product-information{
-            display:flex!important;
-            flex:1 1 auto!important;
-            flex-direction:column!important;
-            width:100%!important;
-            height:auto!important;
-            min-width:0!important;
-            min-height:0!important;
-            box-sizing:border-box!important;
-        }
-
-        /* Fixed two-line title slot: one-line and two-line names align. */
-        body.rafflelb-raffle-archive .rl-raffle-card .wd-entities-title,
-        body.rafflelb-raffle-archive .rl-raffle-card .product-title,
-        body.rafflelb-raffle-archive .rl-raffle-card h3{
-            display:flex!important;
-            align-items:center!important;
-            justify-content:center!important;
-            width:100%!important;
-            height:48px!important;
-            min-height:48px!important;
-            max-height:48px!important;
-            margin:0 0 5px!important;
-            padding:0 3px!important;
-            overflow:hidden!important;
-            box-sizing:border-box!important;
-            text-align:center!important;
-        }
-        body.rafflelb-raffle-archive .rl-raffle-card .wd-entities-title a,
-        body.rafflelb-raffle-archive .rl-raffle-card .product-title a,
-        body.rafflelb-raffle-archive .rl-raffle-card h3 a{
-            display:-webkit-box!important;
-            width:100%!important;
-            max-height:44px!important;
-            overflow:hidden!important;
-            -webkit-box-orient:vertical!important;
-            -webkit-line-clamp:2!important;
-            line-clamp:2!important;
-            line-height:1.25!important;
-            text-align:center!important;
-        }
-
-        /* Compact one-line category slot; no large empty vertical band. */
-        body.rafflelb-raffle-archive .rl-raffle-card .wd-product-cats,
-        body.rafflelb-raffle-archive .rl-raffle-card .product-categories{
-            display:flex!important;
-            align-items:center!important;
-            justify-content:center!important;
-            width:100%!important;
-            height:22px!important;
-            min-height:22px!important;
-            max-height:22px!important;
-            margin:0 0 8px!important;
-            padding:0 2px!important;
-            overflow:hidden!important;
-            box-sizing:border-box!important;
-            line-height:1.2!important;
-            white-space:nowrap!important;
-            text-align:center!important;
-        }
-        body.rafflelb-raffle-archive .rl-raffle-card .wd-product-cats a,
-        body.rafflelb-raffle-archive .rl-raffle-card .product-categories a{
-            display:block!important;
-            max-width:100%!important;
-            overflow:hidden!important;
-            text-overflow:ellipsis!important;
-            white-space:nowrap!important;
-            line-height:1.2!important;
-        }
-
-        /* Never let WoodMart auto-margins create a giant gap before price. */
-        body.rafflelb-raffle-archive .rl-raffle-card .price{
-            width:100%!important;
-            margin:0 0 8px!important;
-            padding:0!important;
-            flex:0 0 auto!important;
-            box-sizing:border-box!important;
-        }
-        body.rafflelb-raffle-archive .rl-shop-prices,
-        body.rafflelb-raffle-archive .rl-shop-raffle-box{
-            width:100%!important;
-            min-width:0!important;
-            box-sizing:border-box!important;
-        }
-
-        /* Bottom actions remain inside the rounded card, never wider than it. */
-        body.rafflelb-raffle-archive .rl-shop-card-actions{
-            width:100%!important;
-            min-width:0!important;
-            max-width:100%!important;
-            margin-top:auto!important;
-            padding:0!important;
-            overflow:hidden!important;
-            box-sizing:border-box!important;
-        }
-        body.rafflelb-raffle-archive .rl-shop-buy-form{
-            display:block!important;
-            width:100%!important;
-            min-width:0!important;
-            max-width:100%!important;
-            margin:0!important;
-            padding:0!important;
-            box-sizing:border-box!important;
-        }
-        body.rafflelb-raffle-archive .rl-shop-buy,
-        body.rafflelb-raffle-archive .rl-shop-enter{
-            width:100%!important;
-            min-width:0!important;
-            max-width:100%!important;
-            margin:0!important;
-            box-sizing:border-box!important;
-            overflow:hidden!important;
-        }
-        body.rafflelb-raffle-archive .rl-shop-enter{
-            padding-left:8px!important;
-            padding-right:8px!important;
-        }
-        body.rafflelb-raffle-archive .rl-shop-enter > span{
-            min-width:0!important;
-            overflow:hidden!important;
-            text-overflow:ellipsis!important;
-        }
+        /* v0.2.59 — this entire function used to print only the old
+           "equal-height flex card" mobile geometry (flex-column
+           .product-wrapper/.product-information, fixed title/category
+           slot heights, margin-top:auto actions) for the Shop/category
+           archive. That system is fully superseded by the horizontal
+           grid card in assets/mobile-store-card.css and is now a no-op
+           so it can no longer fight the new implementation. The function
+           (and its RaffleLB_Draw_Engine proxy hook) is kept in place as
+           the compatibility bridge, not removed. */
     }
-    </style>
-    <?php
-}
 
     public static function legacy_callback_18600() {
     if (!function_exists('is_shop')) return;
@@ -9817,7 +9598,17 @@ final class RaffleLB_Shop {
         .rl-store-search-name{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#f4f6f2;font-size:13px;font-weight:800;line-height:1.25}.rl-store-search-sku{display:block;margin-top:3px;color:#5f675d;font-size:9px;font-weight:650}
         .rl-store-search-price{max-width:240px;color:#cbd0c8;font-size:10px;font-weight:800;text-align:right;white-space:nowrap}
         .rl-store-search-correction{display:flex;align-items:center;gap:8px;padding:9px 12px;border-bottom:1px solid rgba(186,255,0,.16);background:rgba(186,255,0,.055);color:#aab2a6;font-size:10px;font-weight:750}.rl-store-search-correction b{color:#baff00;font-weight:900}.rl-store-search-correction s{color:#667063;text-decoration-color:#667063}.rl-store-search-footer{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 12px;border-top:1px solid #1e251d;background:#090d09}.rl-store-search-footer span{color:#6f776d;font-size:10px;font-weight:700}.rl-store-search-view-all{display:inline-flex;align-items:center;justify-content:center;min-height:34px;padding:0 13px;border:1px solid rgba(186,255,0,.34);border-radius:7px;background:rgba(186,255,0,.06);color:#baff00!important;font-size:9px;font-weight:900;letter-spacing:.06em;text-decoration:none!important}.rl-store-search-view-all:hover{background:#baff00;color:#080a07!important}
-        @media(max-width:767px){.rl-store-search{margin-bottom:12px;padding:10px;border-radius:12px}.rl-store-search-head{margin-bottom:8px}.rl-store-search-title small,.rl-store-search-scope-text{display:none}.rl-store-search-shell{display:grid;grid-template-columns:40px minmax(0,1fr) 34px;min-height:52px}.rl-store-search-icon{margin-left:14px;margin-right:8px}.rl-store-search-input{height:50px!important;padding-right:4px!important;font-size:12px!important}.rl-store-search-clear{position:static;right:auto}.rl-store-search-all{grid-column:1/-1;height:40px;justify-content:flex-start;padding:0 13px;border-top:1px solid #1e251d;border-left:0}.rl-store-search-results{left:10px;right:10px}.rl-store-search-item{grid-template-columns:50px minmax(0,1fr);gap:10px}.rl-store-search-thumb{width:50px;height:50px}.rl-store-search-price{grid-column:2;max-width:none;text-align:left;white-space:normal;margin-top:-5px}.rl-store-search-list{max-height:360px}}
+        /* v0.2.59 — the mobile rules that used to live in this query for
+           .rl-store-search / .rl-store-search-head / .rl-store-search-shell
+           / .rl-store-search-icon / .rl-store-search-input /
+           .rl-store-search-clear / .rl-store-search-all are removed: this
+           block is printed in wp_footer, after assets/mobile-store-card.css
+           (which now owns all of that mobile presentation, see its v0.2.58/
+           v0.2.59 notes), so it was a second, later-loading source fighting
+           the first — exactly the "search doesn't match the approved
+           reference" conflict. Only the results-dropdown tweaks that
+           mobile-store-card.css does not cover stay here. */
+        @media(max-width:767px){.rl-store-search-results{left:10px;right:10px}.rl-store-search-item{grid-template-columns:50px minmax(0,1fr);gap:10px}.rl-store-search-thumb{width:50px;height:50px}.rl-store-search-price{grid-column:2;max-width:none;text-align:left;white-space:normal;margin-top:-5px}.rl-store-search-list{max-height:360px}}
         </style>
         <script id="RaffleLBStoreSearch" data-no-optimize="1">
         (function(){
