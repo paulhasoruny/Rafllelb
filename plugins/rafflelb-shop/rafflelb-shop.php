@@ -2,14 +2,14 @@
 /**
  * Plugin Name: RaffleLB Shop
  * Description: Existing RaffleLB catalog and product presentation with reversible Draw Engine delegation.
- * Version: 0.2.62
+ * Version: 0.2.63
  * Author: RaffleLB
  * Requires PHP: 7.4
  */
 if (!defined('ABSPATH')) { exit; }
 require_once plugin_dir_path(__FILE__) . 'includes/class-rafflelb-store-only-renderer.php';
 final class RaffleLB_Shop {
-    const VERSION = '0.2.62';
+    const VERSION = '0.2.63';
     private static $selection_entry_form_context = false;
     private static $public_banners_rendered = false;
     public static function ready() {
@@ -5874,7 +5874,23 @@ final class RaffleLB_Shop {
                 max-width:none!important;
                 gap:8px!important;
             }
-            #rl-shop-controls .rl-shop-filter-toggle{width:100%!important;min-width:0!important}
+            /* v0.2.63 — #rl-shop-controls .rl-shop-filter-toggle{width:100%}
+               removed from here. This block predates assets/mobile-store-card.css
+               switching .rl-shop-toolbar-actions to display:flex (it was written
+               for an earlier display:grid layout, where "100%" meant "fill this
+               ~112px grid cell" — harmless there). In a flex row, width:100% on a
+               flex item is used as its flex-basis, so the real Filters button
+               (a direct flex child of .rl-shop-toolbar-actions) tried to claim
+               100% of the WHOLE row; with flex-shrink:0 (mobile-store-card.css's
+               .rl-shop-filter-toggle{flex:0 0 auto}) it couldn't give any of that
+               back, leaving the Sort control's flex sibling zero width — exactly
+               the "Sort text disappears next to Filters" report. The sort
+               TRIGGER button (built by the script below, further down this same
+               function) also carries this .rl-shop-filter-toggle class for
+               shared chrome, but it is nested deep inside .rl-shop-sort, not a
+               direct flex child of .rl-shop-toolbar-actions, so removing this
+               width here does not affect it — it already gets its own
+               width:100% (of its own parent) from .rl-shop-sort-trigger below. */
             #rl-shop-controls .rl-shop-sort,
             #rl-shop-controls .rl-shop-sort .woocommerce-ordering,
             #rl-shop-controls .rl-shop-sort-custom{

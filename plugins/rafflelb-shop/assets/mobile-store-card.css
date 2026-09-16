@@ -1,4 +1,4 @@
-/* RaffleLB Shop 0.2.62 — the ONE authoritative mobile Store stylesheet.
+/* RaffleLB Shop 0.2.63 — the ONE authoritative mobile Store stylesheet.
  *
  * Presentation only. Scoped to body.rafflelb-raffle-archive.rl-store-reference
  * (the Shop and product-category archives — both classes are always present
@@ -200,7 +200,21 @@
         gap:6px!important;
         margin:0!important;
     }
+    /* v0.2.63 — an older mobile rule at @media(max-width:767px)
+       (body.rafflelb-raffle-archive .rl-shop-view-mode, no
+       .rl-store-reference) sets justify-content:flex-start!important.
+       That selector ties this file's specificity for every OTHER
+       property here, but this file never set justify-content/align-items
+       at all, so that older rule was the only one left standing for
+       exactly those two properties — left-aligning the label inside an
+       otherwise-centered, flex button. Setting them explicitly here
+       (this selector already outranks that older one on every property
+       it does share) is the fix; the button's own display:inline-flex
+       already comes from the shared base rule and is unchanged. */
     body.rafflelb-raffle-archive.rl-store-reference .rl-shop-view-mode{
+        display:flex!important;
+        align-items:center!important;
+        justify-content:center!important;
         width:100%!important;
         min-height:40px!important;
         padding:0 6px!important;
@@ -285,11 +299,23 @@
 
     /* Single column of compact horizontal cards — the whole point of this
        redesign is several products visible per scroll, never one huge
-       product per screen. */
+       product per screen. Explicit height:auto/overflow:visible/no
+       max-height here so a search (or any other AJAX-filtered) result
+       list is never height- or overflow-clipped to fewer cards than it
+       actually contains — the list must always be exactly as tall as
+       its real content, never a fixed or stale height. */
     body.rafflelb-raffle-archive.rl-store-reference .products{
         display:grid!important;
         grid-template-columns:1fr!important;
         gap:12px!important;
+        height:auto!important;
+        max-height:none!important;
+        overflow:visible!important;
+    }
+    body.rafflelb-raffle-archive.rl-store-reference .rl-raffle-card{
+        height:auto!important;
+        max-height:none!important;
+        overflow:visible!important;
     }
 
     /* ---- Card shell. Six stacked rows in the RIGHT column (badge,
@@ -375,16 +401,26 @@
        never cropped, never forcing the card taller than its content.
        Spans every row of the information column (badge through actions),
        starting at row 1 like the approved reference — there is no
-       separate badge row above it. */
+       separate badge row above it.
+       v0.2.63 — was align-self:start + aspect-ratio:1/1, which pinned
+       the image to a fixed square tied only to its own column WIDTH,
+       leaving empty space below it whenever the information column
+       (badge+category+title+prices+actions) was taller than that square
+       — exactly the "image too small, unused space underneath" report.
+       align-self:stretch (with no aspect-ratio) makes this column fill
+       the full height of the rows it spans instead, i.e. exactly the
+       information column's own height; width is unchanged (still the
+       ~30% --rl-mcard-img column), and the <img> below still uses
+       height:100% + object-fit:contain, so it grows into that extra
+       height without ever cropping or distorting. */
     body.rafflelb-raffle-archive.rl-store-reference .rl-raffle-card .product-element-top{
         grid-column:1!important;
         grid-row:1/7!important;
-        align-self:start!important;
+        align-self:stretch!important;
         width:100%!important;
         height:auto!important;
         min-height:0!important;
         max-height:none!important;
-        aspect-ratio:1/1!important;
         margin:0!important;
         padding:0!important;
         border:1px solid #20281f!important;
@@ -555,14 +591,17 @@
         font-style:normal!important;
     }
 
-    /* Raffle availability / progress box: the full live-badge + progress
-       bar + repeated price makes the mobile archive card too tall, so it
-       is trimmed here to a single "N left" line. The underlying data is
-       untouched, and the full block stays exactly as-is everywhere else,
-       including the product detail page — this file only ever matches
-       body.rafflelb-raffle-archive.rl-store-reference. The already-compact
+    /* Raffle availability / progress box. v0.2.62 and earlier hid
+       .rl-shop-raffle-progress here (display:none) to keep the card
+       compact; the brief now wants the bar back, so this only trims the
+       redundant "RAFFLE AVAILABLE" live badge and the repeated price
+       (already shown in the price boxes above) down to the compact
+       claimed/left meta line PLUS a thin progress bar. The underlying
+       claimed/remaining/total data and markup are untouched — this is
+       the exact same .rl-shop-raffle-progress element the product page
+       and desktop use, just restyled thinner here. The already-compact
        "RAFFLE CLOSED / DIRECT SHOPPING VIEW" state (.is-closed) is left
-       as-is; it is one line already. */
+       as-is; it is one line already and never had a bar. */
     body.rafflelb-raffle-archive.rl-store-reference .rl-raffle-card .rl-shop-raffle-box{
         grid-column:2!important;
         grid-row:5!important;
@@ -573,9 +612,12 @@
         background:none!important;
     }
     body.rafflelb-raffle-archive.rl-store-reference .rl-raffle-card .rl-shop-raffle-box:not(.is-closed) .rl-shop-raffle-live,
-    body.rafflelb-raffle-archive.rl-store-reference .rl-raffle-card .rl-shop-raffle-box:not(.is-closed) .rl-shop-raffle-line strong,
-    body.rafflelb-raffle-archive.rl-store-reference .rl-raffle-card .rl-shop-raffle-box:not(.is-closed) .rl-shop-raffle-progress{
+    body.rafflelb-raffle-archive.rl-store-reference .rl-raffle-card .rl-shop-raffle-box:not(.is-closed) .rl-shop-raffle-line strong{
         display:none!important;
+    }
+    body.rafflelb-raffle-archive.rl-store-reference .rl-raffle-card .rl-shop-raffle-box:not(.is-closed) .rl-shop-raffle-progress{
+        height:5px!important;
+        margin:3px 0!important;
     }
     body.rafflelb-raffle-archive.rl-store-reference .rl-raffle-card .rl-shop-raffle-box .rl-shop-raffle-meta,
     body.rafflelb-raffle-archive.rl-store-reference .rl-raffle-card .rl-shop-raffle-box .rl-shop-raffle-meta *{
@@ -661,9 +703,8 @@
     }
     body.rafflelb-raffle-archive.rl-store-reference.rl-shop-view-retail .rl-raffle-card .product-element-top{
         grid-row:1/7!important;
-        align-self:start!important;
+        align-self:stretch!important;
         width:100%!important;
-        aspect-ratio:1/1!important;
         height:auto!important;
         max-height:none!important;
     }
