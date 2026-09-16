@@ -1,3 +1,143 @@
+## 0.2.56
+- Redesigns the mobile (phone-width) `/shop/` and category archive product cards as compact single-column horizontal cards: image on the left, product-type badge/category/name/price on the right, one full-width Buy Now / Enter Raffle row underneath.
+- Adds a small "BUY + RAFFLE" / "STORE ONLY" / "RAFFLE ONLY" pill per card, replacing the old full-width "STORE ONLY" status note on mobile only.
+- Compacts the mobile Shopping Mode row, search area, and Filters/Sort row so the toolbar takes noticeably less vertical space.
+- No heart/favorite/wishlist icon is added; the existing wishlist-hiding rule is preserved.
+- Presentation only, mobile-only (max-width:767px), Shop/category archive only. Desktop layout, the single product page, Store/Raffle/Both mode logic, search, filters, sort, brands, cart, checkout, Selection, reservations, points, referral, and SEO are all unchanged.
+
+## 0.2.52
+- Restores the Filters discovery hint to its original dismissible behavior while removing persistent browser memory. The hint hides when Filters is opened or after 12 seconds, but it appears again on every new Shop visit or refresh.
+- Treats a browser Back/Forward cache return to the Shop as a new visit so the hint can reappear without using localStorage.
+- No Store, raffle, category, brand, price, checkout, reservation, points, or Selection logic changed.
+
+## 0.2.41
+- Stabilizes the Filters discovery hint by anchoring it in document space instead of continuously recalculating its fixed position while the page scrolls. The hint now scrolls naturally with the Filters button without visible jumping.
+- Replaces the simple down-arrow badge with a cleaner animated Filters/sliders icon while keeping the pointer aimed at the real Filters control.
+- Keeps viewport clamping and responsive behavior for narrow screens, and only recalculates on resize/orientation changes.
+- No Store, raffle, category, brand, price, checkout, reservation, points, or Selection logic changed.
+
+## 0.2.40
+- Fixes the one-time Filters discovery hint positioning on mobile so the pill is clamped fully inside the viewport instead of being cut off at the left edge.
+- Repositions the hint using its measured width/height and keeps the pointer aimed at the real Filters button on desktop and mobile.
+- Uses a shorter mobile label while retaining the full desktop message, plus safer resize/orientation handling.
+- No Store, raffle, category, brand, price, checkout, reservation, points, or Selection logic changed.
+
+## 0.2.33
+- Fixes the Brands filter disappearing when WoodMart maintains separate desktop/mobile or logged-in filter DOM copies. Brands now mount in every active category filter area instead of only the first matching DOM node.
+- Brand discovery now reads persisted product/category/brand relationships directly and avoids session-sensitive WooCommerce visibility checks.
+- Uses a fresh brand-cache generation and a no-cache AJAX fallback so newly assigned brands appear consistently for logged-in and logged-out shoppers.
+
+# RaffleLB Shop 0.2.30
+- Finalizes the dynamic Brands filter for Store category archives. Brands remain hidden on the main Shop until a category is selected.
+- After category selection, the filter shows only brands represented by visible products in that category and the active Shopping Mode (STORE & RAFFLE / STORE ONLY / RAFFLE ONLY).
+- Uses the detected product brand taxonomy and a RaffleLB-owned `rl_brand` catalogue query, so filtering is independent of WoodMart/WooCommerce layered-navigation URL formats.
+- Adds **All Brands**, resets stale/incompatible brand choices automatically after category/mode changes, and keeps the filter responsive with horizontal scrolling on mobile.
+- Preserves existing category, subcategory, price, sort, Store/Raffle mode, checkout, reservation, points, referral, and Selection logic.
+
+# RaffleLB Shop 0.2.28
+- Rebalances desktop Store + Raffle cards to a 38.5/61.5 image-to-information split while retaining a large, centered product image.
+- Gives the dual-price row a clearly differentiated 38/62 Retail-to-Raffle split, with equal box geometry and aligned labels and values.
+- Keeps large Retail values such as `1,450.00 $` intact and Raffle values such as `15.00 $ / entry` on one comfortable baseline without shrinking the dominant entry amount.
+- Adds explicit presentation classes for combined products and their dual-price row so Store Only, Raffle Only, tablet, and mobile layouts keep their dedicated behavior.
+- Reconciles the remaining generic inline and asset rules so the responsive dual-price implementation has one authoritative source.
+- Presentation-only change; retail/entry values, WooCommerce pricing, schema/SEO, checkout, reservations, Selection, points, referral, and product-card behavior are unchanged.
+
+# RaffleLB Shop 0.2.25
+- Replaces the accumulated 0.2.21–0.2.24 Store + Raffle pricing overrides with one responsive dual-price component.
+- Keeps Retail Price slightly narrower while guaranteeing room for large values such as `1,450.00 $`; Raffle Entry receives the wider column and keeps values such as `15.00 $ / entry` on one baseline.
+- Normalizes label alignment, box height, radius, padding, currency containment, and narrow-screen type scaling without stacking the boxes.
+- Presentation-only change; retail/entry values, WooCommerce pricing, schema/SEO, checkout, reservations, Selection, points, referral, and product-card behavior are unchanged.
+
+# RaffleLB Shop 0.2.20
+- Fixes Merchant shipping/return schema for RaffleLB physical Store + Raffle products that WooCommerce marks virtual for entry-flow behaviour.
+- The WooCommerce virtual flag no longer suppresses Lebanon shipping and 7-day return schema for physical RaffleLB prizes.
+- Downloadable products and voucher/gift-card category products remain excluded from physical shipping/return schema.
+- Adds Google Merchant shipping details to physical direct-purchase offers: Lebanon (`LB`), USD 4.50 delivery, and a typical 1–3 day delivery window.
+- Adds a 7-day finite merchant return window to physical direct-purchase offers, matching RaffleLB's published Shipping & Returns policy.
+- Existing `shippingDetails` or `hasMerchantReturnPolicy` schema from another integration is preserved and never overwritten.
+- Virtual/downloadable items are intentionally excluded because vouchers/digital codes can have different fulfilment and return rules.
+- Keeps the 0.2.18 automatic product meta-description generation and the 0.2.17 retail-price schema correction.
+- No checkout, Selection, payment, reservation, points, referral, order, or pricing calculations are changed.
+
+- Adds automatic, mode-aware product meta-description generation through The SEO Framework when a product has no manually saved SEO description.
+- **Store + Raffle:** generated description promotes both direct purchase and the live Selection without using internal Draw wording.
+- **Raffle Only:** generated description mentions only the Selection route.
+- **Store Only:** generated description mentions only direct purchase.
+- Manual per-product The SEO Framework descriptions remain untouched and take priority.
+- Product titles remain under The SEO Framework's normal branded title generation because it is already producing clean `Product Name - RaffleLB` titles.
+- No cart, checkout, pricing, payment, reservation, points, referral, or Selection transactional logic is changed.
+
+# RaffleLB Shop 0.2.17
+- Corrects WooCommerce Product/Merchant structured data for Google without changing checkout, Selection, pricing, reservations, orders, or payment logic.
+- **Store + Raffle:** schema now exports the configured Buy Now/retail price instead of the Selection entry price.
+- **Raffle Only:** remains indexable as a normal web page but is removed from WooCommerce Product/Merchant rich-result output, so an entry fee cannot be advertised as the prize's selling price.
+- **Store Only:** native WooCommerce schema remains unchanged.
+- Existing seller, availability, shipping/return fields and other schema additions are preserved when a retail Offer is present.
+
+# RaffleLB Shop 0.2.16
+- Fixed **View All Results** so it always opens the Store with the active search term applied instead of falling back to the full catalogue.
+- The View All link now bypasses WoodMart archive AJAX interception and performs a full filtered navigation.
+- Added a late WooCommerce product-query safety pass so `rl_search` remains authoritative even if the theme rebuilds the catalogue query.
+- Existing instant search, typo correction, Store-mode scope, banners and transactional logic are unchanged.
+
+# RaffleLB Shop 0.2.15
+- Store search now auto-corrects high-confidence customer misspellings using a catalogue-derived spelling lexicon.
+- Example: `airfrier` can automatically become `Air Fryer` and search the correct products.
+- Corrections learn from product titles, categories and brands, with conservative fuzzy matching to avoid changing valid searches.
+- Instant results visibly show the correction, and View All uses the corrected search term.
+- Existing Store mode filtering, banners and search features are preserved.
+
+# RaffleLB Shop 0.2.14
+- Added a dedicated RaffleLB Store search directly below the Shopping Mode controls.
+- Instant search matches product names, parent/variation SKUs, product categories, and registered product brand taxonomies.
+- Search respects STORE & RAFFLE / STORE ONLY / RAFFLE ONLY by default, with a separate SEARCH ALL STORE toggle.
+- Results show product image, product type, category, price context and SKU, plus a View All Results route that filters the Store page.
+- Search is read-only and does not alter cart, reservation, checkout, entry, capacity, payment or Selection logic.
+
+# RaffleLB Shop 0.2.13
+- Added independent per-banner controls for font size (10–24 px), font weight, banner height (38–64 px), and moving speed (5–60 seconds).
+- Moving speed is now honored on desktop and mobile; lower seconds means a faster ticker.
+- Existing banner settings remain backward compatible and automatically receive sensible defaults.
+
+- Redesigned public promotion banners as a premium full-width announcement strip directly below the site header.
+- Animated mode now uses a real right-to-left ticker path and no longer duplicates short messages side-by-side.
+- Removed the reduced-motion override for this explicit admin-selected moving mode, which could previously make Animated appear static.
+- Hovering a moving banner pauses it for readability; it resumes when the pointer leaves.
+
+## 0.2.8
+- Fixed Store Banners admin routing and placed it inside the active RaffleLB / Raffle Manager admin menu. Use WordPress admin.php?page=rafflelb-shop-banners.
+
+# RaffleLB Shop 0.2.6
+
+- Store & Raffle and Raffle Only archive media now use the same full black image well as Store Only.
+- Added independent Store & Raffle, Store Only, and Raffle Only promotion/update banners. Each can be enabled separately and set to animated/moving or static.
+
+# RaffleLB Shop 0.2.5 — Raffle Only customer sorting
+
+- In the dedicated RAFFLE ONLY shop mode, every visible raffle card now shows **View Selection Status** directly beneath its primary Enter Raffle / Raffle Details action.
+- The link uses the Selection Engine adapter when available and falls back to the existing `/selection/{product-slug}/` route.
+- The status link is public/read-only and does not change entry, cart, checkout, or Selection logic.
+
+# RaffleLB Shop 0.2.2 — embedded open-state availability
+
+- Suppresses WooCommerce's visible stock-availability text only while the Selection-page native entry form is rendering.
+- Exposes the existing temporary render context through a read-only helper so Selection can omit its redundant product-page status link.
+- Adds the explicit `RAFFLE OPEN` state badge to the embedded panel without modifying WooCommerce stock data or transactional hooks.
+
+# RaffleLB Shop 0.2.1 — scoped embedded entry presentation
+
+- Wraps the Selection-page native WooCommerce form render in a temporary Shop context flag.
+- Suppresses only the product-page `SELECT NUMBER OF ENTRIES` label and `.rl-entry-trust` row while that embedded form renders; all WooCommerce and Draw Engine transactional hooks remain active.
+- Simplifies the embedded panel to its title, entry price, native quantity input, and native Enter Raffle button.
+- Updates visible Shop wording from `Verified draw`, `draw process`, and `draw terms` to equivalent Selection terminology without renaming internal identifiers or APIs.
+
+# RaffleLB Shop 0.2.0 — shared Selection entry form and raffle-state badge
+
+- Adds a narrow `RaffleLB_Shop::selection_entry_form()` extension point for the Selection Engine. It renders WooCommerce's native single-product add-to-cart form, preserving Draw Engine quantity limits, capacity validation, cart metadata, reservations, checkout, and paid-entry generation.
+- Reuses Shop's existing account policy and login URL for guests; it creates no alternate entry endpoint or direct table write.
+- Makes the raffle product header state-aware: open raffles retain the normal availability badge, locked raffles show `RAFFLE CLOSED`, and recorded winners show `SELECTION COMPLETE`.
+- Does not alter WooCommerce stock quantities or stock-management settings. Direct-purchase availability remains in the Buy Direct panel.
+
 # RaffleLB Shop 0.1.94 — Store Only default-view status row text
 
 0.1.94 changes only the two labels in the default ALL PRODUCTS view's Store
@@ -306,3 +446,25 @@ Desktop-only refinement: toolbar grouping/dividers, contained raffle-entry prici
 - The product layout bootstrap now treats `.rl-raffle-option-card` as optional while still requiring the native gallery, WooCommerce summary and Product Details panel. Winner-selected and ready-to-draw states therefore keep the same desktop/mobile product composition as live raffles.
 - Adds a scoped gallery containment fallback so an unmounted closed/completed state cannot expand the native product image/placeholder across the full product area.
 - No Draw Engine, winner, order, reservation, capacity, checkout, schema or database logic is changed.
+
+
+## 0.2.5
+- Moves raffle-discovery sorting to the public Store where shoppers need it.
+- RAFFLE ONLY sort choices now include **Closest to full**, **Newest raffles**, and entry-price ordering.
+- **Closest to full** uses confirmed active raffle entries and configured capacity; it does not change raffle state or Selection logic.
+
+- v0.2.8: Store Banners now detects and attaches to the actual visible RaffleLB Operations top-level menu regardless of its internal WordPress slug.
+## 0.2.23
+- Rebalanced the dual price cards on desktop: Retail Price is slightly narrower and Raffle Entry is wider.
+- Kept the full Retail Price label and large retail amounts readable.
+- Kept raffle amount, currency, and `/ entry` on one baseline inside the Raffle Entry border.
+- Presentation-only change; no pricing, checkout, raffle/Selection, or purchase logic changed.
+
+## 0.2.24
+- Slightly increased and brightened the `/ entry` unit label in Store + Raffle price cards for clearer readability.
+- Presentation-only change; no pricing, checkout, raffle/Selection, reservation, points, referral, or order logic changed.
+
+
+## 0.2.49 — Centered price boxes
+- Centers Retail Price and Raffle Entry labels/values inside their bordered price cards across Store & Raffle, Store Only, and Raffle Only modes on desktop and mobile.
+- Keeps the compact raffle price + `/ entry` grouping unchanged; this is presentation-only.
