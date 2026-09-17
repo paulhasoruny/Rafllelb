@@ -84,6 +84,46 @@ assets/css/rafflelb-homepage-v2.css   Isolated stylesheet (dark background, whit
 
 ## Changelog
 
+### 0.1.2 — visual recreation of the approved Home V2 preview
+This pass rebuilt composition, spacing, and density to match a
+client-approved preview image directly (not a fresh layout). Structural
+changes, isolated to this plugin only:
+
+- **Hero** now uses the real `rafflelb-homepage/assets/hero-reference-scene.webp`
+  artwork — a read-only reference to that plugin's already-public static
+  asset (`RLHV2_Data::hero_scene_url()`, guarded by `file_exists()`), not a
+  new composite. It's the same rocky-pedestal / lime-halo product
+  photography the approved preview is built around. Falls back to the
+  0.1.1 product-collage layout if that file/plugin is unavailable. Added
+  the mini benefit row (Premium Brands / RaffleLB Points / Featured
+  Selections / Trusted by Thousands) and an italic decorative tagline
+  overlay ("Premium Products Bigger Possibilities").
+- **Shop by Category** now prefers the six named flagship categories
+  (Perfumes, Electronics, Cosmetics, Experiences, Vouchers & Gift Cards,
+  Home Appliances) in that order when the store has them, still filling
+  remaining slots from real top-level categories otherwise — never
+  fabricated categories.
+- **RaffleLB Points** rebuilt as a 3-column banner (copy / Shop→Refer→Earn→
+  Redeem step flow / art) using the real `rafflelb-referral-points`
+  ticket/"R" mark (`RLHV2_Data::points_icon_url()`, same read-only asset
+  reference pattern as the hero) for the art column — no invented coin
+  illustration.
+- **Featured Products** fixed: image area is now a fixed-height box (was
+  `aspect-ratio`, which let unusually tall/narrow product photos blow out
+  the card height) and the "Selection available" line now always reserves
+  its row height, so Buy Now buttons align across every card regardless of
+  title length or Selection status.
+- **Verified Results** now pairs the one real number (published results
+  count) with two static, non-numeric trust statements — deliberately
+  omits invented counts like "10,000+ happy customers" that have no
+  safely-reusable, read-only data source on this store.
+- Added a 768px tablet tier (3-column trust strip/products/stats, single-
+  row How Selections Work) so the tablet breakpoint reads as designed
+  rather than a stretched phone layout; desktop is capped and centered
+  above ~1700px so very wide screens don't stretch awkwardly.
+- Card/section CSS rewritten throughout for tighter vertical rhythm,
+  matching the preview's denser composition (previous pass was airier).
+
 ### 0.1.1
 - Fixed Featured Products showing the raffle entry price instead of the
   real retail price (see `RLHV2_Data::retail_price()` above).

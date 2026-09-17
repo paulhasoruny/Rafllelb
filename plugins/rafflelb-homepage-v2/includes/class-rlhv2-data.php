@@ -20,9 +20,44 @@ final class RLHV2_Data {
     }
 
     /**
+     * The live RaffleLB brand's own hero product-composition artwork,
+     * already bundled inside rafflelb-homepage/assets/hero-reference-scene.webp
+     * (referenced there via plugins_url(), never modified here). This is a
+     * read-only reference to that plugin's already-public static asset — the
+     * exact rocky-pedestal / lime-halo / product-collage scene the approved
+     * Home V2 preview is built around — so Home V2 can match the preview
+     * without compositing a new graphic from arbitrary product photos.
+     * Returns '' and lets the caller fall back to hero_items() if that
+     * plugin is inactive or the file is missing.
+     */
+    public static function hero_scene_url() {
+        $path = WP_PLUGIN_DIR . '/rafflelb-homepage/assets/hero-reference-scene.webp';
+        if (!file_exists($path)) {
+            return '';
+        }
+        return plugins_url('rafflelb-homepage/assets/hero-reference-scene.webp', WP_PLUGIN_DIR . '/index.php');
+    }
+
+    /**
+     * The RaffleLB brand ticket/"R" mark bundled with rafflelb-referral-points
+     * (assets/rafflelb-ticket-icon.webp), the same icon that plugin already
+     * uses for the header points pill. Read-only reference, used as the
+     * Points section's decorative artwork per "reuse existing RaffleLB
+     * logo/points assets only" — no coin illustration is invented.
+     */
+    public static function points_icon_url() {
+        $path = WP_PLUGIN_DIR . '/rafflelb-referral-points/assets/rafflelb-ticket-icon.webp';
+        if (!file_exists($path)) {
+            return '';
+        }
+        return plugins_url('rafflelb-referral-points/assets/rafflelb-ticket-icon.webp', WP_PLUGIN_DIR . '/index.php');
+    }
+
+    /**
      * Curated hero products: reuses the same editorial signal the live
      * homepage relies on (WooCommerce product tag "homepage-hero" plus the
-     * shared RaffleLB\Core\Contracts hero-image meta key), read-only.
+     * shared RaffleLB\Core\Contracts hero-image meta key), read-only. Used
+     * only as a fallback when hero_scene_url() is unavailable.
      */
     public static function hero_items($limit = 3) {
         if (!self::woocommerce_available()) {
@@ -259,11 +294,38 @@ final class RLHV2_Data {
             return [];
         }
 
-        $categories = [];
+        // The approved preview leads with RaffleLB's six flagship top-level
+        // categories in this order. Where the store actually has a category
+        // by that name, show the real one (real thumbnail, real product
+        // count, real URL) in that position; any store that doesn't have
+        // exactly this taxonomy still fills every slot from its own
+        // top-level categories, in their configured order.
+        $preferred = ['perfumes', 'electronics', 'cosmetics', 'experiences', 'vouchers & gift cards', 'home appliances'];
+
+        $by_name = [];
+        $rest = [];
         foreach ($terms as $term) {
             if (strtolower($term->name) === 'uncategorized') {
                 continue;
             }
+            $key = strtolower(html_entity_decode($term->name, ENT_QUOTES, get_bloginfo('charset')));
+            if (in_array($key, $preferred, true) && !isset($by_name[$key])) {
+                $by_name[$key] = $term;
+            } else {
+                $rest[] = $term;
+            }
+        }
+
+        $ordered = [];
+        foreach ($preferred as $key) {
+            if (isset($by_name[$key])) {
+                $ordered[] = $by_name[$key];
+            }
+        }
+        $ordered = array_merge($ordered, $rest);
+
+        $categories = [];
+        foreach ($ordered as $term) {
             $thumb_id = get_term_meta($term->term_id, 'thumbnail_id', true);
             $categories[] = [
                 'name'  => html_entity_decode($term->name, ENT_QUOTES, get_bloginfo('charset')),
@@ -338,6 +400,19 @@ final class RLHV2_Data {
     }
 
     /**
+     * Non-numeric trust statements only (no invented counts like "10,000+
+     * happy customers" — there is no safely-reusable, read-only source for
+     * that on this store). Paired in the template with the one real number
+     * above (verified_results_count()).
+     */
+    public static function verified_results_badges() {
+        return [
+            ['label' => 'Transparent & Verifiable', 'sub' => 'Every result is recorded and published.'],
+            ['label' => 'Fair Selection Process',    'sub' => 'The same rules apply to every entry.'],
+        ];
+    }
+
+    /**
      * Customer reviews: the real rafflelb_review CPT that Draw Engine
      * registers and renders via [rafflelb_community_sections]. Read-only.
      */
@@ -358,9 +433,10 @@ final class RLHV2_Data {
         foreach ($posts as $post) {
             $rating = (int) get_post_meta($post->ID, '_rafflelb_review_rating', true);
             $reviews[] = [
-                'author' => get_the_title($post) ?: __('RaffleLB Customer', 'rafflelb-homepage-v2'),
-                'rating' => max(1, min(5, $rating ?: 5)),
-                'text'   => wp_strip_all_tags($post->post_content),
+                'author'   => get_the_title($post) ?: __('RaffleLB Customer', 'rafflelb-homepage-v2'),
+                'rating'   => max(1, min(5, $rating ?: 5)),
+                'text'     => wp_strip_all_tags($post->post_content),
+                'verified' => get_post_meta($post->ID, '_rafflelb_review_verified', true) ? true : false,
             ];
         }
 
