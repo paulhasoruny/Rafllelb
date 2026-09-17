@@ -82,7 +82,7 @@ includes/class-rlhv2-render.php       Markup for each section
 assets/css/rafflelb-homepage-v2.css   Isolated stylesheet (dark background, white text, #baff00 lime accent)
 ```
 
-## Remaining differences from the approved preview (as of 0.1.3)
+## Remaining differences from the approved preview / blueprint (as of 0.1.4)
 
 - **Points art**: the preview shows a large stacked-coin illustration; Home
   V2 uses the real `rafflelb-referral-points` ticket/"R" mark instead (no
@@ -99,16 +99,53 @@ assets/css/rafflelb-homepage-v2.css   Isolated stylesheet (dark background, whit
   pixel-identical to the preview's exact product mix (which also includes a
   PS5 and a laptop) — it's the closest existing real asset, not a new
   composite.
-- **Featured Products card count**: the preview's row shows 6 cards; the
-  0.1.3 bento layout shows 7 (1 lead + 6 rail) to fill the asymmetric grid
-  without empty cells — a deliberate compositional choice, not a data
-  change.
+- **Featured Selections card orientation**: horizontal (image left, content
+  right) on mobile/tablet for compactness, switching to vertical
+  (image on top) at the 4-across desktop row so all four read as one
+  consistent card language with Products/Categories — the blueprint didn't
+  specify an orientation, only "same height... compact," which both
+  layouts satisfy.
 
-Everything else (copy, section order, the six named categories, Selection
-wording, empty-state honesty) matches the preview as closely as the real
-data allows.
+Everything else — card counts (6 Products / 6 Categories / 4 Selections,
+all uniform, no lead/bento tiles), copy, section order, the six named
+categories, Selection wording, single-banner Points, borderless
+How-Selections-Work flow, and empty-state honesty — matches the blueprint
+and the preview as closely as the real data allows.
 
 ## Changelog
+
+### 0.1.4 — revert to a uniform-grid layout blueprint
+0.1.3's bento/asymmetric composition (lead tiles in Products/Selections,
+2-large+4-small Categories) was replaced on client direction with a single
+consistent uniform-grid system, following an exact layout blueprint. As
+with 0.1.3, **`class-rlhv2-data.php` was not touched** (verified with
+`git diff` — zero changes); only `class-rlhv2-render.php` and
+`assets/css/rafflelb-homepage-v2.css` changed.
+
+- **Featured Products**: back to 6 equal cards (`featured_products(6)`,
+  was `(7)`), single row of 6 at ≥1180px, 3×2 at tablet, 2×3 on mobile. No
+  lead tile.
+- **Shop by Category**: back to 6 equal tiles, single row of 6 at
+  ≥1180px, 3×2 at tablet. No large/small distinction.
+- **Featured Selections**: back to 4 equal compact cards
+  (`featured_selections(4)`, call unchanged), single row of 4 at ≥960px.
+  Each card now also shows an explicit "View Selection" link (the
+  blueprint lists it as a required field on every card, not just a lead
+  tile). No lead tile.
+- **RaffleLB Points** and **How Selections Work**: unchanged from 0.1.3 —
+  both already matched this blueprint (single banner with no card grid
+  inside; borderless connected-line flow).
+- Introduced two global tokens, `--rl-hv2-radius` (14px) and
+  `--rl-hv2-space` (64px), and applied them to every card/section so the
+  whole page now shares exactly one card radius and one spacing scale, per
+  the blueprint's global rules. Section heading scale pulled back slightly
+  (was up to 44px, now up to 38px) to read as "balanced" rather than
+  oversized.
+
+Verified again with the same local Playwright-against-real-templates
+harness, at all six required widths, confirming a single row of 6/6/4 at
+large desktop, 3×2/3×2 at tablet, and 2-column grids on mobile, with no
+overflow.
 
 ### 0.1.3 — presentation-layer redesign (premium ecommerce art direction)
 0.1.2 matched the preview's *content* closely but still read as a repeated
