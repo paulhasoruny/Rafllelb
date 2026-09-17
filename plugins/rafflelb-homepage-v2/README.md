@@ -82,7 +82,78 @@ includes/class-rlhv2-render.php       Markup for each section
 assets/css/rafflelb-homepage-v2.css   Isolated stylesheet (dark background, white text, #baff00 lime accent)
 ```
 
+## Remaining differences from the approved preview (as of 0.1.3)
+
+- **Points art**: the preview shows a large stacked-coin illustration; Home
+  V2 uses the real `rafflelb-referral-points` ticket/"R" mark instead (no
+  coin asset exists anywhere in the codebase to reuse, and inventing one
+  would violate "use existing RaffleLB logo/points assets only").
+- **Verified Results stat count**: the preview shows 4 stat tiles (500+
+  results / 100% / 10,000+ customers / Licensed & Compliant); Home V2 shows
+  3 (1 real published-results count + 2 static, non-numeric trust
+  statements) — there's no safely-reusable, read-only source for a
+  "10,000+ happy customers" count on this store, and "Licensed & Compliant"
+  is a legal claim this plugin has no basis to assert.
+- **Hero product mix**: the bundled `hero-reference-scene.webp` art
+  (headphones/perfume/iPhone/watch/AirPods/cosmetics) is close to but not
+  pixel-identical to the preview's exact product mix (which also includes a
+  PS5 and a laptop) — it's the closest existing real asset, not a new
+  composite.
+- **Featured Products card count**: the preview's row shows 6 cards; the
+  0.1.3 bento layout shows 7 (1 lead + 6 rail) to fill the asymmetric grid
+  without empty cells — a deliberate compositional choice, not a data
+  change.
+
+Everything else (copy, section order, the six named categories, Selection
+wording, empty-state honesty) matches the preview as closely as the real
+data allows.
+
 ## Changelog
+
+### 0.1.3 — presentation-layer redesign (premium ecommerce art direction)
+0.1.2 matched the preview's *content* closely but still read as a repeated
+bordered-card grid — too many identical panels, admin-UI density, not
+enough depth or hierarchy. 0.1.3 rewrites the presentation layer only
+(`class-rlhv2-render.php` markup + `assets/css/rafflelb-homepage-v2.css`);
+**`class-rlhv2-data.php` was not touched at all** (verified with
+`git diff` — zero changes), so every data source, pricing rule, and
+integration guard from 0.1.2 is identical.
+
+Per section:
+- **Featured Products** — was 6 identical cards; now a bento layout: one
+  tall lead product (spans the full row height) beside a 3-row×2-col rail
+  of supporting products. `RLHV2_Data::featured_products()` is now called
+  with `limit=7` (1 lead + 6 rail) instead of 6 — the only call-site change
+  anywhere, same method, same fields.
+- **Shop by Category** — was 6 equal tiles; now 2 large campaign-banner
+  tiles (first two categories returned) + 4 smaller tiles below, image-led
+  with bottom gradient overlay, matching a "campaign banner" feel rather
+  than a directory listing.
+- **RaffleLB Points** — rebuilt as a hero-scale promo: large gradient
+  background with layered radial glow, big headline, step icons as glowing
+  circles (no bordered boxes), large glowing ticket-mark art on the right.
+- **Featured Selections** — was a uniform row; now one large lead tile
+  (bigger image, bigger type, prominent CTA) plus 3 compact supporting
+  tiles below it.
+- **How Selections Work** — the 3 steps no longer sit in bordered boxes;
+  they're numbered glowing circles connected by a soft gradient line
+  (hidden below 700px, where the flow reads top-to-bottom instead).
+- **Verified Results empty state** — replaced the bordered rectangle with
+  a centered icon in a soft glow ring + headline + subtext.
+- **Customer Reviews empty state** — replaced the bordered rectangle with
+  a two-column glassy panel (headline + CTA button) instead of a large
+  empty box.
+- Typography scale increased throughout (section headings now
+  clamp(28px–44px), was 21–27px; body copy 14–16px, was 12–13px); every
+  heading now emphasizes exactly one lime keyword, never a whole phrase.
+- Section backgrounds carry per-section radial-glow treatments instead of
+  a flat alternating tint, and hairline borders (`rgba(255,255,255,.09)`)
+  replace the previous solid-green card borders almost everywhere, so the
+  page reads as layered surfaces rather than a stack of bordered rectangles.
+
+Verified again with the same local Playwright-against-real-templates
+harness as 0.1.2, at all six required widths — see "Remaining differences
+from the preview" below for what I found and didn't fix.
 
 ### 0.1.2 — visual recreation of the approved Home V2 preview
 This pass rebuilt composition, spacing, and density to match a

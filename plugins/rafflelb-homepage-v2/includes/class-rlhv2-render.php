@@ -2,10 +2,14 @@
 /**
  * Markup for the Home V2 shortcode.
  *
- * Structure and density are a deliberate recreation of the client-approved
- * Home V2 preview image (composition, spacing, card density, icon
- * treatment, CTA sizing) rather than an original layout — see the plugin
- * README for the section-by-section mapping back to real data sources.
+ * This is the presentation layer only — every dynamic value comes from
+ * RLHV2_Data, unchanged from prior versions. What changed in 0.1.3 is the
+ * composition: away from a repeated bordered-card grid toward an editorial,
+ * image-led layout (a lead tile in Featured Products, 2-large+4-small
+ * banners in Categories, a borderless connected flow in How Selections
+ * Work, a hero-scale promo in Points) closer to the approved Home V2
+ * preview's art direction. See the plugin README for the full rationale
+ * and the data source behind each section.
  *
  * All classes are prefixed rl-hv2- to stay isolated from the live
  * homepage's CSS (rlfp318/rlsc316/rlp270/etc.) and from theme/page-builder
@@ -87,6 +91,7 @@ final class RLHV2_Render {
             'result'  => '<path d="M12 2 20 6v5c0 5.2-3.4 8.9-8 10-4.6-1.1-8-4.8-8-10V6l8-4Z"/><path d="m9 12 2 2 4-4"/>',
             'chat'    => '<path d="M4 5h16v11H8l-4 4V5Z"/>',
             'arrow'   => '<path d="M5 12h13"/><path d="m13 6 6 6-6 6"/>',
+            'quote'   => '<path d="M7 8c-2 1-3 3-3 5.5 0 2 1.3 3.5 3 3.5s3-1.3 3-3.2c0-1.6-1-2.8-2.4-3.1.2-1 1-2 2.4-2.7L9 6C8.3 6.4 7.6 6.9 7 8Z"/><path d="M16 8c-2 1-3 3-3 5.5 0 2 1.3 3.5 3 3.5s3-1.3 3-3.2c0-1.6-1-2.8-2.4-3.1.2-1 1-2 2.4-2.7L18 6c-.7.4-1.4.9-2 2Z"/>',
         ];
         if (!isset($icons[$name])) {
             return '';
@@ -94,6 +99,8 @@ final class RLHV2_Render {
         return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' . $icons[$name] . '</svg>';
     }
 
+    /* ---------------------------------------------------------------- */
+    /* 1. Hero — cinematic, glow-anchored                                */
     /* ---------------------------------------------------------------- */
 
     private static function hero() {
@@ -110,27 +117,29 @@ final class RLHV2_Render {
         ob_start();
         ?>
         <section class="rl-hv2-hero" aria-labelledby="rl-hv2-hero-title">
+            <div class="rl-hv2-hero-mesh" aria-hidden="true"></div>
             <div class="rl-hv2-hero-inner">
                 <div class="rl-hv2-hero-copy">
                     <p class="rl-hv2-eyebrow">Authentic products. Real rewards.</p>
-                    <h1 id="rl-hv2-hero-title">SHOP. EARN.<br><span>GET REWARDED.</span></h1>
+                    <h1 id="rl-hv2-hero-title">SHOP. EARN.<br>GET <span>REWARDED.</span></h1>
                     <p class="rl-hv2-hero-sub">Discover premium products at great prices, earn RaffleLB Points with every purchase, and explore exclusive Selections for a chance to win incredible prizes.</p>
                     <div class="rl-hv2-hero-cta">
                         <a class="rl-hv2-btn rl-hv2-btn-primary" href="<?php echo esc_url($shop_url); ?>"><?php echo self::icon('bag'); ?> Shop Products <span aria-hidden="true">&rarr;</span></a>
                         <a class="rl-hv2-btn rl-hv2-btn-secondary" href="#rl-hv2-selections"><?php echo self::icon('trophy'); ?> Explore Selections <span aria-hidden="true">&rarr;</span></a>
                     </div>
                     <ul class="rl-hv2-hero-benefits">
-                        <?php foreach ($benefits as $benefit): ?>
+                        <?php foreach ($benefits as $i => $benefit): ?>
+                            <?php if ($i > 0): ?><li class="rl-hv2-hero-benefit-sep" aria-hidden="true"></li><?php endif; ?>
                             <li><?php echo self::icon($benefit['icon']); ?><span><?php echo esc_html($benefit['label']); ?></span></li>
                         <?php endforeach; ?>
                     </ul>
                 </div>
                 <div class="rl-hv2-hero-media" aria-hidden="true">
+                    <div class="rl-hv2-hero-glow"></div>
                     <?php if ($scene_url): ?>
                         <img class="rl-hv2-hero-scene" src="<?php echo esc_url($scene_url); ?>" alt="" loading="eager">
                         <span class="rl-hv2-hero-tagline">Premium Products<br>Bigger Possibilities</span>
                     <?php elseif ($items): ?>
-                        <div class="rl-hv2-hero-glow"></div>
                         <div class="rl-hv2-hero-grid rl-hv2-hero-grid-<?php echo (int) count($items); ?>">
                             <?php foreach ($items as $i => $item): ?>
                                 <div class="rl-hv2-hero-item rl-hv2-hero-item-<?php echo (int) ($i + 1); ?>">
@@ -139,7 +148,6 @@ final class RLHV2_Render {
                             <?php endforeach; ?>
                         </div>
                     <?php else: ?>
-                        <div class="rl-hv2-hero-glow"></div>
                         <div class="rl-hv2-hero-placeholder"><span><?php echo self::icon('bag'); ?></span></div>
                     <?php endif; ?>
                 </div>
@@ -148,6 +156,10 @@ final class RLHV2_Render {
         <?php
         return ob_get_clean();
     }
+
+    /* ---------------------------------------------------------------- */
+    /* 2. Trust strip — one seamless bar, no boxed icons                 */
+    /* ---------------------------------------------------------------- */
 
     private static function trust_strip() {
         $items = [
@@ -160,6 +172,7 @@ final class RLHV2_Render {
         ob_start();
         ?>
         <section class="rl-hv2-trust" aria-label="Why shop with RaffleLB">
+            <div class="rl-hv2-trust-glow" aria-hidden="true"></div>
             <div class="rl-hv2-trust-inner">
                 <?php foreach ($items as $item): ?>
                     <div class="rl-hv2-trust-item">
@@ -176,14 +189,55 @@ final class RLHV2_Render {
         return ob_get_clean();
     }
 
+    /* ---------------------------------------------------------------- */
+    /* 3. Featured products — lead tile + supporting rail                */
+    /* ---------------------------------------------------------------- */
+
+    private static function product_card($product, $lead = false) {
+        ob_start();
+        ?>
+        <article class="rl-hv2-product-card<?php echo $lead ? ' rl-hv2-product-card--lead' : ''; ?>">
+            <a class="rl-hv2-product-media" href="<?php echo esc_url($product['url']); ?>" aria-label="<?php echo esc_attr($product['title']); ?>">
+                <?php if ($product['image_id']): ?>
+                    <?php echo wp_get_attachment_image($product['image_id'], 'woocommerce_thumbnail', false, [
+                        'class'   => 'rl-hv2-product-img',
+                        'loading' => 'lazy',
+                        'alt'     => $product['title'],
+                    ]); ?>
+                <?php else: ?>
+                    <div class="rl-hv2-product-noimg">PRODUCT</div>
+                <?php endif; ?>
+                <?php if ($lead): ?><span class="rl-hv2-product-lead-tag">Featured</span><?php endif; ?>
+            </a>
+            <div class="rl-hv2-product-body">
+                <h3><a href="<?php echo esc_url($product['url']); ?>"><?php echo esc_html($product['title']); ?></a></h3>
+                <div class="rl-hv2-product-price"><?php echo esc_html(self::money($product['price'])); ?></div>
+                <a class="rl-hv2-buy-now" href="<?php echo esc_url($product['url']); ?>">
+                    <?php echo self::icon('bag'); ?> Buy Now
+                </a>
+                <?php /* Slot always renders so Buy Now aligns at the same row
+                         across every card, whether or not this product also
+                         has a Selection. */ ?>
+                <span class="rl-hv2-selection-slot">
+                    <?php if ($product['has_selection']): ?>
+                        <a class="rl-hv2-selection-link" href="<?php echo esc_url($product['selection_url']); ?>"><?php echo self::icon('ticket'); ?> Selection available</a>
+                    <?php endif; ?>
+                </span>
+            </div>
+        </article>
+        <?php
+        return ob_get_clean();
+    }
+
     private static function featured_products() {
-        $products = RLHV2_Data::featured_products(6);
+        // 1 lead + 6 supporting fills the bento grid below exactly.
+        $products = RLHV2_Data::featured_products(7);
         ob_start();
         ?>
         <section class="rl-hv2-products" aria-labelledby="rl-hv2-products-title">
             <div class="rl-hv2-section-head">
                 <div>
-                    <h2 id="rl-hv2-products-title">FEATURED <span>PRODUCTS</span></h2>
+                    <h2 id="rl-hv2-products-title">Featured <span>Products</span></h2>
                     <p>Top products at great prices. Shop now and earn RaffleLB Points.</p>
                 </div>
                 <a class="rl-hv2-view-all" href="<?php echo esc_url(RLHV2_Data::shop_url()); ?>">View All Products <span aria-hidden="true">&rarr;</span></a>
@@ -193,40 +247,35 @@ final class RLHV2_Render {
                 <div class="rl-hv2-empty">No products are available right now.</div>
             <?php else: ?>
                 <div class="rl-hv2-products-grid">
-                    <?php foreach ($products as $product): ?>
-                        <article class="rl-hv2-product-card">
-                            <a class="rl-hv2-product-media" href="<?php echo esc_url($product['url']); ?>" aria-label="<?php echo esc_attr($product['title']); ?>">
-                                <?php if ($product['image_id']): ?>
-                                    <?php echo wp_get_attachment_image($product['image_id'], 'woocommerce_thumbnail', false, [
-                                        'class'   => 'rl-hv2-product-img',
-                                        'loading' => 'lazy',
-                                        'alt'     => $product['title'],
-                                    ]); ?>
-                                <?php else: ?>
-                                    <div class="rl-hv2-product-noimg">PRODUCT</div>
-                                <?php endif; ?>
-                            </a>
-                            <div class="rl-hv2-product-body">
-                                <h3><a href="<?php echo esc_url($product['url']); ?>"><?php echo esc_html($product['title']); ?></a></h3>
-                                <div class="rl-hv2-product-price"><?php echo esc_html(self::money($product['price'])); ?></div>
-                                <a class="rl-hv2-buy-now" href="<?php echo esc_url($product['url']); ?>">
-                                    <?php echo self::icon('bag'); ?> Buy Now
-                                </a>
-                                <?php /* Slot always renders so Buy Now aligns at the same
-                                         row across every card, whether or not this product
-                                         also has a Selection (a real ecommerce-grid detail,
-                                         not decoration). */ ?>
-                                <span class="rl-hv2-selection-slot">
-                                    <?php if ($product['has_selection']): ?>
-                                        <a class="rl-hv2-selection-link" href="<?php echo esc_url($product['selection_url']); ?>"><?php echo self::icon('ticket'); ?> Selection available</a>
-                                    <?php endif; ?>
-                                </span>
-                            </div>
-                        </article>
+                    <?php foreach ($products as $i => $product): ?>
+                        <?php echo self::product_card($product, $i === 0); ?>
                     <?php endforeach; ?>
                 </div>
             <?php endif; ?>
         </section>
+        <?php
+        return ob_get_clean();
+    }
+
+    /* ---------------------------------------------------------------- */
+    /* 4. Shop by category — campaign banners, 2 large + 4 small          */
+    /* ---------------------------------------------------------------- */
+
+    private static function category_card($category, $large = false) {
+        ob_start();
+        ?>
+        <a class="rl-hv2-category-card<?php echo $large ? ' rl-hv2-category-card--large' : ''; ?>" href="<?php echo esc_url($category['url']); ?>">
+            <?php if ($category['image']): ?>
+                <img class="rl-hv2-category-img" src="<?php echo esc_url($category['image']); ?>" alt="<?php echo esc_attr($category['name']); ?>" loading="lazy">
+            <?php else: ?>
+                <div class="rl-hv2-category-noimg" aria-hidden="true"><?php echo self::icon('bag'); ?></div>
+            <?php endif; ?>
+            <span class="rl-hv2-category-shade"></span>
+            <span class="rl-hv2-category-content">
+                <span class="rl-hv2-category-name"><?php echo esc_html($category['name']); ?></span>
+                <span class="rl-hv2-category-shop">Shop now <span aria-hidden="true">&rarr;</span></span>
+            </span>
+        </a>
         <?php
         return ob_get_clean();
     }
@@ -241,31 +290,24 @@ final class RLHV2_Render {
         <section class="rl-hv2-categories" aria-labelledby="rl-hv2-categories-title">
             <div class="rl-hv2-section-head">
                 <div>
-                    <h2 id="rl-hv2-categories-title">SHOP BY <span>CATEGORY</span></h2>
+                    <h2 id="rl-hv2-categories-title">Shop by <span>Category</span></h2>
                     <p>Explore our wide range of products.</p>
                 </div>
                 <a class="rl-hv2-view-all" href="<?php echo esc_url(RLHV2_Data::shop_url()); ?>">View All Categories <span aria-hidden="true">&rarr;</span></a>
             </div>
             <div class="rl-hv2-categories-grid">
-                <?php foreach ($categories as $category): ?>
-                    <a class="rl-hv2-category-card" href="<?php echo esc_url($category['url']); ?>">
-                        <?php if ($category['image']): ?>
-                            <img class="rl-hv2-category-img" src="<?php echo esc_url($category['image']); ?>" alt="<?php echo esc_attr($category['name']); ?>" loading="lazy">
-                        <?php else: ?>
-                            <div class="rl-hv2-category-noimg" aria-hidden="true"><?php echo self::icon('bag'); ?></div>
-                        <?php endif; ?>
-                        <span class="rl-hv2-category-shade"></span>
-                        <span class="rl-hv2-category-content">
-                            <span class="rl-hv2-category-name"><?php echo esc_html($category['name']); ?></span>
-                            <span class="rl-hv2-category-shop">Shop now <span aria-hidden="true">&rarr;</span></span>
-                        </span>
-                    </a>
+                <?php foreach ($categories as $i => $category): ?>
+                    <?php echo self::category_card($category, $i < 2); ?>
                 <?php endforeach; ?>
             </div>
         </section>
         <?php
         return ob_get_clean();
     }
+
+    /* ---------------------------------------------------------------- */
+    /* 5. RaffleLB Points — hero-scale promo banner                      */
+    /* ---------------------------------------------------------------- */
 
     private static function points_section() {
         $points_html = RLHV2_Data::points_header_html();
@@ -280,6 +322,7 @@ final class RLHV2_Render {
         ob_start();
         ?>
         <section class="rl-hv2-points" aria-labelledby="rl-hv2-points-title">
+            <div class="rl-hv2-points-glow" aria-hidden="true"></div>
             <div class="rl-hv2-points-inner">
                 <div class="rl-hv2-points-copy">
                     <p class="rl-hv2-eyebrow"><?php echo self::icon('coins'); ?> RaffleLB Points</p>
@@ -290,9 +333,8 @@ final class RLHV2_Render {
                     <?php endif; ?>
                     <a class="rl-hv2-btn rl-hv2-btn-primary" href="<?php echo esc_url($account_url); ?>">Learn More <span aria-hidden="true">&rarr;</span></a>
                 </div>
-                <div class="rl-hv2-points-steps">
-                    <?php foreach ($steps as $i => $step): ?>
-                        <?php if ($i > 0): ?><span class="rl-hv2-points-arrow" aria-hidden="true"><?php echo self::icon('arrow'); ?></span><?php endif; ?>
+                <div class="rl-hv2-points-flow">
+                    <?php foreach ($steps as $step): ?>
                         <div class="rl-hv2-points-step">
                             <span class="rl-hv2-points-step-icon"><?php echo self::icon($step['icon']); ?></span>
                             <strong><?php echo esc_html($step['label']); ?></strong>
@@ -301,6 +343,7 @@ final class RLHV2_Render {
                     <?php endforeach; ?>
                 </div>
                 <div class="rl-hv2-points-art" aria-hidden="true">
+                    <div class="rl-hv2-points-art-ring"></div>
                     <?php if ($icon_url): ?>
                         <img src="<?php echo esc_url($icon_url); ?>" alt="">
                     <?php endif; ?>
@@ -312,54 +355,89 @@ final class RLHV2_Render {
         return ob_get_clean();
     }
 
+    /* ---------------------------------------------------------------- */
+    /* 6. Featured selections — one large tile + 3 compact                */
+    /* ---------------------------------------------------------------- */
+
+    private static function selection_progress($selection) {
+        ob_start();
+        ?>
+        <span class="rl-hv2-selection-progress">
+            <span class="rl-hv2-selection-progress-track"><span style="width:<?php echo esc_attr(min(100, max(0, $selection['percent_filled']))); ?>%"></span></span>
+        </span>
+        <?php if ($selection['total'] > 0): ?>
+            <span class="rl-hv2-selection-meta"><?php echo esc_html($selection['claimed']); ?> claimed &middot; <?php echo esc_html($selection['remaining']); ?> left</span>
+        <?php endif;
+        return ob_get_clean();
+    }
+
     private static function featured_selections() {
         $selections = RLHV2_Data::featured_selections(4);
+        $lead = $selections ? array_shift($selections) : null;
         ob_start();
         ?>
         <section class="rl-hv2-selections" id="rl-hv2-selections" aria-labelledby="rl-hv2-selections-title">
             <div class="rl-hv2-section-head">
                 <div>
-                    <h2 id="rl-hv2-selections-title">FEATURED <span>SELECTIONS</span></h2>
+                    <h2 id="rl-hv2-selections-title">Featured <span>Selections</span></h2>
                     <p>Exclusive Selections with amazing prizes.</p>
                 </div>
                 <a class="rl-hv2-view-all" href="<?php echo esc_url(RLHV2_Data::shop_url()); ?>">View All Selections <span aria-hidden="true">&rarr;</span></a>
             </div>
 
-            <?php if (!$selections): ?>
+            <?php if (!$lead): ?>
                 <div class="rl-hv2-empty">
                     <span class="rl-hv2-empty-icon"><?php echo self::icon('ticket'); ?></span>
                     <strong>No Selections are open right now</strong>
                     <span>Check back soon &mdash; new Selections are added regularly.</span>
                 </div>
             <?php else: ?>
-                <div class="rl-hv2-selections-grid">
-                    <?php foreach ($selections as $selection): ?>
-                        <a class="rl-hv2-selection-card" href="<?php echo esc_url($selection['selection_url']); ?>">
-                            <span class="rl-hv2-selection-media">
-                                <?php if ($selection['image']): ?>
-                                    <img src="<?php echo esc_url($selection['image']); ?>" alt="<?php echo esc_attr($selection['name']); ?>" loading="lazy">
-                                <?php else: ?>
-                                    <span class="rl-hv2-product-noimg">SELECTION</span>
-                                <?php endif; ?>
-                            </span>
-                            <span class="rl-hv2-selection-body">
-                                <span class="rl-hv2-selection-name"><?php echo esc_html($selection['name']); ?></span>
-                                <span class="rl-hv2-selection-price"><?php echo esc_html(self::money($selection['entry_price'])); ?> <em>/ entry</em></span>
-                                <span class="rl-hv2-selection-progress">
-                                    <span class="rl-hv2-selection-progress-track"><span style="width:<?php echo esc_attr(min(100, max(0, $selection['percent_filled']))); ?>%"></span></span>
+                <a class="rl-hv2-selection-lead" href="<?php echo esc_url($lead['selection_url']); ?>">
+                    <span class="rl-hv2-selection-lead-media">
+                        <?php if ($lead['image']): ?>
+                            <img src="<?php echo esc_url($lead['image']); ?>" alt="<?php echo esc_attr($lead['name']); ?>" loading="lazy">
+                        <?php else: ?>
+                            <span class="rl-hv2-product-noimg">SELECTION</span>
+                        <?php endif; ?>
+                    </span>
+                    <span class="rl-hv2-selection-lead-body">
+                        <span class="rl-hv2-selection-lead-tag"><?php echo self::icon('ticket'); ?> Featured Selection</span>
+                        <span class="rl-hv2-selection-lead-name"><?php echo esc_html($lead['name']); ?></span>
+                        <span class="rl-hv2-selection-price"><?php echo esc_html(self::money($lead['entry_price'])); ?> <em>/ entry</em></span>
+                        <?php echo self::selection_progress($lead); ?>
+                        <span class="rl-hv2-btn rl-hv2-btn-primary rl-hv2-selection-lead-cta">View Selection <span aria-hidden="true">&rarr;</span></span>
+                    </span>
+                </a>
+
+                <?php if ($selections): ?>
+                    <div class="rl-hv2-selections-grid">
+                        <?php foreach ($selections as $selection): ?>
+                            <a class="rl-hv2-selection-card" href="<?php echo esc_url($selection['selection_url']); ?>">
+                                <span class="rl-hv2-selection-media">
+                                    <?php if ($selection['image']): ?>
+                                        <img src="<?php echo esc_url($selection['image']); ?>" alt="<?php echo esc_attr($selection['name']); ?>" loading="lazy">
+                                    <?php else: ?>
+                                        <span class="rl-hv2-product-noimg">SELECTION</span>
+                                    <?php endif; ?>
                                 </span>
-                                <?php if ($selection['total'] > 0): ?>
-                                    <span class="rl-hv2-selection-meta"><?php echo esc_html($selection['claimed']); ?> claimed &middot; <?php echo esc_html($selection['remaining']); ?> left</span>
-                                <?php endif; ?>
-                            </span>
-                        </a>
-                    <?php endforeach; ?>
-                </div>
+                                <span class="rl-hv2-selection-body">
+                                    <span class="rl-hv2-selection-name"><?php echo esc_html($selection['name']); ?></span>
+                                    <span class="rl-hv2-selection-price"><?php echo esc_html(self::money($selection['entry_price'])); ?> <em>/ entry</em></span>
+                                    <?php echo self::selection_progress($selection); ?>
+                                </span>
+                            </a>
+                        <?php endforeach; ?>
+                    </div>
+                <?php endif; ?>
             <?php endif; ?>
         </section>
         <?php
         return ob_get_clean();
     }
+
+    /* ---------------------------------------------------------------- */
+    /* 7. How selections work — borderless connected flow                */
+    /* ---------------------------------------------------------------- */
 
     private static function how_it_works() {
         $steps = [
@@ -372,21 +450,21 @@ final class RLHV2_Render {
         <section class="rl-hv2-how" aria-labelledby="rl-hv2-how-title">
             <div class="rl-hv2-section-head">
                 <div>
-                    <h2 id="rl-hv2-how-title">HOW SELECTIONS <span>WORK</span></h2>
+                    <h2 id="rl-hv2-how-title">How Selections <span>Work</span></h2>
                     <p>A simple and transparent process.</p>
                 </div>
                 <a class="rl-hv2-view-all" href="<?php echo esc_url(RLHV2_Data::shop_url()); ?>">Learn More <span aria-hidden="true">&rarr;</span></a>
             </div>
             <div class="rl-hv2-how-steps">
-                <?php foreach ($steps as $i => $step): ?>
-                    <?php if ($i > 0): ?><span class="rl-hv2-how-arrow" aria-hidden="true"><?php echo self::icon('arrow'); ?></span><?php endif; ?>
+                <span class="rl-hv2-how-line" aria-hidden="true"></span>
+                <?php foreach ($steps as $step): ?>
                     <div class="rl-hv2-how-step">
-                        <span class="rl-hv2-how-num"><?php echo esc_html($step['num']); ?></span>
-                        <span class="rl-hv2-how-icon"><?php echo self::icon($step['icon']); ?></span>
-                        <span class="rl-hv2-how-copy">
-                            <strong><?php echo esc_html($step['label']); ?></strong>
-                            <span><?php echo esc_html($step['sub']); ?></span>
+                        <span class="rl-hv2-how-circle">
+                            <?php echo self::icon($step['icon']); ?>
+                            <em><?php echo esc_html($step['num']); ?></em>
                         </span>
+                        <strong><?php echo esc_html($step['label']); ?></strong>
+                        <span><?php echo esc_html($step['sub']); ?></span>
                     </div>
                 <?php endforeach; ?>
             </div>
@@ -394,6 +472,10 @@ final class RLHV2_Render {
         <?php
         return ob_get_clean();
     }
+
+    /* ---------------------------------------------------------------- */
+    /* 8. Verified results                                                */
+    /* ---------------------------------------------------------------- */
 
     private static function verified_results() {
         $results = RLHV2_Data::verified_results(6);
@@ -404,7 +486,7 @@ final class RLHV2_Render {
         <section class="rl-hv2-results" aria-labelledby="rl-hv2-results-title">
             <div class="rl-hv2-section-head">
                 <div>
-                    <h2 id="rl-hv2-results-title">VERIFIED <span>RESULTS</span></h2>
+                    <h2 id="rl-hv2-results-title">Verified <span>Results</span></h2>
                     <p>Transparent. Fair. Always published.</p>
                 </div>
                 <a class="rl-hv2-view-all" href="<?php echo esc_url(home_url('/selection-engine/')); ?>">View Recent Results <span aria-hidden="true">&rarr;</span></a>
@@ -426,10 +508,10 @@ final class RLHV2_Render {
             <?php endif; ?>
 
             <?php if (!$results): ?>
-                <div class="rl-hv2-empty">
-                    <span class="rl-hv2-empty-icon"><?php echo self::icon('result'); ?></span>
+                <div class="rl-hv2-results-empty">
+                    <span class="rl-hv2-results-empty-ring"><?php echo self::icon('shield'); ?></span>
                     <strong>No verified results yet</strong>
-                    <span>Once the first Selection completes, its result will be published here.</span>
+                    <span>Once the first Selection completes, its result will be published here — recorded and verifiable, every time.</span>
                 </div>
             <?php else: ?>
                 <div class="rl-hv2-results-grid">
@@ -452,6 +534,10 @@ final class RLHV2_Render {
         return ob_get_clean();
     }
 
+    /* ---------------------------------------------------------------- */
+    /* 9. Customer reviews                                                */
+    /* ---------------------------------------------------------------- */
+
     private static function customer_reviews() {
         $reviews = RLHV2_Data::customer_reviews(3);
         ob_start();
@@ -459,34 +545,37 @@ final class RLHV2_Render {
         <section class="rl-hv2-reviews" aria-labelledby="rl-hv2-reviews-title">
             <div class="rl-hv2-section-head">
                 <div>
-                    <h2 id="rl-hv2-reviews-title">CUSTOMER <span>REVIEWS</span></h2>
+                    <h2 id="rl-hv2-reviews-title">Customer <span>Reviews</span></h2>
                     <p>Real customers. Real experiences.</p>
                 </div>
             </div>
 
             <?php if (!$reviews): ?>
-                <div class="rl-hv2-empty">
-                    <span class="rl-hv2-empty-icon"><?php echo self::icon('chat'); ?></span>
-                    <strong>Be the first to share your experience</strong>
-                    <span>No customer reviews have been published yet.</span>
-                    <a class="rl-hv2-btn rl-hv2-btn-secondary" href="<?php echo esc_url(RLHV2_Data::share_review_url()); ?>">Share Your Experience</a>
+                <div class="rl-hv2-reviews-cta">
+                    <div class="rl-hv2-reviews-cta-copy">
+                        <span class="rl-hv2-reviews-cta-quote" aria-hidden="true"><?php echo self::icon('quote'); ?></span>
+                        <strong>Be the first to share your experience.</strong>
+                        <span>No customer reviews have been published yet — yours could be the one that helps the next shopper decide.</span>
+                    </div>
+                    <a class="rl-hv2-btn rl-hv2-btn-primary" href="<?php echo esc_url(RLHV2_Data::share_review_url()); ?>">Share Your Experience <span aria-hidden="true">&rarr;</span></a>
                 </div>
             <?php else: ?>
                 <div class="rl-hv2-reviews-grid">
                     <?php foreach ($reviews as $review): ?>
                         <article class="rl-hv2-review-card">
-                            <div class="rl-hv2-review-top">
-                                <span class="rl-hv2-review-avatar"><?php echo esc_html(self::initials($review['author'])); ?></span>
-                                <div class="rl-hv2-review-stars" aria-label="<?php echo esc_attr($review['rating']); ?> out of 5 stars">
-                                    <?php echo str_repeat('&#9733;', $review['rating']) . str_repeat('&#9734;', 5 - $review['rating']); ?>
-                                </div>
+                            <span class="rl-hv2-review-quote" aria-hidden="true"><?php echo self::icon('quote'); ?></span>
+                            <div class="rl-hv2-review-stars" aria-label="<?php echo esc_attr($review['rating']); ?> out of 5 stars">
+                                <?php echo str_repeat('&#9733;', $review['rating']) . str_repeat('&#9734;', 5 - $review['rating']); ?>
                             </div>
                             <p>&ldquo;<?php echo esc_html($review['text']); ?>&rdquo;</p>
                             <div class="rl-hv2-review-author">
-                                <?php echo esc_html($review['author']); ?>
-                                <?php if ($review['verified']): ?>
-                                    <span class="rl-hv2-review-verified"><?php echo self::icon('check'); ?> Verified Customer</span>
-                                <?php endif; ?>
+                                <span class="rl-hv2-review-avatar"><?php echo esc_html(self::initials($review['author'])); ?></span>
+                                <span>
+                                    <?php echo esc_html($review['author']); ?>
+                                    <?php if ($review['verified']): ?>
+                                        <em class="rl-hv2-review-verified"><?php echo self::icon('check'); ?> Verified Customer</em>
+                                    <?php endif; ?>
+                                </span>
                             </div>
                         </article>
                     <?php endforeach; ?>
