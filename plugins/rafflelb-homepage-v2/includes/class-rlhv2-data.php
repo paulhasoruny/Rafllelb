@@ -69,7 +69,60 @@ final class RLHV2_Data {
             ];
         }
 
+        // No curator has tagged any product "homepage-hero" yet: fall back to
+        // the same Featured Products data already being queried, so the hero
+        // still shows real, existing product photography instead of nothing.
+        if (!$items) {
+            foreach (self::featured_products($limit) as $product) {
+                if (!$product['image_id']) {
+                    continue;
+                }
+                $image = wp_get_attachment_image_url($product['image_id'], 'large');
+                if (!$image) {
+                    continue;
+                }
+                $items[] = [
+                    'title' => $product['title'],
+                    'url'   => $product['url'],
+                    'image' => $image,
+                ];
+                if (count($items) >= $limit) {
+                    break;
+                }
+            }
+        }
+
         return $items;
+    }
+
+    /**
+     * The real retail/store price for a product, matching what the live
+     * storefront and the live homepage's own Featured Products section
+     * display. WooCommerce's own $product->get_price() is NOT safe to use
+     * directly here: for a product that also has an active Selection, the
+     * WooCommerce price field holds the *raffle entry price* (it's what
+     * Draw Engine uses as the cart line-item price for an entry), while the
+     * real direct-purchase price lives in a separate "buy now" price meta
+     * exposed by Draw Engine's public bridge. For a plain product with no
+     * Selection at all, $product->get_price() is genuinely the retail price
+     * (nothing overrides it), so that remains the fallback.
+     */
+    public static function retail_price($product) {
+        if (!$product) {
+            return 0.0;
+        }
+
+        if (class_exists('RaffleLB_Draw_Engine') && method_exists('RaffleLB_Draw_Engine', 'homepage_draw_id') && method_exists('RaffleLB_Draw_Engine', 'homepage_buy_now_price')) {
+            $draw_id = RaffleLB_Draw_Engine::homepage_draw_id($product);
+            if ($draw_id) {
+                $buy_now_price = (float) RaffleLB_Draw_Engine::homepage_buy_now_price($product);
+                if ($buy_now_price > 0) {
+                    return $buy_now_price;
+                }
+            }
+        }
+
+        return (float) $product->get_price();
     }
 
     /**
@@ -117,7 +170,7 @@ final class RLHV2_Data {
                 continue;
             }
 
-            $price = (float) $product->get_price();
+            $price = self::retail_price($product);
             if ($price <= 0) {
                 continue;
             }
@@ -188,13 +241,18 @@ final class RLHV2_Data {
             return [];
         }
 
+        // Top-level categories only (parent = 0), in the site's configured
+        // display order — matches how the live homepage's own category grid
+        // sources its categories, so Home V2 shows the same curated
+        // top-level set (e.g. Perfumes, Electronics) instead of leaf
+        // subcategories such as "Men's Perfumes" that rarely have their own
+        // thumbnail configured.
         $terms = get_terms([
             'taxonomy'   => 'product_cat',
             'hide_empty' => true,
-            'number'     => max(1, absint($limit)),
-            'exclude'    => [],
-            'orderby'    => 'count',
-            'order'      => 'DESC',
+            'parent'     => 0,
+            'orderby'    => 'menu_order',
+            'order'      => 'ASC',
         ]);
 
         if (is_wp_error($terms) || !$terms) {
@@ -210,7 +268,7 @@ final class RLHV2_Data {
             $categories[] = [
                 'name'  => html_entity_decode($term->name, ENT_QUOTES, get_bloginfo('charset')),
                 'url'   => get_term_link($term),
-                'image' => $thumb_id ? wp_get_attachment_image_url($thumb_id, 'medium') : '',
+                'image' => $thumb_id ? wp_get_attachment_image_url($thumb_id, 'large') : '',
                 'count' => (int) $term->count,
             ];
             if (count($categories) >= $limit) {
@@ -241,6 +299,9 @@ final class RLHV2_Data {
             $product = self::woocommerce_available() ? wc_get_product((int) $card['product_id']) : false;
             $entry_price = $product ? (float) $product->get_price() : 0.0;
 
+            $claimed = (int) ($card['eligible_entries'] ?? 0);
+            $total   = (int) ($card['total_allocation'] ?? 0);
+
             $selections[] = [
                 'name'            => (string) ($card['name'] ?? ''),
                 'image'           => (string) ($card['image'] ?? ''),
@@ -248,8 +309,9 @@ final class RLHV2_Data {
                 'selection_url'   => (string) ($card['selection_url'] ?? ''),
                 'entry_price'     => $entry_price,
                 'percent_filled'  => (int) ($card['percent_filled'] ?? 0),
-                'claimed'         => (int) ($card['eligible_entries'] ?? 0),
-                'total'           => (int) ($card['total_allocation'] ?? 0),
+                'claimed'         => $claimed,
+                'total'           => $total,
+                'remaining'       => max(0, $total - $claimed),
             ];
         }
 
@@ -324,5 +386,15 @@ final class RLHV2_Data {
 
     public static function shop_url() {
         return function_exists('wc_get_page_permalink') ? wc_get_page_permalink('shop') : home_url('/shop/');
+    }
+
+    /**
+     * Anchor link into the existing customer review system rendered by
+     * Draw Engine's [rafflelb_community_sections] (id="community-reviews"),
+     * which already includes the live review submission form. Home V2 does
+     * not rebuild that form — it only links to the existing one.
+     */
+    public static function share_review_url() {
+        return home_url('/#community-reviews');
     }
 }
