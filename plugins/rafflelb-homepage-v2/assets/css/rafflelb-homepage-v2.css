@@ -65,20 +65,24 @@
     font-size: clamp(26px, 2.6vw, 38px) !important;
     font-weight: 800 !important;
     line-height: 1.1 !important;
-    letter-spacing: -0.015em !important;
+    letter-spacing: -0.01em !important;
     color: var(--rl-hv2-ink) !important;
+    text-transform: uppercase;
 }
 .rl-hv2-section-head h2 span { color: var(--rl-hv2-lime) !important; }
-.rl-hv2-section-head p { margin: 0 !important; color: var(--rl-hv2-mist) !important; font-size: 15px !important; line-height: 1.55 !important; max-width: 520px; font-weight: 400 !important; }
+.rl-hv2-section-head p { margin: 0 !important; color: var(--rl-hv2-mist) !important; font-size: 15px !important; line-height: 1.55 !important; max-width: 520px; font-weight: 400 !important; text-transform: none; }
 
+/* Bordered button, matching the reference's "View All X →" / "Learn More →"
+   pill treatment — not a bare underlined link. */
 .rl-hv2-view-all {
     display: inline-flex; align-items: center; gap: 8px; flex: none;
-    min-height: 42px; padding: 0 4px;
-    color: var(--rl-hv2-ink) !important; font-size: 13px !important; font-weight: 700 !important;
-    white-space: nowrap; border-bottom: 1px solid var(--rl-hv2-hair-lime);
+    min-height: 42px; padding: 0 18px; border: 1px solid rgba(255,255,255,.22); border-radius: 8px;
+    color: var(--rl-hv2-ink) !important; font-size: 12.5px !important; font-weight: 700 !important;
+    white-space: nowrap; background: rgba(255,255,255,.02);
+    transition: border-color .15s ease, background .15s ease;
 }
 .rl-hv2-view-all span { color: var(--rl-hv2-lime) !important; }
-.rl-hv2-view-all:hover { border-color: var(--rl-hv2-lime); }
+.rl-hv2-view-all:hover { border-color: var(--rl-hv2-lime); background: rgba(186,255,0,.06); }
 
 .rl-hv2-empty {
     position: relative; z-index: 1;
@@ -96,7 +100,7 @@
 .rl-hv2-btn svg { width: 16px; height: 16px; }
 .rl-hv2-btn-primary { background: var(--rl-hv2-lime) !important; color: #071000 !important; box-shadow: 0 10px 26px -8px rgba(186,255,0,.55); }
 .rl-hv2-btn-primary:hover { background: var(--rl-hv2-lime-hover) !important; transform: translateY(-1px); }
-.rl-hv2-btn-secondary { background: rgba(255,255,255,.03) !important; border-color: var(--rl-hv2-hair); color: var(--rl-hv2-ink) !important; backdrop-filter: blur(6px); }
+.rl-hv2-btn-secondary { background: rgba(255,255,255,.03) !important; border-color: rgba(255,255,255,.28); color: var(--rl-hv2-ink) !important; backdrop-filter: blur(6px); }
 .rl-hv2-btn-secondary:hover { border-color: var(--rl-hv2-lime); transform: translateY(-1px); }
 
 /* ================================================================== */
@@ -117,7 +121,8 @@
 }
 .rl-hv2-eyebrow {
     display: inline-flex; align-items: center; gap: 6px; margin: 0 0 10px !important;
-    color: var(--rl-hv2-mist) !important; font-size: 12px !important; font-weight: 700 !important; letter-spacing: 0.03em;
+    color: var(--rl-hv2-mist) !important; font-size: 12px !important; font-weight: 700 !important; letter-spacing: 0.04em;
+    text-transform: uppercase;
 }
 .rl-hv2-eyebrow svg { width: 14px; height: 14px; color: var(--rl-hv2-lime); }
 .rl-hv2-hero h1 {

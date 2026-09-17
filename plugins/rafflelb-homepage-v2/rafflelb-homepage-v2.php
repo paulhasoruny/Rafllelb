@@ -2,7 +2,7 @@
 /**
  * Plugin Name: RaffleLB Homepage V2
  * Description: Isolated, standalone alternate homepage for RaffleLB via the [rafflelb_homepage_v2] shortcode. Reads existing RaffleLB/WooCommerce data read-only; does not modify the live homepage or any other plugin.
- * Version: 0.1.5
+ * Version: 0.1.6
  * Author: RaffleLB
  * Requires PHP: 7.4
  * Text Domain: rafflelb-homepage-v2
@@ -12,7 +12,7 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-define('RLHV2_VERSION', '0.1.5');
+define('RLHV2_VERSION', '0.1.6');
 define('RLHV2_FILE', __FILE__);
 define('RLHV2_DIR', plugin_dir_path(__FILE__));
 define('RLHV2_URL', plugin_dir_url(__FILE__));

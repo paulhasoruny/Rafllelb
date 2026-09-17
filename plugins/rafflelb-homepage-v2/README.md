@@ -108,6 +108,31 @@ closely as the real data allows.
 
 ## Changelog
 
+### 0.1.6 — typography/button fidelity pass
+A closer, more rigorous re-comparison against the reference screenshot
+(re-measuring rendered output rather than eyeballing it) turned up four
+remaining fidelity gaps, all CSS-only — no markup, no data-layer change
+(`class-rlhv2-data.php` — zero diff, verified with `git diff`):
+
+- **Section headings weren't uppercase.** The reference shows "FEATURED
+  PRODUCTS", "SHOP BY CATEGORY", "HOW SELECTIONS WORK", etc. in caps;
+  `.rl-hv2-section-head h2` had no `text-transform`, so it rendered in the
+  PHP source's Title Case. Added `text-transform: uppercase` (the
+  subtitle paragraph directly below explicitly keeps `text-transform:
+  none`, since the reference's one-line descriptions stay sentence case).
+- **Hero/Points eyebrows weren't uppercase.** Same issue for "Authentic
+  products. Real rewards." and "RaffleLB Points" — added
+  `text-transform: uppercase` to `.rl-hv2-eyebrow`.
+- **"View All X →" / "Learn More →" were bare underlined text**, not the
+  bordered pill buttons the reference clearly shows next to every section
+  heading. `.rl-hv2-view-all` now has a visible border, background, and
+  proper padding, matching the same button language as the rest of the
+  page.
+- **The secondary button border was nearly invisible** (`rgba(255,255,
+  255,.09)`, the same token used for hairline dividers) against the dark
+  background — the reference's "Explore Selections" button has a clearly
+  visible outline. Strengthened to `rgba(255,255,255,.28)`.
+
 ### 0.1.5 — match reference density (compact the whole page)
 0.1.4 matched the blueprint's *grid shape* (6/6/4 uniform cards) but ran
 far taller than the reference screenshot — roughly 5140px tall at 1920px
