@@ -99,20 +99,61 @@ assets/css/rafflelb-homepage-v2.css   Isolated stylesheet (dark background, whit
   pixel-identical to the preview's exact product mix (which also includes a
   PS5 and a laptop) — it's the closest existing real asset, not a new
   composite.
-- **Featured Selections card orientation**: horizontal (image left, content
-  right) on mobile/tablet for compactness, switching to vertical
-  (image on top) at the 4-across desktop row so all four read as one
-  consistent card language with Products/Categories — the blueprint didn't
-  specify an orientation, only "same height... compact," which both
-  layouts satisfy.
-
 Everything else — card counts (6 Products / 6 Categories / 4 Selections,
-all uniform, no lead/bento tiles), copy, section order, the six named
-categories, Selection wording, single-banner Points, borderless
-How-Selections-Work flow, and empty-state honesty — matches the blueprint
-and the preview as closely as the real data allows.
+all uniform, no lead/bento tiles), horizontal Selection cards at every
+width, copy, section order, the six named categories, Selection wording,
+single-banner Points, borderless How-Selections-Work flow, overall page
+density, and empty-state honesty — matches the reference screenshot as
+closely as the real data allows.
 
 ## Changelog
+
+### 0.1.5 — match reference density (compact the whole page)
+0.1.4 matched the blueprint's *grid shape* (6/6/4 uniform cards) but ran
+far taller than the reference screenshot — roughly 5140px tall at 1920px
+width, against a reference whose proportions imply roughly 3700-4000px.
+0.1.5 is a pure density pass: no section was added, removed, or
+restructured; every change is a spacing/sizing reduction. As with prior
+versions, **`class-rlhv2-data.php` was not touched** (verified with
+`git diff` — zero changes).
+
+Two real bugs found by comparing against the reference and re-measuring
+the rendered page (not just eyeballing it):
+
+- **Featured Selections cards were vertical at desktop** (image on top,
+  full width) via a `≥960px` override — the reference shows compact
+  *horizontal* cards (image left, content right) throughout. Removed that
+  override; selection cards now stay horizontal at every width, which
+  alone cut a large chunk of that section's height.
+- **The hero image had no upper size limit**, so at wide viewports it
+  scaled up to fill an increasingly wide grid column, inflating hero
+  height well past the reference's proportions. Added `max-width: 520px`
+  on `.rl-hv2-hero-media` so the hero art stays a fixed, compact size
+  regardless of viewport width.
+
+Everything else is a straightforward reduction, applied consistently:
+
+- New spacing token `--rl-hv2-space` dropped from 64px to 44px (every
+  section's vertical padding); section-head bottom margin 32px → 22px.
+- Hero: padding 56/40px → 36/28px; H1 max size 78px → 54px; sub-copy,
+  CTA row, and benefits row gaps all tightened.
+- Trust strip padding 26px → 18px.
+- Featured Products: image band 190px → 155px, card body padding 16px →
+  13px, grid gap 16px → 12px.
+- Shop by Category: aspect-ratio 0.95 (tall) → 1.05 (flatter/shorter),
+  content padding 18px → 14px, grid gap 16px → 12px.
+- RaffleLB Points: banner padding 72px → 40px, headline max size 58px →
+  42px, step-icon circles 54px → 44px, internal gaps tightened throughout.
+- How Selections Work: step gap 36px → 22px, numbered circle 58px → 50px.
+- Verified Results / Reviews: stat-row and card margins/padding tightened;
+  empty-state padding reduced so honest empty states stay compact, not a
+  large empty block.
+
+Net result, measured directly from the rendered output (not estimated):
+1920px-wide render dropped from 5141px tall to 3735px tall (-27%), with
+hero + trust strip + the start of Featured Products now visible together
+in the first ~740px, without a structural rewrite — same sections, same
+order, same card counts, just correctly sized.
 
 ### 0.1.4 — revert to a uniform-grid layout blueprint
 0.1.3's bento/asymmetric composition (lead tiles in Products/Selections,
