@@ -1,6 +1,6 @@
 # RaffleLB Store Hub
 
-Version 0.1.17
+Version 0.1.18
 
 A separate, uninstall-safe premium Store Hub preview for RaffleLB. It does not replace the existing WooCommerce Shop or RaffleLB Homepage.
 
@@ -28,6 +28,17 @@ with shortcode:
 Category, brand and budget links continue into the existing WooCommerce Shop/catalog and reuse RaffleLB's current query/filter conventions.
 
 ## Changelog
+
+## 0.1.18
+- Replaced the right-side product stage with a single dedicated generic cinematic SVG background asset (near-black/green environment, atmospheric depth, abstract terrain silhouettes with lime rim-light, a broad soft halo, an illuminated podium with floor glow, and a vignette) instead of building the scene from stacked CSS gradients. The stage has no product, logo or text baked in — it works underneath any raffle product photo (PS5, perfumes, watches, AirPods, vouchers, etc.).
+- Removed the old decorative `.rlsh-raffle-feature-geo/-floor/-glow/-reflection/-platform` spans from the slide markup; the visual stage is now the SVG background plus the plain product `<img>`, still `object-fit:contain` throughout.
+- Found and fixed the real reason product photos with an opaque background still showed an "obvious black square": the stage's halo/podium were positioned directly behind the product image's footprint and were fully hidden by it. Enlarged and repositioned the halo (now above-center) and podium (now at the product's base) so they read clearly around the product, and added a soft dark "well" gradient so the stage tone matches a photo's own dark background right behind it — no `mix-blend-mode:screen` used anywhere.
+- Added a CSS `mask-image` (radial-gradient) on the product image so its own rectangular edges feather into the stage instead of presenting a hard-edged box; this is a display-only CSS mask, not server-side cropping — the underlying image and its data are untouched.
+- Restored stronger left-side visual hierarchy per feedback: larger title, a more prominent entry-price block, substantial (not dashboard-like) claimed/left/total/filled stat chips, a thicker premium progress bar, and larger, more balanced CTA buttons.
+- Reworked the mobile/tablet stacked layout: increased the stage height at the ≤900px and ≤600px breakpoints so the taller redesigned copy column (badges, title, price, 2×2 stats, progress, stacked CTAs) no longer overflows and clips the buttons; verified against measured content height, not just visual spot-checks.
+- Carousel controls unchanged in behavior: small circular prev/next arrows at the stage edges, thin lime/muted-gray dot indicators near the bottom-right (top-center on the stacked mobile/tablet layout).
+- Consolidated all Live-Raffles CSS from 0.1.17 into one clean, replaced ruleset; no other Store Hub selector (search, categories, brands, budget, Almost Filled, footer) was touched — verified against a full diff.
+- Verified: long product titles still clamp to 2 lines with an ellipsis; a raffle with no `$total` or no Selection Status link still lays out correctly with that element omitted; no raffle logic, queries, data sources, URLs, entry/progress calculations, carousel data, or Store Hub section order changed.
 
 ## 0.1.17
 - Rebuilt the right-side product stage with genuine layered depth instead of a flat gradient + ring + image: a near-black base, an atmospheric radial wash, a subtle abstract two-panel gradient, a broad luminous lime halo ring positioned partially behind the product, a dark floor plane, an illuminated podium with soft floor reflection, rim-light on the product edge via a tight colored drop-shadow, and a corner vignette. Verified against a real cropped product photo (not a synthetic placeholder) that dark/black-background photos blend into the stage without a visible box.
