@@ -1,6 +1,6 @@
 # RaffleLB Store Hub
 
-Version 0.1.16
+Version 0.1.17
 
 A separate, uninstall-safe premium Store Hub preview for RaffleLB. It does not replace the existing WooCommerce Shop or RaffleLB Homepage.
 
@@ -28,6 +28,13 @@ with shortcode:
 Category, brand and budget links continue into the existing WooCommerce Shop/catalog and reuse RaffleLB's current query/filter conventions.
 
 ## Changelog
+
+## 0.1.17
+- Rebuilt the right-side product stage with genuine layered depth instead of a flat gradient + ring + image: a near-black base, an atmospheric radial wash, a subtle abstract two-panel gradient, a broad luminous lime halo ring positioned partially behind the product, a dark floor plane, an illuminated podium with soft floor reflection, rim-light on the product edge via a tight colored drop-shadow, and a corner vignette. Verified against a real cropped product photo (not a synthetic placeholder) that dark/black-background photos blend into the stage without a visible box.
+- Found and fixed a real CSS bug from 0.1.16 while building this: an unsized `radial-gradient(circle, ...)` defaults to `farthest-corner`, not the half-width most people expect, which combined with a mismatched vignette radius was silently crushing the halo's brightness — both are now explicit (`circle closest-side`) and sized so they don't fight each other.
+- Recombined the entry-price block and the four claimed/left/total/filled stats into one row of compact icon chips (matching the approved reference) instead of 0.1.16's plain inline text row.
+- Added small icons to both CTA buttons (ticket for Enter Raffle, bars for View Selection Status) for a more premium campaign-CTA feel; button labels, hrefs and Selection Status logic are unchanged.
+- No raffle logic, queries, data sources, URLs, entry/progress calculations, carousel data/order, or Store Hub section order changed.
 
 ## 0.1.16
 - Rebuilt Live Raffles as a compact luxury campaign banner (~470px desktop height, true 48/52 split) instead of the 0.1.15 dashboard-card layout: a single standalone entry-price block, one horizontal "claimed • left • total • filled" info row with small icons in place of four stat cards, a thinner 9px progress bar, and two side-by-side CTAs sized to content instead of stretched full width.
