@@ -46,6 +46,7 @@ All fourteen plugins are present in this repository.
 | `rafflelb-premium-mobile-menu` | RaffleLB Premium Mobile Menu | 1.1.7 |
 | `rafflelb-cart-manager` | RaffleLB Cart Manager | 0.1.2 |
 | `rafflelb-admin` | RaffleLB Admin | 1.0.7 |
+| `rafflelb-store-hub` | RaffleLB Store Hub | 0.1.15 |
 
 ---
 
@@ -217,3 +218,19 @@ Owns the RaffleLB WordPress admin visual layer and admin UX. No transactional
 raffle logic here.
 
 Known baseline: **1.0.7**
+
+---
+
+## RaffleLB Store Hub
+
+A separate, uninstall-safe premium Store Hub preview page (`/store-preview/`,
+shortcode `[rafflelb_store_hub]`) and brand directory (`/brands-preview/`).
+Does not replace the existing Shop or Homepage. Owns: Search, Live Raffles,
+Shop by Category, Shop by Brand, Shop by Budget, and Almost Filled presentation
+on that preview page only.
+
+Consumes raffle information from Draw Engine (`RaffleLB_Draw_Engine::homepage_stats`,
+`homepage_draw_id`, `homepage_get_draw_result`) exactly like Shop and Homepage
+do. **Must not own raffle transaction logic.**
+
+Known baseline: **0.1.15**
