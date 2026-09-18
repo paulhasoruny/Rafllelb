@@ -1,6 +1,6 @@
 # RaffleLB Store Hub
 
-Version 0.1.15
+Version 0.1.16
 
 A separate, uninstall-safe premium Store Hub preview for RaffleLB. It does not replace the existing WooCommerce Shop or RaffleLB Homepage.
 
@@ -28,6 +28,14 @@ with shortcode:
 Category, brand and budget links continue into the existing WooCommerce Shop/catalog and reuse RaffleLB's current query/filter conventions.
 
 ## Changelog
+
+## 0.1.16
+- Rebuilt Live Raffles as a compact luxury campaign banner (~470px desktop height, true 48/52 split) instead of the 0.1.15 dashboard-card layout: a single standalone entry-price block, one horizontal "claimed • left • total • filled" info row with small icons in place of four stat cards, a thinner 9px progress bar, and two side-by-side CTAs sized to content instead of stretched full width.
+- Redesigned the right-side product stage: a broader restrained lime halo, a subtle abstract two-panel gradient for depth, a thin elliptical platform ring with floor reflection under the product, and a corner vignette. Removed `mix-blend-mode:screen` (it could wash out dark/black product photos); dark-background photos now rely on stage tone-matching and the vignette instead. No PHP image processing, no cropping — `object-fit:contain` throughout.
+- Consolidated three stacked layers of Live-Raffles CSS overrides (base + 0.1.13 refinement + 0.1.14 + 0.1.15) into one clean, scoped ruleset; removed every superseded/dead Live-Raffles rule. No non-raffle selector (search, categories, brands, budget, Almost Filled) was touched — verified against a full diff.
+- Product titles are now hard-clamped to 2 lines with an ellipsis so unusually long names can't break the layout.
+- No raffle logic, queries, data sources, URLs, entry/progress calculations, or Selection Status behavior changed.
+- Added a dedicated mobile layout: stage first, badges, title, entry price, a wrapping info row, progress, then full-width stacked CTAs.
 
 ## 0.1.15
 - Visual-only rebuild of the Live Raffles banner into a true 50/50 split: refined stat cards with icons, a standalone entry-price row, a thicker premium progress bar, and better-proportioned CTAs. No raffle logic, queries, data sources, URLs, entry/progress calculations, Selection Status behavior, or section order changed.
